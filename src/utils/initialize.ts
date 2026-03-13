@@ -5,7 +5,38 @@ import { isSpicyLyricsOpen, onSpicyLyricsOpen, onSpicyLyricsClose, createThemeBu
 import { startUpdateChecker, checkForUpdates, getUpdateInfo, VERSION, showPostUpdateChangelog } from './updater';
 import { info, debug } from './debug';
 
+const INIT_STATE_KEY = '__spicyThemesInitState';
+
+type InitState = {
+    initializing: boolean;
+    initialized: boolean;
+};
+
+function getInitState(): InitState {
+    const globalWindow = window as typeof window & { [INIT_STATE_KEY]?: InitState };
+    if (!globalWindow[INIT_STATE_KEY]) {
+        globalWindow[INIT_STATE_KEY] = {
+            initializing: false,
+            initialized: false,
+        };
+    }
+    return globalWindow[INIT_STATE_KEY] as InitState;
+}
+
 export async function initialize(): Promise<void> {
+    const initState = getInitState();
+    if (initState.initialized) {
+        debug('Initialization skipped: already initialized');
+        return;
+    }
+    if (initState.initializing) {
+        debug('Initialization skipped: initialization already in progress');
+        return;
+    }
+
+    initState.initializing = true;
+
+    try {
     while (typeof Spicetify === 'undefined' || !Spicetify.Platform) {
         await new Promise(resolve => setTimeout(resolve, 100));
     }
@@ -85,5 +116,9 @@ export async function initialize(): Promise<void> {
         version: VERSION,
     };
 
+    initState.initialized = true;
     info('Initialized successfully!');
+    } finally {
+        initState.initializing = false;
+    }
 }

@@ -7,6 +7,8 @@ import { Icons } from './icons';
 
 const SETTINGS_ID = 'spicy-themes-settings';
 const MODAL_SETTINGS_ID = 'spicy-themes-modal-settings';
+const SETTINGS_WATCHER_FLAG = '__spicyThemesSettingsWatcherRegistered';
+const MENU_REGISTERED_FLAG = '__spicyThemesMenuRegistered';
 
 async function handleManualUpdateCheck(button: HTMLButtonElement, idleText: string): Promise<void> {
     button.disabled = true;
@@ -661,7 +663,17 @@ function injectSettingsIntoPage(): void {
         return;
     }
 
-    const existingSection = document.getElementById(SETTINGS_ID);
+    const existingSections = Array.from(document.querySelectorAll(`#${SETTINGS_ID}`)) as HTMLElement[];
+    const inContainerSections = existingSections.filter(section => settingsContainer.contains(section));
+    const existingSection = inContainerSections[0] || existingSections[0] || null;
+
+    // Keep only one settings section to avoid duplicate injection entries in Spotify settings.
+    for (const section of existingSections) {
+        if (section !== existingSection) {
+            section.remove();
+        }
+    }
+
     const alreadyInContainer = !!existingSection && settingsContainer.contains(existingSection);
     if (alreadyInContainer) return;
 
@@ -683,9 +695,9 @@ function injectSettingsIntoPage(): void {
         spicyLyricsSettings.after(settingsSection);
         debug('Settings injected after spicy-lyrics-settings');
     } else {
-        const allSections = settingsContainer.querySelectorAll('.x-settings-section');
-        if (allSections.length > 0) {
-            const lastSection = allSections[allSections.length - 1];
+        const pageSections = settingsContainer.querySelectorAll('.x-settings-section');
+        if (pageSections.length > 0) {
+            const lastSection = pageSections[pageSections.length - 1];
             const lastSectionParent = lastSection.closest('div:not(.x-settings-section):not(.x-settings-container)') || lastSection;
             lastSectionParent.after(settingsSection);
             debug('Settings injected after last settings section');
@@ -718,6 +730,12 @@ function isOnSettingsPage(): boolean {
 }
 
 function watchForSettingsPage(): void {
+    const globalWindow = window as typeof window & { [SETTINGS_WATCHER_FLAG]?: boolean };
+    if (globalWindow[SETTINGS_WATCHER_FLAG]) {
+        return;
+    }
+    globalWindow[SETTINGS_WATCHER_FLAG] = true;
+
     debug('Starting settings page watcher...');
 
     if (isOnSettingsPage()) {
@@ -1323,6 +1341,11 @@ export async function registerSettings(): Promise<void> {
     watchForSettingsPage();
 
     const registerMenuItem = () => {
+        const globalWindow = window as typeof window & { [MENU_REGISTERED_FLAG]?: boolean };
+        if (globalWindow[MENU_REGISTERED_FLAG]) {
+            return true;
+        }
+
         if ((Spicetify as any).Menu) {
             try {
                 new (Spicetify as any).Menu.Item(
@@ -1330,6 +1353,7 @@ export async function registerSettings(): Promise<void> {
                     false,
                     openSettingsModal
                 ).register();
+                globalWindow[MENU_REGISTERED_FLAG] = true;
                 debug('Menu item registered');
                 return true;
             } catch (e) {
