@@ -1,6 +1,9 @@
 (async function() {
     const API_HOST = "7xeh.dev";
     const EXTENSION_BASE_URL = "https://7xeh.dev/apps/spicythemes/releases";
+    const VERSION_API_URL = `https://${API_HOST}/apps/spicythemes/api/version.php`;
+    const GITHUB_REPO = '7xeh/SpicyThemes';
+    const GITHUB_LATEST_RELEASE_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
     const STORAGE_PREFIX = 'spicy-themes:';
     const DEBUG_MODE = localStorage.getItem(STORAGE_PREFIX + 'debug-mode') === 'true';
 
@@ -18,6 +21,9 @@
 
     const storageGet = (key) => localStorage.getItem(STORAGE_PREFIX + key);
     const storageSet = (key, val) => localStorage.setItem(STORAGE_PREFIX + key, val);
+    const appendCacheBust = (url) => `${url}${url.includes('?') ? '&' : '?'}_=${Date.now()}`;
+
+    const normalizeVersion = (value) => String(value || '').trim().replace(/^v/i, '');
 
     const computeSHA256 = async (text) => {
         try {
@@ -60,21 +66,84 @@
         });
     };
 
-    const getVersionInfo = async () => {
-        const response = await fetch(`https://${API_HOST}/apps/spicythemes/api/version.php?action=version&_=${Date.now()}`);
-        if (!response.ok) throw new Error('Failed to fetch version info');
+    const getVersionInfoFromPrimaryApi = async () => {
+        const response = await fetch(appendCacheBust(`${VERSION_API_URL}?action=version`));
+        if (!response.ok) throw new Error(`Primary API status ${response.status}`);
         const data = await response.json();
+        const version = normalizeVersion(data.version);
+        if (!version) throw new Error('Primary API did not return a valid version');
+
         return {
-            version: data.version,
-            hash: data.hash || data.sha256 || data.checksum || null
+            version,
+            hash: data.hash || data.sha256 || data.checksum || null,
+            downloadUrl: data.download_url || ''
         };
     };
 
-    const loadExtension = async (version) => {
-        const url = `${EXTENSION_BASE_URL}/versions/v${version}/spicy-themes.js?_=${Date.now()}`;
+    const getVersionInfoFromGitHub = async () => {
+        const response = await fetch(appendCacheBust(GITHUB_LATEST_RELEASE_API), {
+            headers: { 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (!response.ok) throw new Error(`GitHub API status ${response.status}`);
 
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed to load extension: ${response.status}`);
+        const release = await response.json();
+        const version = normalizeVersion(release.tag_name);
+        if (!version) throw new Error('GitHub API did not return a valid release tag');
+
+        const jsAsset = Array.isArray(release.assets)
+            ? release.assets.find(asset => typeof asset?.name === 'string' && asset.name.endsWith('.js'))
+            : null;
+        const hash = jsAsset?.digest ? String(jsAsset.digest).replace(/^sha256:/i, '') : null;
+
+        return {
+            version,
+            hash,
+            downloadUrl: jsAsset?.browser_download_url || ''
+        };
+    };
+
+    const getVersionInfo = async () => {
+        try {
+            return await getVersionInfoFromPrimaryApi();
+        } catch (primaryError) {
+            log.warn('Primary version API unavailable, falling back to GitHub:', primaryError);
+            return await getVersionInfoFromGitHub();
+        }
+    };
+
+    const loadExtension = async (version, preferredDownloadUrl = '') => {
+        const candidates = [
+            preferredDownloadUrl,
+            `${EXTENSION_BASE_URL}/versions/v${version}/spicy-themes.js`,
+            `${EXTENSION_BASE_URL}/latest/spicy-themes.js`,
+        ].filter(Boolean);
+
+        let response = null;
+        let resolvedUrl = '';
+        let lastFetchError = null;
+
+        for (const baseUrl of [...new Set(candidates)]) {
+            const url = appendCacheBust(baseUrl);
+            try {
+                const currentResponse = await fetch(url);
+                if (!currentResponse.ok) {
+                    throw new Error(`HTTP ${currentResponse.status}`);
+                }
+
+                response = currentResponse;
+                resolvedUrl = baseUrl;
+                break;
+            } catch (e) {
+                lastFetchError = e;
+                log.debug(`Failed loader source ${baseUrl}:`, e);
+            }
+        }
+
+        if (!response) {
+            throw new Error(`Failed to load extension from all sources: ${lastFetchError?.message || 'Unknown error'}`);
+        }
+
+        log.debug('Extension loaded from source:', resolvedUrl);
 
         const code = await response.text();
         const contentHash = await computeSHA256(code);
@@ -165,7 +234,8 @@
             lastFullCheckTime = now;
             log.debug(`Running full hotfix check for v${info.version}...`);
 
-            const url = `${EXTENSION_BASE_URL}/versions/v${info.version}/spicy-themes.js?_=${now}`;
+            const hotfixUrlBase = info.downloadUrl || `${EXTENSION_BASE_URL}/versions/v${info.version}/spicy-themes.js`;
+            const url = `${hotfixUrlBase}${hotfixUrlBase.includes('?') ? '&' : '?'}_=${now}`;
             const resp = await fetch(url);
             if (!resp.ok) {
                 scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
@@ -261,7 +331,7 @@
         for (let i = 0; i < retries; i++) {
             try {
                 const info = await getVersionInfo();
-                await loadExtension(info.version);
+                await loadExtension(info.version, info.downloadUrl || '');
                 startHotfixChecker();
                 return;
             } catch (err) {
