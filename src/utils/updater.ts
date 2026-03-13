@@ -21,7 +21,7 @@ const GITHUB_REPO = '7xeh/SpicyThemes';
 const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
-const UPDATE_API_URL = 'https://7xeh.dev/apps/SpicyThemes/api/version.php';
+const UPDATE_API_URL = 'https://7xeh.dev/apps/spicythemes/api/version.php';
 
 interface VersionInfo {
     major: number;

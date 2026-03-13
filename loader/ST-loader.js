@@ -1,6 +1,6 @@
 (async function() {
     const API_HOST = "7xeh.dev";
-    const EXTENSION_BASE_URL = "https://7xeh.dev/apps/SpicyThemes/releases";
+    const EXTENSION_BASE_URL = "https://7xeh.dev/apps/spicythemes/releases";
     const STORAGE_PREFIX = 'spicy-themes:';
     const DEBUG_MODE = localStorage.getItem(STORAGE_PREFIX + 'debug-mode') === 'true';
 
@@ -61,7 +61,7 @@
     };
 
     const getVersionInfo = async () => {
-        const response = await fetch(`https://${API_HOST}/apps/SpicyThemes/api/version.php?action=version&_=${Date.now()}`);
+        const response = await fetch(`https://${API_HOST}/apps/spicythemes/api/version.php?action=version&_=${Date.now()}`);
         if (!response.ok) throw new Error('Failed to fetch version info');
         const data = await response.json();
         return {
