@@ -8,6 +8,34 @@ import { Icons } from './icons';
 const SETTINGS_ID = 'spicy-themes-settings';
 const MODAL_SETTINGS_ID = 'spicy-themes-modal-settings';
 
+async function handleManualUpdateCheck(button: HTMLButtonElement, idleText: string): Promise<void> {
+    button.disabled = true;
+    button.textContent = 'Checking...';
+
+    try {
+        const info = await getUpdateInfo();
+        if (!info) {
+            throw new Error('Failed to fetch update metadata');
+        }
+
+        if (info.hasUpdate) {
+            if (Spicetify.showNotification) {
+                Spicetify.showNotification(`Update available: v${info.latestVersion}! Updating...`);
+            }
+            await checkForUpdates(true);
+        } else if (Spicetify.showNotification) {
+            Spicetify.showNotification('You\'re on the latest version!');
+        }
+    } catch (e) {
+        if (Spicetify.showNotification) {
+            Spicetify.showNotification('Failed to check for updates', true);
+        }
+    } finally {
+        button.disabled = false;
+        button.textContent = idleText;
+    }
+}
+
 function createColorRow(id: string, label: string, currentValue: string, onChange: (value: string) => void): HTMLElement {
     const row = document.createElement('div');
     row.className = 'x-settings-row';
@@ -525,33 +553,9 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         `Check for Updates (v${getCurrentVersion().text})`,
         'Check Now',
         async () => {
-            const btn = document.getElementById('st-settings.check-updates') as HTMLButtonElement;
-            if (btn) {
-                btn.disabled = true;
-                btn.textContent = 'Checking...';
-            }
-            try {
-                const info = await getUpdateInfo();
-                if (info?.hasUpdate) {
-                    if (Spicetify.showNotification) {
-                        Spicetify.showNotification(`Update available: v${info.latestVersion}! Updating...`);
-                    }
-                    await checkForUpdates(true);
-                } else {
-                    if (Spicetify.showNotification) {
-                        Spicetify.showNotification('You\'re on the latest version!');
-                    }
-                }
-            } catch (e) {
-                if (Spicetify.showNotification) {
-                    Spicetify.showNotification('Failed to check for updates', true);
-                }
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.textContent = 'Check Now';
-                }
-            }
+            const btn = document.getElementById('st-settings.check-updates') as HTMLButtonElement | null;
+            if (!btn) return;
+            await handleManualUpdateCheck(btn, 'Check Now');
         }
     ));
 
@@ -1276,11 +1280,25 @@ function createSettingsUI(): HTMLElement {
     ioRow.appendChild(importBtn);
     modalOptionsContainer.appendChild(ioRow);
 
-    const ghRow = document.createElement('div');
-    ghRow.className = 'st-m-row';
-    ghRow.style.cssText = 'flex-direction: row; align-items: center; gap: 8px; padding-top: 0; opacity: 0.6;';
-    ghRow.innerHTML = `<a href="https://github.com/7xeh/SpicyThemes" target="_blank" style="font-size: 14px; color: var(--spice-button);">GitHub</a>`;
-    modalOptionsContainer.appendChild(ghRow);
+    const footerRow = document.createElement('div');
+    footerRow.className = 'st-m-row';
+    footerRow.style.cssText = 'flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;';
+    footerRow.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; opacity: 0.7;">
+            <span style="font-size: 14px; color: var(--spice-subtext);">Version v${getCurrentVersion().text}</span>
+            <span style="color: var(--spice-subtext);">•</span>
+            <a href="https://github.com/7xeh/SpicyThemes" target="_blank" style="font-size: 14px; color: var(--spice-button);">GitHub</a>
+        </div>
+        <button class="st-m-button" id="st-m-check-updates" style="padding: 9px 18px; font-size: 13px; white-space: nowrap;">Check for Updates</button>
+    `;
+
+    const modalCheckUpdatesButton = footerRow.querySelector('#st-m-check-updates') as HTMLButtonElement | null;
+    modalCheckUpdatesButton?.addEventListener('click', async () => {
+        if (!modalCheckUpdatesButton) return;
+        await handleManualUpdateCheck(modalCheckUpdatesButton, 'Check for Updates');
+    });
+
+    modalOptionsContainer.appendChild(footerRow);
 
     container.appendChild(modalOptionsContainer);
 
