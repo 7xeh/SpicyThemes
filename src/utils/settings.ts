@@ -317,6 +317,13 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         (v) => updateThemeProperty('notSungLineColor', v)
     ));
 
+    optionsContainer.appendChild(createColorRow(
+        'st-settings.bg-line-color',
+        'Background Line Color',
+        themeState.activeTheme.bgLineColor.startsWith('rgba') ? '#ffffff' : themeState.activeTheme.bgLineColor,
+        (v) => updateThemeProperty('bgLineColor', v)
+    ));
+
     optionsContainer.appendChild(createSectionHeader('Opacity'));
 
     optionsContainer.appendChild(createSliderRow(
@@ -346,7 +353,118 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         (v) => updateThemeProperty('notSungLineOpacity', v)
     ));
 
-    optionsContainer.appendChild(createSectionHeader('Glow'));
+    optionsContainer.appendChild(createSectionHeader('Text'));
+
+    const fontPresetOptions = [
+        { value: '', text: 'Default (Spotify)' },
+        { value: 'Arial', text: 'Arial' },
+        { value: 'Helvetica Neue', text: 'Helvetica Neue' },
+        { value: 'Georgia', text: 'Georgia' },
+        { value: 'Verdana', text: 'Verdana' },
+        { value: 'Segoe UI', text: 'Segoe UI' },
+        { value: 'Trebuchet MS', text: 'Trebuchet MS' },
+        { value: 'Courier New', text: 'Courier New' },
+        { value: 'Consolas', text: 'Consolas' },
+        { value: 'Impact', text: 'Impact' },
+        { value: '__custom__', text: 'Custom...' },
+    ];
+    const isCustomFont = themeState.activeTheme.fontFamily !== '' && !fontPresetOptions.some(o => o.value === themeState.activeTheme.fontFamily);
+    const currentFontValue = isCustomFont ? '__custom__' : themeState.activeTheme.fontFamily;
+
+    const customFontRow = createTextInputRow(
+        'st-settings.font-family',
+        'Custom Font Name',
+        themeState.activeTheme.fontFamily,
+        'Enter font name',
+        (v) => updateThemeProperty('fontFamily', v)
+    );
+    customFontRow.style.display = currentFontValue === '__custom__' ? '' : 'none';
+
+    optionsContainer.appendChild(createDropdownRow(
+        'st-settings.font-type',
+        'Font Type',
+        fontPresetOptions,
+        currentFontValue,
+        (v) => {
+            if (v === '__custom__') {
+                customFontRow.style.display = '';
+            } else {
+                customFontRow.style.display = 'none';
+                updateThemeProperty('fontFamily', v);
+            }
+        }
+    ));
+
+    optionsContainer.appendChild(customFontRow);
+
+    optionsContainer.appendChild(createDropdownRow(
+        'st-settings.font-weight',
+        'Font Weight',
+        [
+            { value: '300', text: 'Light (300)' },
+            { value: '400', text: 'Regular (400)' },
+            { value: '500', text: 'Medium (500)' },
+            { value: '600', text: 'Semi-Bold (600)' },
+            { value: '700', text: 'Bold (700)' },
+            { value: '800', text: 'Extra-Bold (800)' },
+            { value: '900', text: 'Black (900)' },
+        ],
+        String(themeState.activeTheme.fontWeight),
+        (v) => updateThemeProperty('fontWeight', parseInt(v, 10))
+    ));
+
+    optionsContainer.appendChild(createSliderRow(
+        'st-settings.letter-spacing',
+        'Letter Spacing',
+        -0.1, 0.3, 0.01,
+        themeState.activeTheme.letterSpacing,
+        'em',
+        (v) => updateThemeProperty('letterSpacing', v)
+    ));
+
+    optionsContainer.appendChild(createSliderRow(
+        'st-settings.line-height',
+        'Line Height',
+        1.0, 2.5, 0.1,
+        themeState.activeTheme.lineHeight,
+        '',
+        (v) => updateThemeProperty('lineHeight', v)
+    ));
+
+    optionsContainer.appendChild(createSliderRow(
+        'st-settings.scale-active',
+        'Active Line Scale',
+        0.8, 1.5, 0.05,
+        themeState.activeTheme.scaleActive,
+        'x',
+        (v) => updateThemeProperty('scaleActive', v)
+    ));
+
+    optionsContainer.appendChild(createSectionHeader('Effects'));
+
+    const gradientSubContainer = document.createElement('div');
+    gradientSubContainer.style.display = themeState.activeTheme.gradientEnabled ? '' : 'none';
+
+    optionsContainer.appendChild(createToggleRow(
+        'st-settings.gradient-enabled',
+        'Enable Gradient Text',
+        themeState.activeTheme.gradientEnabled,
+        (v) => {
+            updateThemeProperty('gradientEnabled', v);
+            gradientSubContainer.style.display = v ? '' : 'none';
+        }
+    ));
+
+    gradientSubContainer.appendChild(createSliderRow(
+        'st-settings.gradient-angle',
+        'Gradient Angle',
+        0, 360, 5,
+        themeState.activeTheme.gradientAngle,
+        '°',
+        (v) => updateThemeProperty('gradientAngle', v)
+    ));
+
+    optionsContainer.appendChild(gradientSubContainer);
 
     const glowSubContainer = document.createElement('div');
     glowSubContainer.style.display = themeState.activeTheme.glowEnabled ? '' : 'none';
@@ -395,52 +513,6 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     optionsContainer.appendChild(glowSubContainer);
 
-    optionsContainer.appendChild(createSectionHeader('Font'));
-
-    optionsContainer.appendChild(createTextInputRow(
-        'st-settings.font-family',
-        'Font Family',
-        themeState.activeTheme.fontFamily,
-        'Leave empty for default',
-        (v) => updateThemeProperty('fontFamily', v)
-    ));
-
-    optionsContainer.appendChild(createDropdownRow(
-        'st-settings.font-weight',
-        'Font Weight',
-        [
-            { value: '300', text: 'Light (300)' },
-            { value: '400', text: 'Regular (400)' },
-            { value: '500', text: 'Medium (500)' },
-            { value: '600', text: 'Semi-Bold (600)' },
-            { value: '700', text: 'Bold (700)' },
-            { value: '800', text: 'Extra-Bold (800)' },
-            { value: '900', text: 'Black (900)' },
-        ],
-        String(themeState.activeTheme.fontWeight),
-        (v) => updateThemeProperty('fontWeight', parseInt(v, 10))
-    ));
-
-    optionsContainer.appendChild(createSliderRow(
-        'st-settings.font-size',
-        'Font Size Scale',
-        0.5, 2.0, 0.05,
-        themeState.activeTheme.fontSize,
-        'x',
-        (v) => updateThemeProperty('fontSize', v)
-    ));
-
-    optionsContainer.appendChild(createSliderRow(
-        'st-settings.letter-spacing',
-        'Letter Spacing',
-        -0.1, 0.3, 0.01,
-        themeState.activeTheme.letterSpacing,
-        'em',
-        (v) => updateThemeProperty('letterSpacing', v)
-    ));
-
-    optionsContainer.appendChild(createSectionHeader('Effects'));
-
     const blurAmountContainer = createSliderRow(
         'st-settings.blur-amount',
         'Blur Amount',
@@ -462,15 +534,6 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     ));
 
     optionsContainer.appendChild(blurAmountContainer);
-
-    optionsContainer.appendChild(createSliderRow(
-        'st-settings.scale-active',
-        'Active Line Scale',
-        0.8, 1.5, 0.05,
-        themeState.activeTheme.scaleActive,
-        'x',
-        (v) => updateThemeProperty('scaleActive', v)
-    ));
 
     optionsContainer.appendChild(createSliderRow(
         'st-settings.animation-speed',
@@ -516,14 +579,27 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     optionsContainer.appendChild(createSectionHeader('Translation Styling (SLT)'));
 
-    optionsContainer.appendChild(createColorRow(
+    const sltSubContainer = document.createElement('div');
+    sltSubContainer.style.display = themeState.activeTheme.sltStylingEnabled ? '' : 'none';
+
+    optionsContainer.appendChild(createToggleRow(
+        'st-settings.slt-styling-enabled',
+        'Enable Translation Styling',
+        themeState.activeTheme.sltStylingEnabled,
+        (v) => {
+            updateThemeProperty('sltStylingEnabled', v);
+            sltSubContainer.style.display = v ? '' : 'none';
+        }
+    ));
+
+    sltSubContainer.appendChild(createColorRow(
         'st-settings.slt-color',
         'Translation Text Color',
         themeState.activeTheme.sltTranslationColor,
         (v) => updateThemeProperty('sltTranslationColor', v)
     ));
 
-    optionsContainer.appendChild(createSliderRow(
+    sltSubContainer.appendChild(createSliderRow(
         'st-settings.slt-opacity',
         'Translation Opacity',
         0.1, 1.0, 0.05,
@@ -532,7 +608,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         (v) => updateThemeProperty('sltTranslationOpacity', v)
     ));
 
-    optionsContainer.appendChild(createSliderRow(
+    sltSubContainer.appendChild(createSliderRow(
         'st-settings.slt-font-size',
         'Translation Font Size Scale',
         0.5, 2.0, 0.05,
@@ -541,6 +617,8 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         (v) => updateThemeProperty('sltTranslationFontSize', v)
     ));
 
+    optionsContainer.appendChild(sltSubContainer);
+
     optionsContainer.appendChild(createSectionHeader('Miscellaneous'));
 
     optionsContainer.appendChild(createToggleRow(
@@ -548,6 +626,13 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         'Hide Lyrics Scrollbar',
         themeState.activeTheme.hideScrollbar,
         (v) => updateThemeProperty('hideScrollbar', v)
+    ));
+
+    optionsContainer.appendChild(createToggleRow(
+        'st-settings.rounded-corners',
+        'Rounded Corners',
+        themeState.activeTheme.roundedCorners,
+        (v) => updateThemeProperty('roundedCorners', v)
     ));
 
     optionsContainer.appendChild(createButtonRow(
@@ -1155,13 +1240,68 @@ function createSettingsUI(): HTMLElement {
     modalOptionsContainer.appendChild(color('Active Line Color', 'st-m-active-color', themeState.activeTheme.activeLineColor, (v) => updateThemeProperty('activeLineColor', v)));
     modalOptionsContainer.appendChild(color('Sung Line Color', 'st-m-sung-color', themeState.activeTheme.sungLineColor, (v) => updateThemeProperty('sungLineColor', v)));
     modalOptionsContainer.appendChild(color('Unsung Line Color', 'st-m-notsungline-color', themeState.activeTheme.notSungLineColor, (v) => updateThemeProperty('notSungLineColor', v)));
+    modalOptionsContainer.appendChild(color('Background Line Color', 'st-m-bg-line-color', themeState.activeTheme.bgLineColor.startsWith('rgba') ? '#ffffff' : themeState.activeTheme.bgLineColor, (v) => updateThemeProperty('bgLineColor', v)));
 
     modalOptionsContainer.appendChild(section('Opacity'));
     modalOptionsContainer.appendChild(slider('Active Line Opacity', 'st-m-active-opacity', 0.1, 1.0, 0.05, themeState.activeTheme.activeLineOpacity, '', (v) => updateThemeProperty('activeLineOpacity', v)));
     modalOptionsContainer.appendChild(slider('Sung Line Opacity', 'st-m-sung-opacity', 0.1, 1.0, 0.05, themeState.activeTheme.sungLineOpacity, '', (v) => updateThemeProperty('sungLineOpacity', v)));
     modalOptionsContainer.appendChild(slider('Unsung Line Opacity', 'st-m-notsungopacity', 0.1, 1.0, 0.05, themeState.activeTheme.notSungLineOpacity, '', (v) => updateThemeProperty('notSungLineOpacity', v)));
 
-    modalOptionsContainer.appendChild(section('Glow'));
+    modalOptionsContainer.appendChild(section('Text'));
+    const modalFontPresetOptions = [
+        { value: '', text: 'Default (Spotify)' },
+        { value: 'Arial', text: 'Arial' },
+        { value: 'Helvetica Neue', text: 'Helvetica Neue' },
+        { value: 'Georgia', text: 'Georgia' },
+        { value: 'Verdana', text: 'Verdana' },
+        { value: 'Segoe UI', text: 'Segoe UI' },
+        { value: 'Trebuchet MS', text: 'Trebuchet MS' },
+        { value: 'Courier New', text: 'Courier New' },
+        { value: 'Consolas', text: 'Consolas' },
+        { value: 'Impact', text: 'Impact' },
+        { value: '__custom__', text: 'Custom...' },
+    ];
+    const isModalCustomFont = themeState.activeTheme.fontFamily !== '' && !modalFontPresetOptions.some(o => o.value === themeState.activeTheme.fontFamily);
+    const currentModalFontValue = isModalCustomFont ? '__custom__' : themeState.activeTheme.fontFamily;
+
+    const modalCustomFontRow = textInput('Custom Font Name', 'st-m-font-family', themeState.activeTheme.fontFamily, 'Enter font name', (v) => updateThemeProperty('fontFamily', v));
+    modalCustomFontRow.style.display = currentModalFontValue === '__custom__' ? '' : 'none';
+
+    modalOptionsContainer.appendChild(dropdown('Font Type', 'st-m-font-type', modalFontPresetOptions, currentModalFontValue, (v) => {
+        if (v === '__custom__') {
+            modalCustomFontRow.style.display = '';
+        } else {
+            modalCustomFontRow.style.display = 'none';
+            updateThemeProperty('fontFamily', v);
+        }
+    }));
+    modalOptionsContainer.appendChild(modalCustomFontRow);
+
+    modalOptionsContainer.appendChild(dropdown('Font Weight', 'st-m-font-weight', [
+        { value: '300', text: 'Light (300)' },
+        { value: '400', text: 'Regular (400)' },
+        { value: '500', text: 'Medium (500)' },
+        { value: '600', text: 'Semi-Bold (600)' },
+        { value: '700', text: 'Bold (700)' },
+        { value: '800', text: 'Extra-Bold (800)' },
+        { value: '900', text: 'Black (900)' },
+    ], String(themeState.activeTheme.fontWeight), (v) => updateThemeProperty('fontWeight', parseInt(v, 10))));
+    modalOptionsContainer.appendChild(slider('Letter Spacing', 'st-m-letter-spacing', -0.1, 0.3, 0.01, themeState.activeTheme.letterSpacing, 'em', (v) => updateThemeProperty('letterSpacing', v)));
+    modalOptionsContainer.appendChild(slider('Line Height', 'st-m-line-height', 1.0, 2.5, 0.1, themeState.activeTheme.lineHeight, '', (v) => updateThemeProperty('lineHeight', v)));
+    modalOptionsContainer.appendChild(slider('Active Line Scale', 'st-m-scale-active', 0.8, 1.5, 0.05, themeState.activeTheme.scaleActive, 'x', (v) => updateThemeProperty('scaleActive', v)));
+
+    modalOptionsContainer.appendChild(section('Effects'));
+    const gradientSubSettings = document.createElement('div');
+    gradientSubSettings.style.display = themeState.activeTheme.gradientEnabled ? 'flex' : 'none';
+    gradientSubSettings.style.flexDirection = 'column';
+    gradientSubSettings.style.gap = '18px';
+    modalOptionsContainer.appendChild(toggle('Enable Gradient Text', 'st-m-gradient-enabled', themeState.activeTheme.gradientEnabled, (v) => {
+        updateThemeProperty('gradientEnabled', v);
+        gradientSubSettings.style.display = v ? 'flex' : 'none';
+    }));
+    gradientSubSettings.appendChild(slider('Gradient Angle', 'st-m-gradient-angle', 0, 360, 5, themeState.activeTheme.gradientAngle, '°', (v) => updateThemeProperty('gradientAngle', v)));
+    modalOptionsContainer.appendChild(gradientSubSettings);
+
     const glowSubSettings = document.createElement('div');
     glowSubSettings.style.display = themeState.activeTheme.glowEnabled ? 'flex' : 'none';
     glowSubSettings.style.flexDirection = 'column';
@@ -1176,21 +1316,6 @@ function createSettingsUI(): HTMLElement {
     glowSubSettings.appendChild(slider('Active Glow Intensity', 'st-m-active-glow-intensity', 0, 30, 1, themeState.activeTheme.activeGlowIntensity, 'px', (v) => updateThemeProperty('activeGlowIntensity', v)));
     modalOptionsContainer.appendChild(glowSubSettings);
 
-    modalOptionsContainer.appendChild(section('Font'));
-    modalOptionsContainer.appendChild(textInput('Font Family', 'st-m-font-family', themeState.activeTheme.fontFamily, 'Leave empty for default', (v) => updateThemeProperty('fontFamily', v)));
-    modalOptionsContainer.appendChild(dropdown('Font Weight', 'st-m-font-weight', [
-        { value: '300', text: 'Light (300)' },
-        { value: '400', text: 'Regular (400)' },
-        { value: '500', text: 'Medium (500)' },
-        { value: '600', text: 'Semi-Bold (600)' },
-        { value: '700', text: 'Bold (700)' },
-        { value: '800', text: 'Extra-Bold (800)' },
-        { value: '900', text: 'Black (900)' },
-    ], String(themeState.activeTheme.fontWeight), (v) => updateThemeProperty('fontWeight', parseInt(v, 10))));
-    modalOptionsContainer.appendChild(slider('Font Size Scale', 'st-m-font-size', 0.5, 2.0, 0.05, themeState.activeTheme.fontSize, 'x', (v) => updateThemeProperty('fontSize', v)));
-    modalOptionsContainer.appendChild(slider('Letter Spacing', 'st-m-letter-spacing', -0.1, 0.3, 0.01, themeState.activeTheme.letterSpacing, 'em', (v) => updateThemeProperty('letterSpacing', v)));
-
-    modalOptionsContainer.appendChild(section('Effects'));
     const blurAmountRow = slider('Blur Amount', 'st-m-blur-amount', 0, 8, 0.5, themeState.activeTheme.blurAmount, 'px', (v) => updateThemeProperty('blurAmount', v));
     blurAmountRow.style.display = themeState.activeTheme.blurUnsung ? '' : 'none';
     modalOptionsContainer.appendChild(toggle('Blur Unsung Lines', 'st-m-blur-unsung', themeState.activeTheme.blurUnsung, (v) => {
@@ -1198,7 +1323,6 @@ function createSettingsUI(): HTMLElement {
         blurAmountRow.style.display = v ? '' : 'none';
     }));
     modalOptionsContainer.appendChild(blurAmountRow);
-    modalOptionsContainer.appendChild(slider('Active Line Scale', 'st-m-scale-active', 0.8, 1.5, 0.05, themeState.activeTheme.scaleActive, 'x', (v) => updateThemeProperty('scaleActive', v)));
     modalOptionsContainer.appendChild(slider('Animation Speed', 'st-m-animation-speed', 0.3, 3.0, 0.1, themeState.activeTheme.animationSpeed, 'x', (v) => updateThemeProperty('animationSpeed', v)));
 
     modalOptionsContainer.appendChild(section('Background'));
@@ -1215,12 +1339,22 @@ function createSettingsUI(): HTMLElement {
     modalOptionsContainer.appendChild(bgSubSettings);
 
     modalOptionsContainer.appendChild(section('Translation Styling (SLT)'));
-    modalOptionsContainer.appendChild(color('Translation Text Color', 'st-m-slt-color', themeState.activeTheme.sltTranslationColor, (v) => updateThemeProperty('sltTranslationColor', v)));
-    modalOptionsContainer.appendChild(slider('Translation Opacity', 'st-m-slt-opacity', 0.1, 1.0, 0.05, themeState.activeTheme.sltTranslationOpacity, '', (v) => updateThemeProperty('sltTranslationOpacity', v)));
-    modalOptionsContainer.appendChild(slider('Translation Font Size Scale', 'st-m-slt-font-size', 0.5, 2.0, 0.05, themeState.activeTheme.sltTranslationFontSize, 'x', (v) => updateThemeProperty('sltTranslationFontSize', v)));
+    const sltModalSubSettings = document.createElement('div');
+    sltModalSubSettings.style.display = themeState.activeTheme.sltStylingEnabled ? 'flex' : 'none';
+    sltModalSubSettings.style.flexDirection = 'column';
+    sltModalSubSettings.style.gap = '18px';
+    modalOptionsContainer.appendChild(toggle('Enable Translation Styling', 'st-m-slt-styling-enabled', themeState.activeTheme.sltStylingEnabled, (v) => {
+        updateThemeProperty('sltStylingEnabled', v);
+        sltModalSubSettings.style.display = v ? 'flex' : 'none';
+    }));
+    sltModalSubSettings.appendChild(color('Translation Text Color', 'st-m-slt-color', themeState.activeTheme.sltTranslationColor, (v) => updateThemeProperty('sltTranslationColor', v)));
+    sltModalSubSettings.appendChild(slider('Translation Opacity', 'st-m-slt-opacity', 0.1, 1.0, 0.05, themeState.activeTheme.sltTranslationOpacity, '', (v) => updateThemeProperty('sltTranslationOpacity', v)));
+    sltModalSubSettings.appendChild(slider('Translation Font Size Scale', 'st-m-slt-font-size', 0.5, 2.0, 0.05, themeState.activeTheme.sltTranslationFontSize, 'x', (v) => updateThemeProperty('sltTranslationFontSize', v)));
+    modalOptionsContainer.appendChild(sltModalSubSettings);
 
     modalOptionsContainer.appendChild(section('Miscellaneous'));
     modalOptionsContainer.appendChild(toggle('Hide Lyrics Scrollbar', 'st-m-hide-scrollbar', themeState.activeTheme.hideScrollbar, (v) => updateThemeProperty('hideScrollbar', v)));
+    modalOptionsContainer.appendChild(toggle('Rounded Corners', 'st-m-rounded-corners', themeState.activeTheme.roundedCorners, (v) => updateThemeProperty('roundedCorners', v)));
 
     modalOptionsContainer.appendChild(btn('Reset to Default', 'st-m-reset', () => {
         applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Minimal') || BUILTIN_PRESETS[0]);

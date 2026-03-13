@@ -43,6 +43,10 @@ function gradientRule(r: number, g: number, b: number): string {
     -webkit-text-fill-color: transparent !important;`;
 }
 
+function colorRule(color: string): string {
+    return `color: ${color} !important;\n    -webkit-text-fill-color: ${color} !important;`;
+}
+
 function sel(bases: string[], suffix: string): string {
     return bases.map(b => suffix ? `${b} ${suffix}` : b).join(',\n');
 }
@@ -83,15 +87,14 @@ export function generateThemeCSS(config: ThemeConfig): string {
     ];
     const ALL = [...BASES, ...PIP];
 
-    const activeGrad = gradientRule(activeRgb.r, activeRgb.g, activeRgb.b);
-    const sungGrad = gradientRule(sungRgb.r, sungRgb.g, sungRgb.b);
-    const notSungGrad = gradientRule(notSungRgb.r, notSungRgb.g, notSungRgb.b);
-    const sltGrad = gradientRule(sltRgb.r, sltRgb.g, sltRgb.b);
+    const activeGrad = config.gradientEnabled ? gradientRule(activeRgb.r, activeRgb.g, activeRgb.b) : colorRule(config.activeLineColor);
+    const sungGrad = config.gradientEnabled ? gradientRule(sungRgb.r, sungRgb.g, sungRgb.b) : colorRule(config.sungLineColor);
+    const notSungGrad = config.gradientEnabled ? gradientRule(notSungRgb.r, notSungRgb.g, notSungRgb.b) : colorRule(config.notSungLineColor);
+    const sltGrad = config.gradientEnabled ? gradientRule(sltRgb.r, sltRgb.g, sltRgb.b) : colorRule(config.sltTranslationColor);
 
     const glowActive = config.glowEnabled && `text-shadow: 0 0 ${config.activeGlowIntensity}px ${config.activeGlowColor} !important;`;
     const glowNormal = config.glowEnabled && `text-shadow: 0 0 ${config.glowIntensity}px ${config.glowColor} !important;`;
     const glowSidebar = config.glowEnabled && `text-shadow: 0 0 ${Math.round(config.activeGlowIntensity * 0.7)}px ${config.activeGlowColor} !important;`;
-    const blurEffect = config.blurUnsung && `filter: blur(${config.blurAmount}px) !important;`;
     const scaleEffect = config.scaleActive !== 1.0 && `scale: ${config.scaleActive} !important;`;
 
     const sltFontOverrides = buildProps(
@@ -108,8 +111,7 @@ ${sel(ALL, '.line')} {
         `--Vocal-NotSung-opacity: ${config.notSungLineOpacity} !important;`,
         config.gradientEnabled && `--gradient-degrees: ${config.gradientAngle}deg !important;`,
         config.fontFamily && `font-family: ${config.fontFamily}, system-ui, sans-serif !important;`,
-        config.fontWeight !== 900 && `font-weight: ${config.fontWeight} !important;`,
-        config.fontSize !== 1.0 && `font-size: calc(var(--DefaultLyricsSize) * ${config.fontSize}) !important;`,
+        `font-weight: ${config.fontWeight} !important;`,
         config.letterSpacing !== 0 && `letter-spacing: ${config.letterSpacing}em !important;`,
         config.lineHeight !== 1.1818181818 && `--lyrics-line-height: ${config.lineHeight} !important;`,
     )}
@@ -124,17 +126,28 @@ ${lineSelectors(ALL, 'Active')} {
 
     css.push(`
 ${lineSelectors(ALL, 'Sung')} {
-    ${buildProps(sungGrad, glowNormal, blurEffect)}
+    ${buildProps(sungGrad, glowNormal)}
 }
 `);
 
     css.push(`
 ${lineSelectors(ALL, 'NotSung')} {
-    ${buildProps(notSungGrad, glowNormal, blurEffect)}
+    ${buildProps(notSungGrad, glowNormal)}
 }
 `);
 
-    css.push(`
+    if (config.blurUnsung) {
+        const blurTargets = ALL.flatMap(b => [`${b} .line.Sung`, `${b} .line.NotSung`]).join(',\n');
+        css.push(`
+${blurTargets} {
+    filter: blur(${config.blurAmount}px) !important;
+    will-change: filter;
+}
+`);
+    }
+
+    if (config.gradientEnabled) {
+        css.push(`
 ${sel(BASES, '.line.bg-line')},
 ${sel(BASES, '.line.bg-line .word')},
 ${sel(BASES, '.line.bg-line .letterGroup')},
@@ -149,6 +162,17 @@ ${sel(BASES, '.line.bg-line .letterGroup .letter')} {
     -webkit-text-fill-color: transparent !important;
 }
 `);
+    } else {
+        css.push(`
+${sel(BASES, '.line.bg-line')},
+${sel(BASES, '.line.bg-line .word')},
+${sel(BASES, '.line.bg-line .letterGroup')},
+${sel(BASES, '.line.bg-line .letterGroup .letter')} {
+    color: rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 0.4) !important;
+    -webkit-text-fill-color: rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 0.4) !important;
+}
+`);
+    }
 
     if (config.animationSpeed !== 1.0) {
         css.push(`
@@ -178,6 +202,7 @@ ${sel(BASES, '')} {
 `);
     }
 
+    if (config.sltStylingEnabled) {
     css.push(`
 .slt-replace-line {
     ${buildProps(sltGrad, `opacity: ${config.sltTranslationOpacity} !important;`, sltFontOverrides)}
@@ -318,6 +343,7 @@ ${sel(BASES, '')} {
     ${notSungGrad}
 }
 `);
+    }
 
     if (config.hideScrollbar) {
         css.push(`
@@ -326,6 +352,15 @@ ${BASES.map(b => `${b}::-webkit-scrollbar`).join(',\n')} {
 }
 ${sel(BASES, '')} {
     scrollbar-width: none !important;
+}
+`);
+    }
+
+    if (config.roundedCorners) {
+        css.push(`
+#SpicyLyricsPage .LyricsContainer {
+    border-radius: 12px !important;
+    overflow: hidden !important;
 }
 `);
     }
@@ -517,5 +552,65 @@ const BASE_STYLES = `
 
 #ThemeToggle.active svg {
     color: var(--spice-button-active, #1db954);
+}
+
+.ST_ConnectionIndicator {
+    display: flex;
+    align-items: center;
+    margin-right: 8px;
+    position: relative;
+    z-index: 100;
+}
+
+.st-ci-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.25s ease;
+    overflow: visible;
+    white-space: nowrap;
+}
+
+.st-ci-button:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.st-ci-dot {
+    width: 8px;
+    height: 8px;
+    min-width: 8px;
+    border-radius: 50%;
+    background: #555;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+    flex-shrink: 0;
+}
+
+.st-ci-dot.st-ci-connected {
+    background: #1db954;
+    box-shadow: 0 0 6px rgba(29, 185, 84, 0.4);
+}
+
+.st-ci-expanded {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+}
+
+.st-ci-stats-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.65rem;
+    color: var(--spice-subtext, #b3b3b3);
+}
+
+.st-ci-stats-row .slt-ci-users-count.slt-ci-active .st-ci-active-count {
+    color: #1db954;
+    font-weight: 600;
 }
 `;

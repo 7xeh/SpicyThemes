@@ -3,6 +3,7 @@ import { injectThemeStyles, injectBaseStyles, removeThemeStyles } from './themeE
 import { registerSettings } from './settings';
 import { isSpicyLyricsOpen, onSpicyLyricsOpen, onSpicyLyricsClose, createThemeButton, injectIntoPiP } from './core';
 import { startUpdateChecker, checkForUpdates, getUpdateInfo, VERSION, showPostUpdateChangelog } from './updater';
+import { initConnectivity, getConnectivityState } from './connectivity';
 import { info, debug } from './debug';
 
 const INIT_STATE_KEY = '__spicyThemesInitState';
@@ -52,6 +53,8 @@ export async function initialize(): Promise<void> {
     await registerSettings();
 
     startUpdateChecker(30 * 60 * 1000);
+
+    initConnectivity().catch(e => debug('Connectivity init error:', e));
 
     showPostUpdateChangelog().catch(e => debug('Changelog display error:', e));
 
@@ -113,6 +116,7 @@ export async function initialize(): Promise<void> {
         },
         checkForUpdates: () => checkForUpdates(true),
         getUpdateInfo,
+        getConnectivityState,
         version: VERSION,
     };
 

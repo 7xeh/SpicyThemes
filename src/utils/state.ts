@@ -18,13 +18,10 @@ export interface ThemeConfig {
     activeGlowIntensity: number;
 
     gradientEnabled: boolean;
-    gradientStartColor: string;
-    gradientEndColor: string;
     gradientAngle: number;
 
     fontFamily: string;
     fontWeight: number;
-    fontSize: number;
     letterSpacing: number;
     lineHeight: number;
 
@@ -37,6 +34,7 @@ export interface ThemeConfig {
     pageBgColor: string;
     pageBgOpacity: number;
 
+    sltStylingEnabled: boolean;
     sltTranslationColor: string;
     sltTranslationOpacity: number;
     sltTranslationFontSize: number;
@@ -62,13 +60,10 @@ export const DEFAULT_THEME: ThemeConfig = {
     activeGlowIntensity: 8,
 
     gradientEnabled: false,
-    gradientStartColor: '#ffffff',
-    gradientEndColor: 'rgba(255, 255, 255, 0.5)',
     gradientAngle: 180,
 
     fontFamily: '',
     fontWeight: 700,
-    fontSize: 1.0,
     letterSpacing: 0,
     lineHeight: 1.1818181818,
 
@@ -81,6 +76,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     pageBgColor: '#000000',
     pageBgOpacity: 0.3,
 
+    sltStylingEnabled: true,
     sltTranslationColor: '#ffffff',
     sltTranslationOpacity: 0.7,
     sltTranslationFontSize: 1.0,
@@ -108,8 +104,6 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             activeGlowColor: '#00ff88',
             activeGlowIntensity: 16,
             gradientEnabled: true,
-            gradientStartColor: '#1db954',
-            gradientEndColor: 'rgba(29, 185, 84, 0.4)',
             gradientAngle: 180,
             notSungLineOpacity: 0.35,
         }
@@ -120,8 +114,6 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
         config: {
             ...DEFAULT_THEME,
             gradientEnabled: true,
-            gradientStartColor: '#ff6b35',
-            gradientEndColor: '#f7c948',
             gradientAngle: 135,
             activeLineColor: '#ff6b35',
             sungLineColor: '#f7c948',
@@ -146,8 +138,6 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             activeGlowColor: '#00d4ff',
             activeGlowIntensity: 12,
             gradientEnabled: true,
-            gradientStartColor: '#00d4ff',
-            gradientEndColor: '#004466',
             gradientAngle: 180,
             notSungLineOpacity: 0.4,
         }
@@ -171,8 +161,6 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             activeGlowColor: '#bf5fff',
             activeGlowIntensity: 14,
             gradientEnabled: true,
-            gradientStartColor: '#bf5fff',
-            gradientEndColor: '#6c3483',
             gradientAngle: 160,
         }
     },
@@ -254,6 +242,32 @@ export function deleteCustomPreset(name: string): boolean {
 }
 
 export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]): void {
+    if (typeof value === 'number') {
+        const clamps: Partial<Record<keyof ThemeConfig, [number, number]>> = {
+            activeLineOpacity: [0, 1],
+            sungLineOpacity: [0, 1],
+            notSungLineOpacity: [0, 1],
+            pageBgOpacity: [0, 1],
+            sltTranslationOpacity: [0, 1],
+            blurAmount: [0, 8],
+            glowIntensity: [0, 20],
+            activeGlowIntensity: [0, 30],
+            sltTranslationFontSize: [0.5, 2.0],
+            scaleActive: [0.8, 1.5],
+            animationSpeed: [0.3, 3.0],
+            gradientAngle: [0, 360],
+            lineHeight: [1.0, 2.5],
+            letterSpacing: [-0.1, 0.3],
+            fontWeight: [100, 900],
+        };
+        const range = clamps[key];
+        if (range) {
+            value = Math.min(Math.max(value as number, range[0]), range[1]) as ThemeConfig[K];
+        }
+        if (key === 'lineHeight') {
+            value = Math.round((value as number) * 10) / 10 as ThemeConfig[K];
+        }
+    }
     themeState.activeTheme[key] = value;
     themeState.activePresetName = 'Custom';
     saveThemeState();

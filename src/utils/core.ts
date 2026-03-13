@@ -3,6 +3,7 @@ import { injectThemeStyles, removeThemeStyles } from './themeEngine';
 import { Icons } from './icons';
 import { openSettingsModal } from './settings';
 import { debug } from './debug';
+import { setViewingLyrics } from './connectivity';
 
 let themeButton: HTMLElement | null = null;
 
@@ -102,6 +103,7 @@ export function removeThemeButton(): void {
 export function onSpicyLyricsOpen(): void {
     debug('Spicy Lyrics opened');
     createThemeButton();
+    setViewingLyrics(true);
     if (themeState.isEnabled) {
         injectThemeStyles();
     }
@@ -109,6 +111,7 @@ export function onSpicyLyricsOpen(): void {
 
 export function onSpicyLyricsClose(): void {
     debug('Spicy Lyrics closed');
+    setViewingLyrics(false);
     removeThemeButton();
 }
 
