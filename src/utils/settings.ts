@@ -2,6 +2,7 @@ import { storage } from './storage';
 import { themeState, saveThemeState, applyPreset, getAllPresets, saveCustomPreset, deleteCustomPreset, updateThemeProperty, ThemeConfig, DEFAULT_THEME, BUILTIN_PRESETS } from './state';
 import { injectThemeStyles } from './themeEngine';
 import { debug, isDebugEnabled, setDebugMode } from './debug';
+import { checkForUpdates, getCurrentVersion, getUpdateInfo } from './updater';
 import { Icons } from './icons';
 
 const SETTINGS_ID = 'spicy-themes-settings';
@@ -517,6 +518,41 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         'Hide Lyrics Scrollbar',
         themeState.activeTheme.hideScrollbar,
         (v) => updateThemeProperty('hideScrollbar', v)
+    ));
+
+    optionsContainer.appendChild(createButtonRow(
+        'st-settings.check-updates',
+        `Check for Updates (v${getCurrentVersion().text})`,
+        'Check Now',
+        async () => {
+            const btn = document.getElementById('st-settings.check-updates') as HTMLButtonElement;
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Checking...';
+            }
+            try {
+                const info = await getUpdateInfo();
+                if (info?.hasUpdate) {
+                    if (Spicetify.showNotification) {
+                        Spicetify.showNotification(`Update available: v${info.latestVersion}! Updating...`);
+                    }
+                    await checkForUpdates(true);
+                } else {
+                    if (Spicetify.showNotification) {
+                        Spicetify.showNotification('You\'re on the latest version!');
+                    }
+                }
+            } catch (e) {
+                if (Spicetify.showNotification) {
+                    Spicetify.showNotification('Failed to check for updates', true);
+                }
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Check Now';
+                }
+            }
+        }
     ));
 
     optionsContainer.appendChild(createButtonRow(

@@ -200,7 +200,15 @@ ${sel(BASES, '')} {
 }
 
 .slt-sync-translation.slt-interleaved-translation {
-    ${buildProps(sltGrad, `opacity: ${config.sltTranslationOpacity} !important;`, sltFontOverrides)}
+    ${buildProps(
+        sltGrad,
+        `opacity: ${config.sltTranslationOpacity} !important;`,
+        `background-size: 100% 100% !important;`,
+        `background-repeat: no-repeat !important;`,
+        `-webkit-box-decoration-break: slice !important;`,
+        `box-decoration-break: slice !important;`,
+        sltFontOverrides,
+    )}
 }
 
 .slt-sync-translation.slt-interleaved-translation:has(.slt-sync-word) {
@@ -234,7 +242,16 @@ ${sel(BASES, '')} {
 
 .line.Active + .slt-sync-translation.slt-interleaved-translation,
 .slt-sync-translation.slt-interleaved-translation.active {
-    ${buildProps(activeGrad, `opacity: ${config.activeLineOpacity} !important;`, glowActive)}
+    ${buildProps(
+        activeGrad,
+        `opacity: ${config.activeLineOpacity} !important;`,
+        `background-size: 100% 100% !important;`,
+        `background-repeat: no-repeat !important;`,
+        `-webkit-box-decoration-break: slice !important;`,
+        `box-decoration-break: slice !important;`,
+        `filter: none !important;`,
+        glowActive,
+    )}
 }
 
 .slt-sync-word.slt-word-active {
@@ -256,7 +273,15 @@ ${sel(BASES, '')} {
 }
 
 .line.Sung + .slt-sync-translation.slt-interleaved-translation {
-    ${buildProps(sungGrad, `opacity: ${config.sungLineOpacity} !important;`)}
+    ${buildProps(
+        sungGrad,
+        `opacity: ${config.sungLineOpacity} !important;`,
+        `--gradient-position: 100% !important;`,
+        `background-size: 100% 100% !important;`,
+        `background-repeat: no-repeat !important;`,
+        `-webkit-box-decoration-break: slice !important;`,
+        `box-decoration-break: slice !important;`,
+    )}
 }
 
 .slt-sync-word.slt-word-past {
@@ -278,7 +303,15 @@ ${sel(BASES, '')} {
 }
 
 .line.NotSung + .slt-sync-translation.slt-interleaved-translation {
-    ${buildProps(notSungGrad, `opacity: ${config.notSungLineOpacity} !important;`)}
+    ${buildProps(
+        notSungGrad,
+        `opacity: ${config.notSungLineOpacity} !important;`,
+        `--gradient-position: -20% !important;`,
+        `background-size: 100% 100% !important;`,
+        `background-repeat: no-repeat !important;`,
+        `-webkit-box-decoration-break: slice !important;`,
+        `box-decoration-break: slice !important;`,
+    )}
 }
 
 .slt-sync-word.slt-word-future {
