@@ -2,6 +2,7 @@ import { themeState, saveThemeState, getAllPresets, applyPreset as applyPresetFn
 import { injectThemeStyles, injectBaseStyles, removeThemeStyles } from './themeEngine';
 import { registerSettings } from './settings';
 import { isSpicyLyricsOpen, onSpicyLyricsOpen, onSpicyLyricsClose, createThemeButton, injectIntoPiP } from './core';
+import { startUpdateChecker, checkForUpdates, getUpdateInfo, VERSION, showPostUpdateChangelog } from './updater';
 import { info, debug } from './debug';
 
 export async function initialize(): Promise<void> {
@@ -18,6 +19,10 @@ export async function initialize(): Promise<void> {
     }
 
     await registerSettings();
+
+    startUpdateChecker(30 * 60 * 1000);
+
+    showPostUpdateChangelog().catch(e => debug('Changelog display error:', e));
 
     let wasSpicyLyricsOpen = false;
     let observerDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -75,7 +80,9 @@ export async function initialize(): Promise<void> {
                 injectThemeStyles();
             }
         },
-        version: '1.0.0',
+        checkForUpdates: () => checkForUpdates(true),
+        getUpdateInfo,
+        version: VERSION,
     };
 
     info('Initialized successfully!');
