@@ -1,56 +1,46 @@
 import { storage } from './storage';
 
 export interface ThemeConfig {
-    // Lyric line colors
     activeLineColor: string;
     sungLineColor: string;
     notSungLineColor: string;
 
-    // Background vocals
     bgLineColor: string;
 
-    // Opacity
     activeLineOpacity: number;
     sungLineOpacity: number;
     notSungLineOpacity: number;
 
-    // Glow / text shadow
     glowEnabled: boolean;
     glowColor: string;
-    glowIntensity: number; // 0-20 px blur radius
+    glowIntensity: number;
     activeGlowColor: string;
     activeGlowIntensity: number;
 
-    // Gradient
     gradientEnabled: boolean;
     gradientStartColor: string;
     gradientEndColor: string;
-    gradientAngle: number; // degrees
+    gradientAngle: number;
 
-    // Font
     fontFamily: string;
-    fontWeight: number; // 100-900
-    fontSize: number; // scale factor 0.5-2.0
-    letterSpacing: number; // em
+    fontWeight: number;
+    fontSize: number;
+    letterSpacing: number;
     lineHeight: number;
 
-    // Effects
     blurUnsung: boolean;
-    blurAmount: number; // px
-    scaleActive: number; // scale factor e.g. 1.0 - 1.3
-    animationSpeed: number; // multiplier 0.5-2.0
+    blurAmount: number;
+    scaleActive: number;
+    animationSpeed: number;
 
-    // Page background
     pageBgOverlay: boolean;
     pageBgColor: string;
     pageBgOpacity: number;
 
-    // SLT compatibility — translation line styling
     sltTranslationColor: string;
     sltTranslationOpacity: number;
-    sltTranslationFontSize: number; // scale factor
+    sltTranslationFontSize: number;
 
-    // Misc
     hideScrollbar: boolean;
     roundedCorners: boolean;
 }
@@ -61,9 +51,9 @@ export const DEFAULT_THEME: ThemeConfig = {
     notSungLineColor: '#ffffff',
     bgLineColor: 'rgba(255, 255, 255, 0.4)',
 
-    activeLineOpacity: 1.0,
-    sungLineOpacity: 0.497,
-    notSungLineOpacity: 0.51,
+    activeLineOpacity: 0.95,
+    sungLineOpacity: 0.3,
+    notSungLineOpacity: 0.35,
 
     glowEnabled: false,
     glowColor: '#ffffff',
@@ -71,19 +61,19 @@ export const DEFAULT_THEME: ThemeConfig = {
     activeGlowColor: '#ffffff',
     activeGlowIntensity: 8,
 
-    gradientEnabled: true,
+    gradientEnabled: false,
     gradientStartColor: '#ffffff',
     gradientEndColor: 'rgba(255, 255, 255, 0.5)',
     gradientAngle: 180,
 
     fontFamily: '',
-    fontWeight: 900,
+    fontWeight: 700,
     fontSize: 1.0,
     letterSpacing: 0,
     lineHeight: 1.1818181818,
 
-    blurUnsung: false,
-    blurAmount: 0,
+    blurUnsung: true,
+    blurAmount: 1.5,
     scaleActive: 1.0,
     animationSpeed: 1.0,
 
@@ -107,21 +97,20 @@ export interface ThemePreset {
 
 export const BUILTIN_PRESETS: ThemePreset[] = [
     {
-        name: 'Default',
-        description: 'The standard Spicy Lyrics look',
-        config: { ...DEFAULT_THEME }
-    },
-    {
-        name: 'Neon Glow',
-        description: 'Vibrant neon glow on active lyrics',
+        name: 'SpotiGlow',
+        description: 'Spotify green with vibrant neon glow',
         config: {
             ...DEFAULT_THEME,
+            activeLineColor: '#1db954',
             glowEnabled: true,
-            glowColor: '#00ff88',
+            glowColor: '#1db954',
             glowIntensity: 6,
             activeGlowColor: '#00ff88',
             activeGlowIntensity: 16,
-            activeLineColor: '#00ff88',
+            gradientEnabled: true,
+            gradientStartColor: '#1db954',
+            gradientEndColor: 'rgba(29, 185, 84, 0.4)',
+            gradientAngle: 180,
             notSungLineOpacity: 0.35,
         }
     },
@@ -166,18 +155,7 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
     {
         name: 'Minimal',
         description: 'Clean, subtle, and easy on the eyes',
-        config: {
-            ...DEFAULT_THEME,
-            fontWeight: 500,
-            activeLineOpacity: 0.95,
-            sungLineOpacity: 0.3,
-            notSungLineOpacity: 0.35,
-            glowEnabled: false,
-            gradientEnabled: false,
-            blurUnsung: true,
-            blurAmount: 1.5,
-            scaleActive: 1.0,
-        }
+        config: { ...DEFAULT_THEME }
     },
     {
         name: 'Purple Haze',
@@ -198,44 +176,6 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             gradientAngle: 160,
         }
     },
-    {
-        name: 'Spotify Green',
-        description: 'Spotify-branded green accent',
-        config: {
-            ...DEFAULT_THEME,
-            activeLineColor: '#1db954',
-            glowEnabled: true,
-            glowColor: '#1db954',
-            glowIntensity: 4,
-            activeGlowColor: '#1db954',
-            activeGlowIntensity: 12,
-            gradientEnabled: true,
-            gradientStartColor: '#1db954',
-            gradientEndColor: 'rgba(29, 185, 84, 0.4)',
-            gradientAngle: 180,
-        }
-    },
-    {
-        name: 'High Contrast',
-        description: 'Maximum readability with sharp contrast',
-        config: {
-            ...DEFAULT_THEME,
-            activeLineColor: '#ffffff',
-            sungLineColor: '#aaaaaa',
-            notSungLineColor: '#666666',
-            activeLineOpacity: 1.0,
-            sungLineOpacity: 0.6,
-            notSungLineOpacity: 0.25,
-            glowEnabled: true,
-            glowColor: '#ffffff',
-            glowIntensity: 3,
-            activeGlowColor: '#ffffff',
-            activeGlowIntensity: 8,
-            fontWeight: 900,
-            blurUnsung: true,
-            blurAmount: 2,
-        }
-    },
 ];
 
 export interface ThemeState {
@@ -249,7 +189,7 @@ function loadCustomPresets(): ThemePreset[] {
     try {
         const raw = storage.get('custom-presets');
         if (raw) return JSON.parse(raw);
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
     return [];
 }
 
@@ -260,13 +200,13 @@ function loadActiveTheme(): ThemeConfig {
             const parsed = JSON.parse(raw);
             return { ...DEFAULT_THEME, ...parsed };
         }
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
     return { ...DEFAULT_THEME };
 }
 
 export const themeState: ThemeState = {
     activeTheme: loadActiveTheme(),
-    activePresetName: storage.get('active-preset') || 'Default',
+    activePresetName: storage.get('active-preset') || 'Minimal',
     customPresets: loadCustomPresets(),
     isEnabled: storage.get('enabled') !== 'false',
 };

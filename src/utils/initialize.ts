@@ -11,43 +11,41 @@ export async function initialize(): Promise<void> {
 
     info('Initializing...');
 
-    // Inject base UI styles (settings components, button states)
     injectBaseStyles();
 
-    // Inject theme styles if enabled
     if (themeState.isEnabled) {
         injectThemeStyles();
     }
 
-    // Register settings page
-    registerSettings();
+    await registerSettings();
 
-    // Watch for Spicy Lyrics page opening/closing
     let wasSpicyLyricsOpen = false;
+    let observerDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     const observer = new MutationObserver(() => {
-        const isOpen = isSpicyLyricsOpen();
-        if (isOpen && !wasSpicyLyricsOpen) {
-            wasSpicyLyricsOpen = true;
-            onSpicyLyricsOpen();
-        } else if (!isOpen && wasSpicyLyricsOpen) {
-            wasSpicyLyricsOpen = false;
-            onSpicyLyricsClose();
-        }
+        if (observerDebounceTimer) return;
+        observerDebounceTimer = setTimeout(() => {
+            observerDebounceTimer = null;
+            const isOpen = isSpicyLyricsOpen();
+            if (isOpen && !wasSpicyLyricsOpen) {
+                wasSpicyLyricsOpen = true;
+                onSpicyLyricsOpen();
+            } else if (!isOpen && wasSpicyLyricsOpen) {
+                wasSpicyLyricsOpen = false;
+                onSpicyLyricsClose();
+            }
 
-        // Ensure button is always present when lyrics page is open
-        if (isOpen && !document.getElementById('ThemeToggle')) {
-            createThemeButton();
-        }
+            if (isOpen && !document.getElementById('ThemeToggle')) {
+                createThemeButton();
+            }
+        }, 50);
     });
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    observer.observe(document.body, { childList: true, subtree: true });
 
-    // Check if already open
     if (isSpicyLyricsOpen()) {
         wasSpicyLyricsOpen = true;
         onSpicyLyricsOpen();
     }
 
-    // PiP support
     try {
         if ((window as any).documentPictureInPicture) {
             (window as any).documentPictureInPicture.addEventListener('enter', () => {
@@ -58,7 +56,6 @@ export async function initialize(): Promise<void> {
         debug('PiP listener registration failed:', e);
     }
 
-    // Expose global API
     (window as any).SpicyThemes = {
         enable: () => {
             themeState.isEnabled = true;

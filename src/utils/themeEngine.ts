@@ -16,95 +16,150 @@ function hexToRgba(hex: string, alpha: number): string {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+    if (hex.startsWith('rgb')) {
+        const match = hex.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+        if (match) return { r: parseInt(match[1]), g: parseInt(match[2]), b: parseInt(match[3]) };
+    }
+    hex = hex.replace('#', '');
+    if (hex.length === 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    return {
+        r: parseInt(hex.substring(0, 2), 16),
+        g: parseInt(hex.substring(2, 4), 16),
+        b: parseInt(hex.substring(4, 6), 16),
+    };
+}
+
+function gradientRule(r: number, g: number, b: number): string {
+    return `background-image: linear-gradient(
+        var(--gradient-degrees),
+        rgba(${r}, ${g}, ${b}, var(--gradient-alpha)) var(--gradient-position),
+        rgba(${r}, ${g}, ${b}, var(--gradient-alpha-end)) calc(var(--gradient-position) + 20% + var(--gradient-offset))
+    ) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;`;
+}
+
+function sel(bases: string[], suffix: string): string {
+    return bases.map(b => suffix ? `${b} ${suffix}` : b).join(',\n');
+}
+
+function lineSelectors(bases: string[], state: string): string {
+    return bases.flatMap(base => [
+        `${base} .line.${state}`,
+        `${base} .line.${state} .word`,
+        `${base} .line.${state} .letter`,
+        `${base} .line.${state} .letterGroup`,
+    ]).join(',\n');
+}
+
+function buildProps(...decls: (string | false | null | undefined | 0 | '')[]): string {
+    return (decls.filter(Boolean) as string[]).join('\n    ');
+}
+
 export function generateThemeCSS(config: ThemeConfig): string {
-    const lines: string[] = [];
+    const css: string[] = [];
 
-    // --- Active line styling ---
-    lines.push(`
-#SpicyLyricsPage .LyricsContainer .LyricsContent .line.Active,
-.Cinema--Container .LyricsContent .line.Active {
-    --Vocal-Active-opacity: ${config.activeLineOpacity} !important;
-    color: ${config.activeLineColor} !important;
-    -webkit-text-fill-color: ${config.activeLineColor} !important;
-    ${config.glowEnabled ? `text-shadow: 0 0 ${config.activeGlowIntensity}px ${config.activeGlowColor} !important;` : ''}
-    ${config.scaleActive !== 1.0 ? `scale: ${config.scaleActive} !important;` : ''}
-    ${config.blurUnsung ? 'filter: none !important;' : ''}
+    const activeRgb = hexToRgb(config.activeLineColor);
+    const sungRgb = hexToRgb(config.sungLineColor);
+    const notSungRgb = hexToRgb(config.notSungLineColor);
+    const bgRgb = hexToRgb(config.bgLineColor.startsWith('rgba') ? '#ffffff' : config.bgLineColor);
+    const sltRgb = hexToRgb(config.sltTranslationColor);
+
+    const BASES = [
+        '#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent',
+        '#SpicyLyricsPage .SpicyLyricsScrollContainer',
+    ];
+    const SIDEBAR = [
+        'body.SpicySidebarLyrics__Active #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent',
+    ];
+    const PIP = [
+        '.spicy-pip-wrapper #SpicyLyricsPage .LyricsContainer .LyricsContent',
+        '.spicy-pip-wrapper #SpicyLyricsPage .SpicyLyricsScrollContainer',
+        '.spicy-pip-wrapper #SpicyLyricsPage .LyricsContent',
+    ];
+    const ALL = [...BASES, ...PIP];
+
+    const activeGrad = gradientRule(activeRgb.r, activeRgb.g, activeRgb.b);
+    const sungGrad = gradientRule(sungRgb.r, sungRgb.g, sungRgb.b);
+    const notSungGrad = gradientRule(notSungRgb.r, notSungRgb.g, notSungRgb.b);
+    const sltGrad = gradientRule(sltRgb.r, sltRgb.g, sltRgb.b);
+
+    const glowActive = config.glowEnabled && `text-shadow: 0 0 ${config.activeGlowIntensity}px ${config.activeGlowColor} !important;`;
+    const glowNormal = config.glowEnabled && `text-shadow: 0 0 ${config.glowIntensity}px ${config.glowColor} !important;`;
+    const glowSidebar = config.glowEnabled && `text-shadow: 0 0 ${Math.round(config.activeGlowIntensity * 0.7)}px ${config.activeGlowColor} !important;`;
+    const blurEffect = config.blurUnsung && `filter: blur(${config.blurAmount}px) !important;`;
+    const scaleEffect = config.scaleActive !== 1.0 && `scale: ${config.scaleActive} !important;`;
+
+    const sltFontOverrides = buildProps(
+        config.sltTranslationFontSize !== 1.0 && `font-size: calc(1em * ${config.sltTranslationFontSize}) !important;`,
+        config.fontFamily && `font-family: ${config.fontFamily}, system-ui, sans-serif !important;`,
+        `font-weight: ${config.fontWeight} !important;`,
+    );
+
+    css.push(`
+${sel(ALL, '.line')} {
+    ${buildProps(
+        `--Vocal-Active-opacity: ${config.activeLineOpacity} !important;`,
+        `--Vocal-Sung-opacity: ${config.sungLineOpacity} !important;`,
+        `--Vocal-NotSung-opacity: ${config.notSungLineOpacity} !important;`,
+        config.gradientEnabled && `--gradient-degrees: ${config.gradientAngle}deg !important;`,
+        config.fontFamily && `font-family: ${config.fontFamily}, system-ui, sans-serif !important;`,
+        config.fontWeight !== 900 && `font-weight: ${config.fontWeight} !important;`,
+        config.fontSize !== 1.0 && `font-size: calc(var(--DefaultLyricsSize) * ${config.fontSize}) !important;`,
+        config.letterSpacing !== 0 && `letter-spacing: ${config.letterSpacing}em !important;`,
+        config.lineHeight !== 1.1818181818 && `--lyrics-line-height: ${config.lineHeight} !important;`,
+    )}
 }
 `);
 
-    // --- Sung line styling ---
-    lines.push(`
-#SpicyLyricsPage .LyricsContainer .LyricsContent .line.Sung,
-.Cinema--Container .LyricsContent .line.Sung {
-    --Vocal-Sung-opacity: ${config.sungLineOpacity} !important;
-    color: ${config.sungLineColor} !important;
-    -webkit-text-fill-color: ${config.sungLineColor} !important;
-    ${config.glowEnabled ? `text-shadow: 0 0 ${config.glowIntensity}px ${config.glowColor} !important;` : ''}
-    ${config.blurUnsung ? `filter: blur(${config.blurAmount}px) !important;` : ''}
+    css.push(`
+${lineSelectors(ALL, 'Active')} {
+    ${buildProps(activeGrad, glowActive, scaleEffect)}
 }
 `);
 
-    // --- Not-sung line styling ---
-    lines.push(`
-#SpicyLyricsPage .LyricsContainer .LyricsContent .line.NotSung,
-.Cinema--Container .LyricsContent .line.NotSung {
-    --Vocal-NotSung-opacity: ${config.notSungLineOpacity} !important;
-    color: ${config.notSungLineColor} !important;
-    -webkit-text-fill-color: ${config.notSungLineColor} !important;
-    ${config.glowEnabled ? `text-shadow: 0 0 ${config.glowIntensity}px ${config.glowColor} !important;` : ''}
-    ${config.blurUnsung ? `filter: blur(${config.blurAmount}px) !important;` : ''}
+    css.push(`
+${lineSelectors(ALL, 'Sung')} {
+    ${buildProps(sungGrad, glowNormal, blurEffect)}
 }
 `);
 
-    // --- Background lyrics ---
-    lines.push(`
-#SpicyLyricsPage .LyricsContainer .LyricsContent .bg-line,
-.Cinema--Container .LyricsContent .bg-line {
-    color: ${config.bgLineColor} !important;
-    -webkit-text-fill-color: ${config.bgLineColor} !important;
+    css.push(`
+${lineSelectors(ALL, 'NotSung')} {
+    ${buildProps(notSungGrad, glowNormal, blurEffect)}
 }
 `);
 
-    // --- Font customization ---
-    if (config.fontFamily || config.fontWeight !== 900 || config.fontSize !== 1.0 || config.letterSpacing !== 0 || config.lineHeight !== 1.1818181818) {
-        lines.push(`
-#SpicyLyricsPage .LyricsContainer .LyricsContent .line,
-.Cinema--Container .LyricsContent .line {
-    ${config.fontFamily ? `font-family: ${config.fontFamily}, system-ui, sans-serif !important;` : ''}
-    font-weight: ${config.fontWeight} !important;
-    ${config.fontSize !== 1.0 ? `font-size: calc(1em * ${config.fontSize}) !important;` : ''}
-    letter-spacing: ${config.letterSpacing}em !important;
-    line-height: ${config.lineHeight} !important;
+    css.push(`
+${sel(BASES, '.line.bg-line')},
+${sel(BASES, '.line.bg-line .word')},
+${sel(BASES, '.line.bg-line .letterGroup')},
+${sel(BASES, '.line.bg-line .letterGroup .letter')} {
+    background-image: linear-gradient(
+        var(--gradient-degrees),
+        rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 0.6) var(--gradient-position),
+        rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 0.3) calc(var(--gradient-position) + 20% + var(--gradient-offset))
+    ) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
 }
 `);
-    }
 
-    // --- Gradient override ---
-    if (config.gradientEnabled) {
-        lines.push(`
-#SpicyLyricsPage .LyricsContainer .LyricsContent .line .word .syllable,
-#SpicyLyricsPage .LyricsContainer .LyricsContent .line .word .letterGroup,
-.Cinema--Container .LyricsContent .line .word .syllable,
-.Cinema--Container .LyricsContent .line .word .letterGroup {
-    --gradient-degrees: ${config.gradientAngle}deg;
-}
-`);
-    }
-
-    // --- Animation speed ---
     if (config.animationSpeed !== 1.0) {
-        const transitionDuration = (0.3 / config.animationSpeed).toFixed(3);
-        lines.push(`
-#SpicyLyricsPage .LyricsContainer .LyricsContent .line,
-.Cinema--Container .LyricsContent .line {
-    transition-duration: ${transitionDuration}s !important;
+        css.push(`
+${sel(BASES, '.line')} {
+    transition-duration: ${(0.3 / config.animationSpeed).toFixed(3)}s !important;
 }
 `);
     }
 
-    // --- Page background overlay ---
     if (config.pageBgOverlay) {
-        lines.push(`
+        css.push(`
 #SpicyLyricsPage .LyricsContainer::before {
     content: '';
     position: absolute;
@@ -116,89 +171,166 @@ export function generateThemeCSS(config: ThemeConfig): string {
 #SpicyLyricsPage .LyricsContainer {
     position: relative;
 }
-#SpicyLyricsPage .LyricsContainer .LyricsContent {
+${sel(BASES, '')} {
     position: relative;
     z-index: 1;
 }
 `);
     }
 
-    // --- SLT translation compatibility ---
-    lines.push(`
-.slt-replace-line,
-.slt-interleaved-translation,
-.slt-sync-translation {
-    color: ${config.sltTranslationColor} !important;
-    -webkit-text-fill-color: ${config.sltTranslationColor} !important;
-    opacity: ${config.sltTranslationOpacity} !important;
-    ${config.sltTranslationFontSize !== 1.0 ? `font-size: calc(1em * ${config.sltTranslationFontSize}) !important;` : ''}
-    ${config.fontFamily ? `font-family: ${config.fontFamily}, system-ui, sans-serif !important;` : ''}
-    font-weight: ${config.fontWeight} !important;
+    css.push(`
+.slt-replace-line {
+    ${buildProps(sltGrad, `opacity: ${config.sltTranslationOpacity} !important;`, sltFontOverrides)}
+}
+
+.slt-replace-line:has(.slt-replace-word) {
+    background-image: none !important;
+}
+
+.slt-replace-word {
+    ${sltGrad}
+}
+
+.slt-interleaved-translation:not(.slt-sync-translation) {
+    ${buildProps(
+        `color: ${config.sltTranslationColor} !important;`,
+        `opacity: ${config.sltTranslationOpacity} !important;`,
+        sltFontOverrides,
+    )}
+}
+
+.slt-sync-translation.slt-interleaved-translation {
+    ${buildProps(sltGrad, `opacity: ${config.sltTranslationOpacity} !important;`, sltFontOverrides)}
+}
+
+.slt-sync-translation.slt-interleaved-translation:has(.slt-sync-word) {
+    background-image: none !important;
+}
+
+.slt-sync-word {
+    ${sltGrad}
 }
 
 .slt-replace-line.Active,
 .slt-replace-line.active,
 .line.Active + .slt-replace-line {
-    color: ${config.activeLineColor} !important;
-    -webkit-text-fill-color: ${config.activeLineColor} !important;
-    opacity: ${config.activeLineOpacity} !important;
-    ${config.glowEnabled ? `text-shadow: 0 0 ${config.activeGlowIntensity}px ${config.activeGlowColor} !important;` : ''}
+    ${buildProps(activeGrad, `opacity: ${config.activeLineOpacity} !important;`, glowActive)}
+}
+
+.slt-replace-line.active .slt-replace-word.word-active,
+.slt-replace-line.Active .slt-replace-word.word-active {
+    ${activeGrad}
+}
+
+.line.Active + .slt-interleaved-translation:not(.slt-sync-translation),
+.slt-interleaved-translation.active:not(.slt-sync-translation),
+.slt-interleaved-translation.Active:not(.slt-sync-translation) {
+    ${buildProps(
+        `color: ${config.activeLineColor} !important;`,
+        `opacity: ${config.activeLineOpacity} !important;`,
+        glowActive,
+    )}
+}
+
+.line.Active + .slt-sync-translation.slt-interleaved-translation,
+.slt-sync-translation.slt-interleaved-translation.active {
+    ${buildProps(activeGrad, `opacity: ${config.activeLineOpacity} !important;`, glowActive)}
+}
+
+.slt-sync-word.slt-word-active {
+    ${activeGrad}
 }
 
 .slt-replace-line.Sung,
 .line.Sung + .slt-replace-line {
+    ${buildProps(sungGrad, `opacity: ${config.sungLineOpacity} !important;`)}
+}
+
+.slt-replace-word.word-sung {
+    ${sungGrad}
+}
+
+.line.Sung + .slt-interleaved-translation:not(.slt-sync-translation) {
     color: ${config.sungLineColor} !important;
-    -webkit-text-fill-color: ${config.sungLineColor} !important;
     opacity: ${config.sungLineOpacity} !important;
+}
+
+.line.Sung + .slt-sync-translation.slt-interleaved-translation {
+    ${buildProps(sungGrad, `opacity: ${config.sungLineOpacity} !important;`)}
+}
+
+.slt-sync-word.slt-word-past {
+    ${sungGrad}
 }
 
 .slt-replace-line.NotSung,
 .line.NotSung + .slt-replace-line {
+    ${buildProps(notSungGrad, `opacity: ${config.notSungLineOpacity} !important;`)}
+}
+
+.slt-replace-word.word-notsng {
+    ${notSungGrad}
+}
+
+.line.NotSung + .slt-interleaved-translation:not(.slt-sync-translation) {
     color: ${config.notSungLineColor} !important;
-    -webkit-text-fill-color: ${config.notSungLineColor} !important;
     opacity: ${config.notSungLineOpacity} !important;
+}
+
+.line.NotSung + .slt-sync-translation.slt-interleaved-translation {
+    ${buildProps(notSungGrad, `opacity: ${config.notSungLineOpacity} !important;`)}
+}
+
+.slt-sync-word.slt-word-future {
+    ${notSungGrad}
 }
 `);
 
-    // --- Hide scrollbar ---
     if (config.hideScrollbar) {
-        lines.push(`
-#SpicyLyricsPage .LyricsContainer .LyricsContent::-webkit-scrollbar {
+        css.push(`
+${BASES.map(b => `${b}::-webkit-scrollbar`).join(',\n')} {
     display: none !important;
 }
-#SpicyLyricsPage .LyricsContainer .LyricsContent {
+${sel(BASES, '')} {
     scrollbar-width: none !important;
 }
 `);
     }
 
-    // --- PiP window support ---
-    lines.push(`
-.spicy-pip-wrapper .line.Active {
-    color: ${config.activeLineColor} !important;
-    -webkit-text-fill-color: ${config.activeLineColor} !important;
-    ${config.glowEnabled ? `text-shadow: 0 0 ${config.activeGlowIntensity}px ${config.activeGlowColor} !important;` : ''}
+    css.push(`
+${lineSelectors(SIDEBAR, 'Active')} {
+    ${buildProps(activeGrad, glowSidebar)}
 }
-.spicy-pip-wrapper .line.Sung {
-    color: ${config.sungLineColor} !important;
-    -webkit-text-fill-color: ${config.sungLineColor} !important;
+${lineSelectors(SIDEBAR, 'Sung')} {
+    ${sungGrad}
 }
-.spicy-pip-wrapper .line.NotSung {
-    color: ${config.notSungLineColor} !important;
-    -webkit-text-fill-color: ${config.notSungLineColor} !important;
+${lineSelectors(SIDEBAR, 'NotSung')} {
+    ${notSungGrad}
 }
 `);
 
-    // --- Sidebar mode support ---
-    lines.push(`
-body.SpicySidebarLyrics__Active #SpicyLyricsPage .line.Active {
-    color: ${config.activeLineColor} !important;
-    -webkit-text-fill-color: ${config.activeLineColor} !important;
-    ${config.glowEnabled ? `text-shadow: 0 0 ${Math.round(config.activeGlowIntensity * 0.7)}px ${config.activeGlowColor} !important;` : ''}
+    return css.join('\n');
 }
-`);
 
-    return lines.join('\n');
+function getPIPWindow(): Window | null {
+    try {
+        const docPiP = (window as any).documentPictureInPicture;
+        if (docPiP && docPiP.window) return docPiP.window;
+    } catch (e) {}
+    return null;
+}
+
+function injectIntoPIPDocument(css: string): void {
+    const pipWindow = getPIPWindow();
+    if (!pipWindow) return;
+    const pipDoc = pipWindow.document;
+    let style = pipDoc.getElementById(STYLE_ID) as HTMLStyleElement | null;
+    if (!style) {
+        style = pipDoc.createElement('style');
+        style.id = STYLE_ID;
+        pipDoc.head.appendChild(style);
+    }
+    style.textContent = css;
 }
 
 export function injectThemeStyles(): void {
@@ -216,6 +348,9 @@ export function injectThemeStyles(): void {
         document.head.appendChild(style);
     }
     style.textContent = css;
+
+    injectIntoPIPDocument(css);
+
     debug('Theme styles injected');
 }
 
@@ -224,6 +359,12 @@ export function removeThemeStyles(): void {
     if (style) {
         style.remove();
         debug('Theme styles removed');
+    }
+
+    const pipWindow = getPIPWindow();
+    if (pipWindow) {
+        const pipStyle = pipWindow.document.getElementById(STYLE_ID);
+        if (pipStyle) pipStyle.remove();
     }
 }
 
@@ -238,7 +379,6 @@ export function injectBaseStyles(): void {
 }
 
 const BASE_STYLES = `
-/* SpicyThemes settings UI */
 .spicy-themes-settings .st-color-swatch {
     width: 28px;
     height: 28px;

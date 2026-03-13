@@ -1,6 +1,7 @@
 import { themeState, saveThemeState } from './state';
 import { injectThemeStyles, removeThemeStyles } from './themeEngine';
 import { Icons } from './icons';
+import { openSettingsModal } from './settings';
 import { debug } from './debug';
 
 let themeButton: HTMLElement | null = null;
@@ -14,13 +15,18 @@ export function isSpicyLyricsOpen(): boolean {
     try {
         const pipWindow = (window as any).documentPictureInPicture?.window;
         if (pipWindow?.document.querySelector('#SpicyLyricsPage')) return true;
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
 
     return false;
 }
 
 export function createThemeButton(): void {
+    if (themeButton && !document.body.contains(themeButton)) {
+        themeButton = null;
+    }
     if (themeButton) return;
+
+    if (document.getElementById('ThemeToggle')) return;
 
     const viewControls = document.querySelector('#SpicyLyricsPage .ViewControls');
     if (!viewControls) {
@@ -28,13 +34,10 @@ export function createThemeButton(): void {
         return;
     }
 
-    // Don't duplicate
-    if (document.getElementById('ThemeToggle')) return;
-
     const button = document.createElement('button');
     button.id = 'ThemeToggle';
     button.className = 'ViewControl';
-    button.innerHTML = Icons.Palette;
+    button.innerHTML = themeState.isEnabled ? Icons.Palette : Icons.PaletteOff;
 
     if (themeState.isEnabled) {
         button.classList.add('active');
@@ -53,19 +56,26 @@ export function createThemeButton(): void {
 
         if (themeState.isEnabled) {
             button.classList.add('active');
+            button.innerHTML = Icons.Palette;
             injectThemeStyles();
         } else {
             button.classList.remove('active');
+            button.innerHTML = Icons.PaletteOff;
             removeThemeStyles();
         }
 
-        // Update tooltip
         if ((button as any)._tippy) {
             (button as any)._tippy.setContent(themeState.isEnabled ? 'Disable Theme' : 'Enable Theme');
         }
     });
 
-    // Insert into ViewControls — place after translation toggle or at end
+    button.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openSettingsModal();
+        return false;
+    });
+
     const translateToggle = viewControls.querySelector('#TranslateToggle');
     const romanizationToggle = viewControls.querySelector('#RomanizationToggle');
     if (translateToggle) {
@@ -86,7 +96,6 @@ export function removeThemeButton(): void {
         themeButton = null;
         debug('Theme button removed');
     }
-    // Also remove any orphaned buttons
     document.getElementById('ThemeToggle')?.remove();
 }
 
@@ -115,13 +124,14 @@ export function injectIntoPiP(): void {
         const button = document.createElement('button');
         button.id = 'ThemeToggle';
         button.className = 'ViewControl';
-        button.innerHTML = Icons.Palette;
+        button.innerHTML = themeState.isEnabled ? Icons.Palette : Icons.PaletteOff;
         if (themeState.isEnabled) button.classList.add('active');
 
         button.addEventListener('click', () => {
             themeState.isEnabled = !themeState.isEnabled;
             saveThemeState();
             button.classList.toggle('active', themeState.isEnabled);
+            button.innerHTML = themeState.isEnabled ? Icons.Palette : Icons.PaletteOff;
             if (themeState.isEnabled) {
                 injectThemeStyles();
             } else {
@@ -129,8 +139,19 @@ export function injectIntoPiP(): void {
             }
         });
 
+        button.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openSettingsModal();
+            return false;
+        });
+
         pipViewControls.appendChild(button);
         debug('Theme button injected into PiP');
+
+        if (themeState.isEnabled) {
+            injectThemeStyles();
+        }
     } catch (e) {
         debug('PiP injection failed:', e);
     }

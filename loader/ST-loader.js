@@ -45,10 +45,6 @@
         await waitForSpicetify();
         log.info('Loading SpicyThemes...');
 
-        // The loader simply wraps the built bundle.
-        // For local installs, the built JS is injected here directly during install.
-        // For auto-update, a CDN URL could be added later.
-
         log.info('SpicyThemes loader ready');
     } catch (err) {
         log.error('Failed to initialize:', err);
