@@ -1,6 +1,6 @@
 # SpicyThemes
 
-Customize [Spicy Lyrics](https://github.com/Spikero/Spicy-Lyrics) with colors, glow effects, gradients, blur, fonts, opacity and more.
+Customize [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) with colors, glow effects, gradients, blur, fonts, opacity and more.
 
 ![Preview](preview.png)
 
@@ -32,7 +32,7 @@ Customize [Spicy Lyrics](https://github.com/Spikero/Spicy-Lyrics) with colors, g
 
 ### Manual Install
 
-1. Make sure [Spicetify](https://spicetify.app/) and [Spicy Lyrics](https://github.com/Spikero/Spicy-Lyrics) are installed
+1. Make sure [Spicetify](https://spicetify.app/) and [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) are installed
 2. Download the latest `spicy-themes.js` from [Releases](https://github.com/7xeh/SpicyThemes/releases)
 3. Copy it to your Spicetify extensions folder:
    ```
@@ -91,7 +91,7 @@ You can also save and manage your own custom presets.
 
 ## Compatibility
 
-- Requires [Spicy Lyrics](https://github.com/Spikero/Spicy-Lyrics)
+- Requires [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics)
 - Works alongside [Spicy Lyric Translator](https://github.com/7xeh/SpicyLyricTranslator) with dedicated translation styling
 - Supports all Spicy Lyrics view modes: full page, sidebar, Cinema and PiP
 
