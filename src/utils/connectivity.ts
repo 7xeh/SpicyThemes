@@ -304,10 +304,14 @@ function getSTTooltipSection(): string {
 function startHeartbeat(): void {
     if (heartbeatInterval) return;
     heartbeatInterval = setInterval(async () => {
+        if (!state.connected) {
+            // Not connected yet — retry initial connection
+            await connectToAPI();
+            return;
+        }
         const ok = await sendHeartbeat();
-        if (!ok && state.connected) {
+        if (!ok) {
             state.connected = false;
-            // Try to reconnect
             await connectToAPI();
         }
     }, HEARTBEAT_INTERVAL);

@@ -442,17 +442,53 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     optionsContainer.appendChild(createSectionHeader('Effects'));
 
+    const highlightSubContainer = document.createElement('div');
+    highlightSubContainer.style.display = themeState.activeTheme.disableHighlight ? '' : 'none';
+
+    optionsContainer.appendChild(createToggleRow(
+        'st-settings.disable-highlight',
+        'Disable Word Highlight',
+        themeState.activeTheme.disableHighlight,
+        (v) => {
+            updateThemeProperty('disableHighlight', v);
+            highlightSubContainer.style.display = v ? '' : 'none';
+        }
+    ));
+
+    highlightSubContainer.appendChild(createColorRow(
+        'st-settings.highlight-color',
+        'Highlight Color',
+        themeState.activeTheme.highlightColor,
+        (v) => updateThemeProperty('highlightColor', v)
+    ));
+
+    optionsContainer.appendChild(highlightSubContainer);
+
     const gradientSubContainer = document.createElement('div');
     gradientSubContainer.style.display = themeState.activeTheme.gradientEnabled ? '' : 'none';
 
     optionsContainer.appendChild(createToggleRow(
         'st-settings.gradient-enabled',
-        'Enable Gradient Text',
+        'Enable Custom Gradient',
         themeState.activeTheme.gradientEnabled,
         (v) => {
             updateThemeProperty('gradientEnabled', v);
             gradientSubContainer.style.display = v ? '' : 'none';
         }
+    ));
+
+    gradientSubContainer.appendChild(createColorRow(
+        'st-settings.gradient-start-color',
+        'Gradient Start Color',
+        themeState.activeTheme.gradientStartColor,
+        (v) => updateThemeProperty('gradientStartColor', v)
+    ));
+
+    gradientSubContainer.appendChild(createColorRow(
+        'st-settings.gradient-end-color',
+        'Gradient End Color',
+        themeState.activeTheme.gradientEndColor.startsWith('rgba') ? '#aaaaaa' : themeState.activeTheme.gradientEndColor,
+        (v) => updateThemeProperty('gradientEndColor', v)
     ));
 
     gradientSubContainer.appendChild(createSliderRow(
@@ -535,14 +571,38 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     optionsContainer.appendChild(blurAmountContainer);
 
-    optionsContainer.appendChild(createSliderRow(
-        'st-settings.animation-speed',
-        'Animation Speed',
-        0.3, 3.0, 0.1,
-        themeState.activeTheme.animationSpeed,
-        'x',
-        (v) => updateThemeProperty('animationSpeed', v)
+    const popSubContainer = document.createElement('div');
+    popSubContainer.style.display = themeState.activeTheme.popEffect ? '' : 'none';
+
+    optionsContainer.appendChild(createToggleRow(
+        'st-settings.pop-effect',
+        'Word Pop Effect',
+        themeState.activeTheme.popEffect,
+        (v) => {
+            updateThemeProperty('popEffect', v);
+            popSubContainer.style.display = v ? '' : 'none';
+        }
     ));
+
+    popSubContainer.appendChild(createSliderRow(
+        'st-settings.pop-scale',
+        'Pop Scale',
+        1.0, 1.3, 0.01,
+        themeState.activeTheme.popScale,
+        'x',
+        (v) => updateThemeProperty('popScale', v)
+    ));
+
+    popSubContainer.appendChild(createSliderRow(
+        'st-settings.pop-duration',
+        'Pop Duration',
+        0.1, 0.6, 0.05,
+        themeState.activeTheme.popDuration,
+        's',
+        (v) => updateThemeProperty('popDuration', v)
+    ));
+
+    optionsContainer.appendChild(popSubContainer);
 
     optionsContainer.appendChild(createSectionHeader('Background'));
 
@@ -626,13 +686,6 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         'Hide Lyrics Scrollbar',
         themeState.activeTheme.hideScrollbar,
         (v) => updateThemeProperty('hideScrollbar', v)
-    ));
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.rounded-corners',
-        'Rounded Corners',
-        themeState.activeTheme.roundedCorners,
-        (v) => updateThemeProperty('roundedCorners', v)
     ));
 
     optionsContainer.appendChild(createButtonRow(
@@ -1291,14 +1344,26 @@ function createSettingsUI(): HTMLElement {
     modalOptionsContainer.appendChild(slider('Active Line Scale', 'st-m-scale-active', 0.8, 1.5, 0.05, themeState.activeTheme.scaleActive, 'x', (v) => updateThemeProperty('scaleActive', v)));
 
     modalOptionsContainer.appendChild(section('Effects'));
+    const highlightSubSettings = document.createElement('div');
+    highlightSubSettings.style.display = themeState.activeTheme.disableHighlight ? 'flex' : 'none';
+    highlightSubSettings.style.flexDirection = 'column';
+    highlightSubSettings.style.gap = '18px';
+    modalOptionsContainer.appendChild(toggle('Disable Word Highlight', 'st-m-disable-highlight', themeState.activeTheme.disableHighlight, (v) => {
+        updateThemeProperty('disableHighlight', v);
+        highlightSubSettings.style.display = v ? 'flex' : 'none';
+    }));
+    highlightSubSettings.appendChild(color('Highlight Color', 'st-m-highlight-color', themeState.activeTheme.highlightColor, (v) => updateThemeProperty('highlightColor', v)));
+    modalOptionsContainer.appendChild(highlightSubSettings);
     const gradientSubSettings = document.createElement('div');
     gradientSubSettings.style.display = themeState.activeTheme.gradientEnabled ? 'flex' : 'none';
     gradientSubSettings.style.flexDirection = 'column';
     gradientSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Enable Gradient Text', 'st-m-gradient-enabled', themeState.activeTheme.gradientEnabled, (v) => {
+    modalOptionsContainer.appendChild(toggle('Enable Custom Gradient', 'st-m-gradient-enabled', themeState.activeTheme.gradientEnabled, (v) => {
         updateThemeProperty('gradientEnabled', v);
         gradientSubSettings.style.display = v ? 'flex' : 'none';
     }));
+    gradientSubSettings.appendChild(color('Gradient Start Color', 'st-m-gradient-start-color', themeState.activeTheme.gradientStartColor, (v) => updateThemeProperty('gradientStartColor', v)));
+    gradientSubSettings.appendChild(color('Gradient End Color', 'st-m-gradient-end-color', themeState.activeTheme.gradientEndColor.startsWith('rgba') ? '#aaaaaa' : themeState.activeTheme.gradientEndColor, (v) => updateThemeProperty('gradientEndColor', v)));
     gradientSubSettings.appendChild(slider('Gradient Angle', 'st-m-gradient-angle', 0, 360, 5, themeState.activeTheme.gradientAngle, '°', (v) => updateThemeProperty('gradientAngle', v)));
     modalOptionsContainer.appendChild(gradientSubSettings);
 
@@ -1323,7 +1388,7 @@ function createSettingsUI(): HTMLElement {
         blurAmountRow.style.display = v ? '' : 'none';
     }));
     modalOptionsContainer.appendChild(blurAmountRow);
-    modalOptionsContainer.appendChild(slider('Animation Speed', 'st-m-animation-speed', 0.3, 3.0, 0.1, themeState.activeTheme.animationSpeed, 'x', (v) => updateThemeProperty('animationSpeed', v)));
+    modalOptionsContainer.appendChild(toggle('Word Pop Effect', 'st-m-pop-effect', themeState.activeTheme.popEffect, (v) => updateThemeProperty('popEffect', v)));
 
     modalOptionsContainer.appendChild(section('Background'));
     const bgSubSettings = document.createElement('div');
@@ -1354,7 +1419,6 @@ function createSettingsUI(): HTMLElement {
 
     modalOptionsContainer.appendChild(section('Miscellaneous'));
     modalOptionsContainer.appendChild(toggle('Hide Lyrics Scrollbar', 'st-m-hide-scrollbar', themeState.activeTheme.hideScrollbar, (v) => updateThemeProperty('hideScrollbar', v)));
-    modalOptionsContainer.appendChild(toggle('Rounded Corners', 'st-m-rounded-corners', themeState.activeTheme.roundedCorners, (v) => updateThemeProperty('roundedCorners', v)));
 
     modalOptionsContainer.appendChild(btn('Reset to Default', 'st-m-reset', () => {
         applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Minimal') || BUILTIN_PRESETS[0]);

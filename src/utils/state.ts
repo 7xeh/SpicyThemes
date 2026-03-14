@@ -18,6 +18,8 @@ export interface ThemeConfig {
     activeGlowIntensity: number;
 
     gradientEnabled: boolean;
+    gradientStartColor: string;
+    gradientEndColor: string;
     gradientAngle: number;
 
     fontFamily: string;
@@ -40,7 +42,11 @@ export interface ThemeConfig {
     sltTranslationFontSize: number;
 
     hideScrollbar: boolean;
-    roundedCorners: boolean;
+    disableHighlight: boolean;
+    highlightColor: string;
+    popEffect: boolean;
+    popScale: number;
+    popDuration: number;
 }
 
 export const DEFAULT_THEME: ThemeConfig = {
@@ -60,6 +66,8 @@ export const DEFAULT_THEME: ThemeConfig = {
     activeGlowIntensity: 8,
 
     gradientEnabled: false,
+    gradientStartColor: '#ffffff',
+    gradientEndColor: '#aaaaaa',
     gradientAngle: 180,
 
     fontFamily: '',
@@ -82,7 +90,11 @@ export const DEFAULT_THEME: ThemeConfig = {
     sltTranslationFontSize: 1.0,
 
     hideScrollbar: false,
-    roundedCorners: false,
+    disableHighlight: false,
+    highlightColor: '#ffffff',
+    popEffect: false,
+    popScale: 1.08,
+    popDuration: 0.25,
 };
 
 export interface ThemePreset {
@@ -104,6 +116,8 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             activeGlowColor: '#00ff88',
             activeGlowIntensity: 16,
             gradientEnabled: true,
+            gradientStartColor: '#1db954',
+            gradientEndColor: '#00ff88',
             gradientAngle: 180,
             notSungLineOpacity: 0.35,
         }
@@ -114,6 +128,8 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
         config: {
             ...DEFAULT_THEME,
             gradientEnabled: true,
+            gradientStartColor: '#ff6b35',
+            gradientEndColor: '#f7c948',
             gradientAngle: 135,
             activeLineColor: '#ff6b35',
             sungLineColor: '#f7c948',
@@ -138,6 +154,8 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             activeGlowColor: '#00d4ff',
             activeGlowIntensity: 12,
             gradientEnabled: true,
+            gradientStartColor: '#00d4ff',
+            gradientEndColor: '#004466',
             gradientAngle: 180,
             notSungLineOpacity: 0.4,
         }
@@ -161,6 +179,8 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             activeGlowColor: '#bf5fff',
             activeGlowIntensity: 14,
             gradientEnabled: true,
+            gradientStartColor: '#bf5fff',
+            gradientEndColor: '#6c3483',
             gradientAngle: 160,
         }
     },
@@ -256,6 +276,8 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
             scaleActive: [0.8, 1.5],
             animationSpeed: [0.3, 3.0],
             gradientAngle: [0, 360],
+            popScale: [1.0, 1.3],
+            popDuration: [0.1, 0.6],
             lineHeight: [1.0, 2.5],
             letterSpacing: [-0.1, 0.3],
             fontWeight: [100, 900],

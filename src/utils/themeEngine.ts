@@ -32,19 +32,16 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
     };
 }
 
-function gradientRule(r: number, g: number, b: number): string {
+function gradientRule(r: number, g: number, b: number, r2?: number, g2?: number, b2?: number): string {
+    const er = r2 ?? r, eg = g2 ?? g, eb = b2 ?? b;
     return `background-image: linear-gradient(
         var(--gradient-degrees),
         rgba(${r}, ${g}, ${b}, var(--gradient-alpha)) var(--gradient-position),
-        rgba(${r}, ${g}, ${b}, var(--gradient-alpha-end)) calc(var(--gradient-position) + 20% + var(--gradient-offset))
+        rgba(${er}, ${eg}, ${eb}, var(--gradient-alpha-end)) calc(var(--gradient-position) + 20% + var(--gradient-offset))
     ) !important;
     -webkit-background-clip: text !important;
     background-clip: text !important;
     -webkit-text-fill-color: transparent !important;`;
-}
-
-function colorRule(color: string): string {
-    return `color: ${color} !important;\n    -webkit-text-fill-color: ${color} !important;`;
 }
 
 function sel(bases: string[], suffix: string): string {
@@ -72,6 +69,8 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const notSungRgb = hexToRgb(config.notSungLineColor);
     const bgRgb = hexToRgb(config.bgLineColor.startsWith('rgba') ? '#ffffff' : config.bgLineColor);
     const sltRgb = hexToRgb(config.sltTranslationColor);
+    const gradStartRgb = hexToRgb(config.gradientStartColor);
+    const gradEndRgb = hexToRgb(config.gradientEndColor);
 
     const BASES = [
         '#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent',
@@ -87,10 +86,16 @@ export function generateThemeCSS(config: ThemeConfig): string {
     ];
     const ALL = [...BASES, ...PIP];
 
-    const activeGrad = config.gradientEnabled ? gradientRule(activeRgb.r, activeRgb.g, activeRgb.b) : colorRule(config.activeLineColor);
-    const sungGrad = config.gradientEnabled ? gradientRule(sungRgb.r, sungRgb.g, sungRgb.b) : colorRule(config.sungLineColor);
-    const notSungGrad = config.gradientEnabled ? gradientRule(notSungRgb.r, notSungRgb.g, notSungRgb.b) : colorRule(config.notSungLineColor);
-    const sltGrad = config.gradientEnabled ? gradientRule(sltRgb.r, sltRgb.g, sltRgb.b) : colorRule(config.sltTranslationColor);
+    const activeGrad = config.gradientEnabled
+        ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
+        : gradientRule(activeRgb.r, activeRgb.g, activeRgb.b);
+    const sungGrad = config.gradientEnabled
+        ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
+        : gradientRule(sungRgb.r, sungRgb.g, sungRgb.b);
+    const notSungGrad = config.gradientEnabled
+        ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
+        : gradientRule(notSungRgb.r, notSungRgb.g, notSungRgb.b);
+    const sltGrad = gradientRule(sltRgb.r, sltRgb.g, sltRgb.b);
 
     const glowActive = config.glowEnabled && `text-shadow: 0 0 ${config.activeGlowIntensity}px ${config.activeGlowColor} !important;`;
     const glowNormal = config.glowEnabled && `text-shadow: 0 0 ${config.glowIntensity}px ${config.glowColor} !important;`;
@@ -109,7 +114,7 @@ ${sel(ALL, '.line')} {
         `--Vocal-Active-opacity: ${config.activeLineOpacity} !important;`,
         `--Vocal-Sung-opacity: ${config.sungLineOpacity} !important;`,
         `--Vocal-NotSung-opacity: ${config.notSungLineOpacity} !important;`,
-        config.gradientEnabled && `--gradient-degrees: ${config.gradientAngle}deg !important;`,
+        `--gradient-degrees: ${config.gradientAngle}deg !important;`,
         config.fontFamily && `font-family: ${config.fontFamily}, system-ui, sans-serif !important;`,
         `font-weight: ${config.fontWeight} !important;`,
         config.letterSpacing !== 0 && `letter-spacing: ${config.letterSpacing}em !important;`,
@@ -146,6 +151,27 @@ ${blurTargets} {
 `);
     }
 
+    if (config.disableHighlight) {
+        const states = ['Active', 'Sung', 'NotSung'];
+        const highlightTargets = ALL.flatMap(b =>
+            states.flatMap(s => [
+                `${b} .line.${s}`,
+                `${b} .line.${s} .word`,
+                `${b} .line.${s} .letter`,
+                `${b} .line.${s} .letterGroup`,
+            ])
+        ).join(',\n');
+        css.push(`
+${highlightTargets} {
+    background-image: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    color: ${config.highlightColor} !important;
+    -webkit-text-fill-color: ${config.highlightColor} !important;
+}
+`);
+    }
+
     if (config.gradientEnabled) {
         css.push(`
 ${sel(BASES, '.line.bg-line')},
@@ -154,8 +180,8 @@ ${sel(BASES, '.line.bg-line .letterGroup')},
 ${sel(BASES, '.line.bg-line .letterGroup .letter')} {
     background-image: linear-gradient(
         var(--gradient-degrees),
-        rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 0.6) var(--gradient-position),
-        rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 0.3) calc(var(--gradient-position) + 20% + var(--gradient-offset))
+        rgba(${gradStartRgb.r}, ${gradStartRgb.g}, ${gradStartRgb.b}, 0.6) var(--gradient-position),
+        rgba(${gradEndRgb.r}, ${gradEndRgb.g}, ${gradEndRgb.b}, 0.3) calc(var(--gradient-position) + 20% + var(--gradient-offset))
     ) !important;
     -webkit-background-clip: text !important;
     background-clip: text !important;
@@ -168,8 +194,7 @@ ${sel(BASES, '.line.bg-line')},
 ${sel(BASES, '.line.bg-line .word')},
 ${sel(BASES, '.line.bg-line .letterGroup')},
 ${sel(BASES, '.line.bg-line .letterGroup .letter')} {
-    color: rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 0.4) !important;
-    -webkit-text-fill-color: rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 0.4) !important;
+    ${gradientRule(bgRgb.r, bgRgb.g, bgRgb.b)}
 }
 `);
     }
@@ -219,6 +244,7 @@ ${sel(BASES, '')} {
 .slt-interleaved-translation:not(.slt-sync-translation) {
     ${buildProps(
         `color: ${config.sltTranslationColor} !important;`,
+        `-webkit-text-fill-color: ${config.sltTranslationColor} !important;`,
         `opacity: ${config.sltTranslationOpacity} !important;`,
         sltFontOverrides,
     )}
@@ -260,6 +286,7 @@ ${sel(BASES, '')} {
 .slt-interleaved-translation.Active:not(.slt-sync-translation) {
     ${buildProps(
         `color: ${config.activeLineColor} !important;`,
+        `-webkit-text-fill-color: ${config.activeLineColor} !important;`,
         `opacity: ${config.activeLineOpacity} !important;`,
         glowActive,
     )}
@@ -294,6 +321,7 @@ ${sel(BASES, '')} {
 
 .line.Sung + .slt-interleaved-translation:not(.slt-sync-translation) {
     color: ${config.sungLineColor} !important;
+    -webkit-text-fill-color: ${config.sungLineColor} !important;
     opacity: ${config.sungLineOpacity} !important;
 }
 
@@ -324,6 +352,7 @@ ${sel(BASES, '')} {
 
 .line.NotSung + .slt-interleaved-translation:not(.slt-sync-translation) {
     color: ${config.notSungLineColor} !important;
+    -webkit-text-fill-color: ${config.notSungLineColor} !important;
     opacity: ${config.notSungLineOpacity} !important;
 }
 
@@ -346,21 +375,41 @@ ${sel(BASES, '')} {
     }
 
     if (config.hideScrollbar) {
+        const scrollTargets = [
+            '#SpicyLyricsPage .LyricsContainer',
+            '#SpicyLyricsPage .LyricsContainer .LyricsContent',
+            '#SpicyLyricsPage .SpicyLyricsScrollContainer',
+            '#SpicyLyricsPage .ContentBox',
+            '.spicy-pip-wrapper #SpicyLyricsPage .LyricsContainer',
+            '.spicy-pip-wrapper #SpicyLyricsPage .SpicyLyricsScrollContainer',
+            'body.SpicySidebarLyrics__Active #SpicyLyricsPage .LyricsContainer',
+        ];
         css.push(`
-${BASES.map(b => `${b}::-webkit-scrollbar`).join(',\n')} {
+${scrollTargets.map(s => `${s}::-webkit-scrollbar`).join(',\n')} {
     display: none !important;
+    width: 0 !important;
 }
-${sel(BASES, '')} {
+${scrollTargets.join(',\n')} {
     scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
 }
 `);
     }
 
-    if (config.roundedCorners) {
+    if (config.popEffect) {
+        const popActiveTargets = ALL.flatMap(b => [
+            `${b} .line.Active .word`,
+            `${b} .line.Active .letterGroup`,
+        ]).join(',\n');
         css.push(`
-#SpicyLyricsPage .LyricsContainer {
-    border-radius: 12px !important;
-    overflow: hidden !important;
+@keyframes st-word-pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(${config.popScale}); }
+    100% { transform: scale(1); }
+}
+${popActiveTargets} {
+    display: inline-block !important;
+    animation: st-word-pop ${config.popDuration}s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 `);
     }
