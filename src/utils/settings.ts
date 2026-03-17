@@ -525,7 +525,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     glowSubContainer.appendChild(createSliderRow(
         'st-settings.glow-intensity',
         'Glow Intensity',
-        0, 20, 1,
+        0, 15, 1,
         themeState.activeTheme.glowIntensity,
         'px',
         (v) => updateThemeProperty('glowIntensity', v)
@@ -541,7 +541,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     glowSubContainer.appendChild(createSliderRow(
         'st-settings.active-glow-intensity',
         'Active Glow Intensity',
-        0, 30, 1,
+        0, 15, 1,
         themeState.activeTheme.activeGlowIntensity,
         'px',
         (v) => updateThemeProperty('activeGlowIntensity', v)
@@ -1376,9 +1376,9 @@ function createSettingsUI(): HTMLElement {
         glowSubSettings.style.display = v ? 'flex' : 'none';
     }));
     glowSubSettings.appendChild(color('Glow Color', 'st-m-glow-color', themeState.activeTheme.glowColor, (v) => updateThemeProperty('glowColor', v)));
-    glowSubSettings.appendChild(slider('Glow Intensity', 'st-m-glow-intensity', 0, 20, 1, themeState.activeTheme.glowIntensity, 'px', (v) => updateThemeProperty('glowIntensity', v)));
+    glowSubSettings.appendChild(slider('Glow Intensity', 'st-m-glow-intensity', 0, 15, 1, themeState.activeTheme.glowIntensity, 'px', (v) => updateThemeProperty('glowIntensity', v)));
     glowSubSettings.appendChild(color('Active Line Glow Color', 'st-m-active-glow-color', themeState.activeTheme.activeGlowColor, (v) => updateThemeProperty('activeGlowColor', v)));
-    glowSubSettings.appendChild(slider('Active Glow Intensity', 'st-m-active-glow-intensity', 0, 30, 1, themeState.activeTheme.activeGlowIntensity, 'px', (v) => updateThemeProperty('activeGlowIntensity', v)));
+    glowSubSettings.appendChild(slider('Active Glow Intensity', 'st-m-active-glow-intensity', 0, 15, 1, themeState.activeTheme.activeGlowIntensity, 'px', (v) => updateThemeProperty('activeGlowIntensity', v)));
     modalOptionsContainer.appendChild(glowSubSettings);
 
     const blurAmountRow = slider('Blur Amount', 'st-m-blur-amount', 0, 8, 0.5, themeState.activeTheme.blurAmount, 'px', (v) => updateThemeProperty('blurAmount', v));
@@ -1388,7 +1388,17 @@ function createSettingsUI(): HTMLElement {
         blurAmountRow.style.display = v ? '' : 'none';
     }));
     modalOptionsContainer.appendChild(blurAmountRow);
-    modalOptionsContainer.appendChild(toggle('Word Pop Effect', 'st-m-pop-effect', themeState.activeTheme.popEffect, (v) => updateThemeProperty('popEffect', v)));
+    const popSubSettings = document.createElement('div');
+    popSubSettings.style.display = themeState.activeTheme.popEffect ? 'flex' : 'none';
+    popSubSettings.style.flexDirection = 'column';
+    popSubSettings.style.gap = '18px';
+    modalOptionsContainer.appendChild(toggle('Word Pop Effect', 'st-m-pop-effect', themeState.activeTheme.popEffect, (v) => {
+        updateThemeProperty('popEffect', v);
+        popSubSettings.style.display = v ? 'flex' : 'none';
+    }));
+    popSubSettings.appendChild(slider('Pop Scale', 'st-m-pop-scale', 1.0, 1.3, 0.01, themeState.activeTheme.popScale, 'x', (v) => updateThemeProperty('popScale', v)));
+    popSubSettings.appendChild(slider('Pop Duration', 'st-m-pop-duration', 0.1, 0.6, 0.05, themeState.activeTheme.popDuration, 's', (v) => updateThemeProperty('popDuration', v)));
+    modalOptionsContainer.appendChild(popSubSettings);
 
     modalOptionsContainer.appendChild(section('Background'));
     const bgSubSettings = document.createElement('div');

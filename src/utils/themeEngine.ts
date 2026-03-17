@@ -44,6 +44,10 @@ function gradientRule(r: number, g: number, b: number, r2?: number, g2?: number,
     -webkit-text-fill-color: transparent !important;`;
 }
 
+function colorRule(color: string): string {
+    return `color: ${color} !important;\n    -webkit-text-fill-color: ${color} !important;`;
+}
+
 function sel(bases: string[], suffix: string): string {
     return bases.map(b => suffix ? `${b} ${suffix}` : b).join(',\n');
 }
@@ -88,18 +92,23 @@ export function generateThemeCSS(config: ThemeConfig): string {
 
     const activeGrad = config.gradientEnabled
         ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
-        : gradientRule(activeRgb.r, activeRgb.g, activeRgb.b);
+        : colorRule(config.activeLineColor);
     const sungGrad = config.gradientEnabled
         ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
-        : gradientRule(sungRgb.r, sungRgb.g, sungRgb.b);
+        : colorRule(config.sungLineColor);
     const notSungGrad = config.gradientEnabled
         ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
-        : gradientRule(notSungRgb.r, notSungRgb.g, notSungRgb.b);
-    const sltGrad = gradientRule(sltRgb.r, sltRgb.g, sltRgb.b);
+        : colorRule(config.notSungLineColor);
+    const sltGrad = config.gradientEnabled
+        ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
+        : colorRule(config.sltTranslationColor);
 
-    const glowActive = config.glowEnabled && `text-shadow: 0 0 ${config.activeGlowIntensity}px ${config.activeGlowColor} !important;`;
-    const glowNormal = config.glowEnabled && `text-shadow: 0 0 ${config.glowIntensity}px ${config.glowColor} !important;`;
-    const glowSidebar = config.glowEnabled && `text-shadow: 0 0 ${Math.round(config.activeGlowIntensity * 0.7)}px ${config.activeGlowColor} !important;`;
+    const clampedActiveGlow = Math.min(config.activeGlowIntensity, 15);
+    const clampedGlow = Math.min(config.glowIntensity, 15);
+    const clampedSidebarGlow = Math.min(Math.round(config.activeGlowIntensity * 0.7), 15);
+    const glowActive = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedActiveGlow}px ${config.activeGlowColor}) !important;`;
+    const glowNormal = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`;
+    const glowSidebar = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedSidebarGlow}px ${config.activeGlowColor}) !important;`;
     const scaleEffect = config.scaleActive !== 1.0 && `scale: ${config.scaleActive} !important;`;
 
     const sltFontOverrides = buildProps(
@@ -125,27 +134,42 @@ ${sel(ALL, '.line')} {
 
     css.push(`
 ${lineSelectors(ALL, 'Active')} {
-    ${buildProps(activeGrad, glowActive, scaleEffect)}
+    ${buildProps(activeGrad, scaleEffect)}
 }
 `);
 
     css.push(`
 ${lineSelectors(ALL, 'Sung')} {
-    ${buildProps(sungGrad, glowNormal)}
+    ${sungGrad}
 }
 `);
 
     css.push(`
 ${lineSelectors(ALL, 'NotSung')} {
-    ${buildProps(notSungGrad, glowNormal)}
+    ${notSungGrad}
 }
 `);
 
+    if (config.glowEnabled) {
+        css.push(`
+${ALL.map(b => `${b} .line.Active`).join(',\n')} {
+    ${glowActive}
+}
+${ALL.map(b => `${b} .line.Sung`).join(',\n')},
+${ALL.map(b => `${b} .line.NotSung`).join(',\n')} {
+    ${glowNormal}
+}
+`);
+    }
+
     if (config.blurUnsung) {
         const blurTargets = ALL.flatMap(b => [`${b} .line.Sung`, `${b} .line.NotSung`]).join(',\n');
+        const blurFilter = config.glowEnabled
+            ? `filter: blur(${config.blurAmount}px) drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`
+            : `filter: blur(${config.blurAmount}px) !important;`;
         css.push(`
 ${blurTargets} {
-    filter: blur(${config.blurAmount}px) !important;
+    ${blurFilter}
     will-change: filter;
 }
 `);
@@ -159,10 +183,23 @@ ${blurTargets} {
                 `${b} .line.${s} .word`,
                 `${b} .line.${s} .letter`,
                 `${b} .line.${s} .letterGroup`,
+                `${b} .line.${s} .syllable`,
+                `${b} .line.${s} .syllableGroup`,
             ])
         ).join(',\n');
+        const sltHighlightTargets = [
+            '.slt-replace-line',
+            '.slt-replace-line .slt-replace-word',
+            '.slt-interleaved-translation',
+            '.slt-sync-translation.slt-interleaved-translation',
+            '.slt-sync-translation.slt-interleaved-translation .slt-sync-word',
+            '.slt-replace-line.Active',
+            '.slt-replace-line.Sung',
+            '.slt-replace-line.NotSung',
+        ].join(',\n');
         css.push(`
-${highlightTargets} {
+${highlightTargets},
+${sltHighlightTargets} {
     background-image: none !important;
     -webkit-background-clip: unset !important;
     background-clip: unset !important;
@@ -243,8 +280,7 @@ ${sel(BASES, '')} {
 
 .slt-interleaved-translation:not(.slt-sync-translation) {
     ${buildProps(
-        `color: ${config.sltTranslationColor} !important;`,
-        `-webkit-text-fill-color: ${config.sltTranslationColor} !important;`,
+        sltGrad,
         `opacity: ${config.sltTranslationOpacity} !important;`,
         sltFontOverrides,
     )}
@@ -285,8 +321,7 @@ ${sel(BASES, '')} {
 .slt-interleaved-translation.active:not(.slt-sync-translation),
 .slt-interleaved-translation.Active:not(.slt-sync-translation) {
     ${buildProps(
-        `color: ${config.activeLineColor} !important;`,
-        `-webkit-text-fill-color: ${config.activeLineColor} !important;`,
+        activeGrad,
         `opacity: ${config.activeLineOpacity} !important;`,
         glowActive,
     )}
@@ -301,8 +336,7 @@ ${sel(BASES, '')} {
         `background-repeat: no-repeat !important;`,
         `-webkit-box-decoration-break: slice !important;`,
         `box-decoration-break: slice !important;`,
-        `filter: none !important;`,
-        glowActive,
+        glowActive || `filter: none !important;`,
     )}
 }
 
@@ -320,9 +354,10 @@ ${sel(BASES, '')} {
 }
 
 .line.Sung + .slt-interleaved-translation:not(.slt-sync-translation) {
-    color: ${config.sungLineColor} !important;
-    -webkit-text-fill-color: ${config.sungLineColor} !important;
-    opacity: ${config.sungLineOpacity} !important;
+    ${buildProps(
+        sungGrad,
+        `opacity: ${config.sungLineOpacity} !important;`,
+    )}
 }
 
 .line.Sung + .slt-sync-translation.slt-interleaved-translation {
@@ -351,9 +386,10 @@ ${sel(BASES, '')} {
 }
 
 .line.NotSung + .slt-interleaved-translation:not(.slt-sync-translation) {
-    color: ${config.notSungLineColor} !important;
-    -webkit-text-fill-color: ${config.notSungLineColor} !important;
-    opacity: ${config.notSungLineOpacity} !important;
+    ${buildProps(
+        notSungGrad,
+        `opacity: ${config.notSungLineOpacity} !important;`,
+    )}
 }
 
 .line.NotSung + .slt-sync-translation.slt-interleaved-translation {
@@ -416,7 +452,7 @@ ${popActiveTargets} {
 
     css.push(`
 ${lineSelectors(SIDEBAR, 'Active')} {
-    ${buildProps(activeGrad, glowSidebar)}
+    ${activeGrad}
 }
 ${lineSelectors(SIDEBAR, 'Sung')} {
     ${sungGrad}
@@ -425,6 +461,14 @@ ${lineSelectors(SIDEBAR, 'NotSung')} {
     ${notSungGrad}
 }
 `);
+
+    if (config.glowEnabled) {
+        css.push(`
+${SIDEBAR.map(b => `${b} .line.Active`).join(',\n')} {
+    ${glowSidebar}
+}
+`);
+    }
 
     return css.join('\n');
 }
@@ -603,8 +647,7 @@ const BASE_STYLES = `
     color: var(--spice-button-active, #1db954);
 }
 
-.ST_ConnectionIndicator {
-    display: flex;
+// .ST_ConnectionIndicator removed: no longer used
     align-items: center;
     margin-right: 8px;
     position: relative;

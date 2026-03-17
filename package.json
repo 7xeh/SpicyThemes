@@ -1,6 +1,6 @@
 {
   "name": "spicy-themes",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "A Spicetify extension that lets you customize the theme of Spicy Lyrics with colors, effects, fonts, and more!",
   "main": "dist/spicy-themes.js",
   "repository": {

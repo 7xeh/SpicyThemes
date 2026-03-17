@@ -24,7 +24,6 @@ const SLT_DETECT_MAX_ATTEMPTS = 10;
 interface STConnectivityState {
     sessionId: string | null;
     totalUsers: number;
-    activeUsers: number;
     isViewingLyrics: boolean;
     connected: boolean;
     isInitialized: boolean;
@@ -33,7 +32,6 @@ interface STConnectivityState {
 const state: STConnectivityState = {
     sessionId: null,
     totalUsers: 0,
-    activeUsers: 0,
     isViewingLyrics: false,
     connected: false,
     isInitialized: false,
@@ -70,7 +68,6 @@ async function connectToAPI(): Promise<boolean> {
         if (data.success) {
             state.sessionId = data.sessionId;
             state.totalUsers = data.totalUsers || 0;
-            state.activeUsers = data.activeUsers || 0;
             state.connected = true;
             updateDisplay();
             debug('ST connectivity connected');
@@ -101,7 +98,6 @@ async function sendHeartbeat(): Promise<boolean> {
         if (data.success) {
             state.sessionId = data.sessionId || state.sessionId;
             state.totalUsers = data.totalUsers || 0;
-            state.activeUsers = data.activeUsers || 0;
             updateDisplay();
             return true;
         }
@@ -160,52 +156,12 @@ function createSTStatsRow(): HTMLElement {
                 </svg>
                 <span class="st-ci-total-count">0</span>
             </span>
-            <span class="slt-ci-sep"></span>
-            <span class="slt-ci-users-count slt-ci-active" title="ST users currently viewing lyrics">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                </svg>
-                <span class="st-ci-active-count">0</span>
-            </span>
         </div>
     `;
     return row;
 }
 
-function createStandaloneIndicator(): HTMLElement {
-    const container = document.createElement('div');
-    container.className = 'ST_ConnectionIndicator';
-    container.innerHTML = `
-        <div class="st-ci-button" title="ST Connection Status">
-            <div class="st-ci-dot"></div>
-            <div class="st-ci-expanded">
-                <div class="slt-ci-stats-row">
-                    <span class="st-ci-label" style="font-size:0.58rem;opacity:0.5;font-weight:600;letter-spacing:0.03em;">ST</span>
-                    <span class="slt-ci-sep"></span>
-                    <span class="slt-ci-users-count slt-ci-total" title="Total ST users installed">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                            <circle cx="9" cy="7" r="4"/>
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                        </svg>
-                        <span class="st-ci-total-count">0</span>
-                    </span>
-                    <span class="slt-ci-sep"></span>
-                    <span class="slt-ci-users-count slt-ci-active" title="ST users currently viewing lyrics">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                            <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                        <span class="st-ci-active-count">0</span>
-                    </span>
-                </div>
-            </div>
-        </div>
-    `;
-    return container;
-}
+// Removed standalone ST indicator. Only show ST stats in the tippy/tooltip.
 
 function appendToSLTIndicator(): boolean {
     const sltIndicator = findSLTIndicator();
@@ -222,33 +178,15 @@ function appendToSLTIndicator(): boolean {
     return true;
 }
 
-function createStandalone(): boolean {
-    if (standaloneElement && standaloneElement.parentNode) return true;
-
-    const topBarContentRight = document.querySelector('.main-topBar-topbarContentRight');
-    if (!topBarContentRight) return false;
-
-    standaloneElement = createStandaloneIndicator();
-    topBarContentRight.insertBefore(standaloneElement, topBarContentRight.firstChild);
-    debug('ST standalone indicator created');
-    return true;
-}
-
+// Removed standalone creation. Only append ST stats to the main indicator.
 function updateDisplay(): void {
-    const root = sltStatsElement || standaloneElement;
+    const root = sltStatsElement;
     if (!root) return;
 
     const totalEl = root.querySelector('.st-ci-total-count');
-    const activeEl = root.querySelector('.st-ci-active-count');
     if (totalEl) totalEl.textContent = `${state.totalUsers}`;
-    if (activeEl) activeEl.textContent = `${state.activeUsers}`;
 
-    const dot = root.querySelector('.st-ci-dot');
-    if (dot) {
-        dot.classList.toggle('st-ci-connected', state.connected);
-    }
-
-    // Update SLT tooltip to include ST data if appended
+    // Only update the tippy/tooltip, not a standalone indicator
     if (sltStatsElement) {
         const sltIndicator = findSLTIndicator();
         const button = sltIndicator?.querySelector('.slt-ci-button');
@@ -290,12 +228,7 @@ function getSTTooltipSection(): string {
                     <span style="font-weight:700;font-size:13px;">${state.totalUsers}</span>
                     <span style="font-size:9px;opacity:0.4;">installed</span>
                 </div>
-                <div style="width:1px;height:28px;background:rgba(255,255,255,0.08);"></div>
-                <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;cursor:default;" title="ST users currently viewing lyrics">
-                    <span style="font-size:10px;opacity:0.5;text-transform:uppercase;letter-spacing:0.05em;">Active</span>
-                    <span style="font-weight:700;color:#1db954;font-size:13px;">${state.activeUsers}</span>
-                    <span style="font-size:9px;opacity:0.4;">viewing</span>
-                </div>
+                <!-- Active users section removed -->
             </div>
         </div>
     `;
@@ -337,8 +270,7 @@ export async function initConnectivity(): Promise<void> {
     }
 
     if (!attached) {
-        debug('SLT indicator not found, creating standalone');
-        createStandalone();
+        debug('SLT indicator not found, skipping standalone creation');
     }
 
     updateDisplay();
