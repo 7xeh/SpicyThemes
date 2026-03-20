@@ -47,6 +47,10 @@ export interface ThemeConfig {
     popEffect: boolean;
     popScale: number;
     popDuration: number;
+
+    waveEffect: boolean;
+    waveIntensity: number;
+    waveSpeed: number;
 }
 
 export const DEFAULT_THEME: ThemeConfig = {
@@ -64,7 +68,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     activeGlowColor: '#ffffff',
     activeGlowIntensity: 12,
 
-    gradientEnabled: false,
+    gradientEnabled: true,
     gradientStartColor: '#ffffff',
     gradientEndColor: '#b3b3b3',
     gradientAngle: 180,
@@ -96,6 +100,10 @@ export const DEFAULT_THEME: ThemeConfig = {
     popEffect: true,
     popScale: 1.05,
     popDuration: 0.3,
+
+    waveEffect: false,
+    waveIntensity: 4,
+    waveSpeed: 0.8,
 };
 
 export interface ThemePreset {
@@ -112,12 +120,20 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             ...DEFAULT_THEME,
             activeLineColor: '#1db954',
             sungLineColor: '#1db954',
-            notSungLineColor: '#ffffff', 
+            notSungLineColor: '#ffffff',
             glowEnabled: true,
             activeGlowColor: '#1db954',
             activeGlowIntensity: 15,
             glowColor: '#1db954',
             glowIntensity: 4,
+            gradientEnabled: true,
+            gradientStartColor: '#1db954',
+            gradientEndColor: '#00ff88',
+            gradientAngle: 135,
+            bgGlowEnabled: true,
+            bgGlowColor: '#1db954',
+            bgGlowIntensity: 15,
+            disableHighlight: false,
             popEffect: true,
             popScale: 1.12,
             popDuration: 0.15,
@@ -139,9 +155,15 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             glowEnabled: true,
             activeGlowColor: '#ff6b35',
             activeGlowIntensity: 12,
+            glowColor: '#f7c948',
+            glowIntensity: 6,
+            bgGlowEnabled: true,
+            bgGlowColor: '#ff6b35',
+            bgGlowIntensity: 12,
+            disableHighlight: false,
             popEffect: true,
             popScale: 1.05,
-            popDuration: 0.4, 
+            popDuration: 0.4,
             animationSpeed: 0.8,
         }
     },
@@ -156,8 +178,18 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             glowEnabled: true,
             activeGlowColor: '#00d4ff',
             activeGlowIntensity: 14,
+            glowColor: '#0088cc',
+            glowIntensity: 6,
+            gradientEnabled: true,
+            gradientStartColor: '#00d4ff',
+            gradientEndColor: '#0066aa',
+            gradientAngle: 180,
+            bgGlowEnabled: true,
+            bgGlowColor: '#00d4ff',
+            bgGlowIntensity: 14,
+            disableHighlight: false,
             blurUnsung: true,
-            blurAmount: 3.5, 
+            blurAmount: 3.5,
             popEffect: false,
             scaleActive: 1.05,
         }
@@ -177,6 +209,12 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             glowEnabled: true,
             activeGlowColor: '#ff00ff',
             activeGlowIntensity: 15,
+            glowColor: '#00ffff',
+            glowIntensity: 6,
+            bgGlowEnabled: true,
+            bgGlowColor: '#ff00ff',
+            bgGlowIntensity: 15,
+            disableHighlight: false,
             popEffect: true,
             popScale: 1.1,
             popDuration: 0.2,
@@ -191,7 +229,9 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             gradientEnabled: false,
             blurUnsung: false,
             popEffect: false,
-            scaleActive: 1.0, 
+            bgGlowEnabled: false,
+            disableHighlight: false,
+            scaleActive: 1.0,
             activeLineColor: '#ffffff',
             sungLineOpacity: 0.2,
             notSungLineOpacity: 0.5,
@@ -293,6 +333,8 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
             gradientAngle: [0, 360],
             popScale: [1.0, 1.3],
             popDuration: [0.1, 0.6],
+            waveIntensity: [1, 10],
+            waveSpeed: [0.3, 2.0],
             lineHeight: [1.0, 2.5],
             letterSpacing: [-0.1, 0.3],
             fontWeight: [100, 900],

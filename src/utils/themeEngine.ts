@@ -128,6 +128,16 @@ ${sel(ALL, '.line')} {
 `);
 
     css.push(`
+${ALL.flatMap(b => [
+    `${b} .line .word`,
+    `${b} .line .letter`,
+    `${b} .line .letterGroup`,
+]).join(',\n')} {
+    font-weight: ${config.fontWeight} !important;
+}
+`);
+
+    css.push(`
 ${lineSelectors(ALL, 'Active')} {
     ${buildProps(activeGrad, scaleEffect)}
 }
@@ -166,6 +176,19 @@ ${ALL.map(b => `${b} .line.NotSung`).join(',\n')} {
 ${blurTargets} {
     ${blurFilter}
     will-change: filter;
+}
+`);
+
+        const unblurFilter = config.glowEnabled
+            ? `filter: drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`
+            : `filter: none !important;`;
+        const unblurTargets = ALL.flatMap(b => [
+            `${b} .line.Active + .line`,
+            `${b} .line.Active + :not(.line) + .line`,
+        ]).join(',\n');
+        css.push(`
+${unblurTargets} {
+    ${unblurFilter}
 }
 `);
     }
@@ -412,9 +435,35 @@ ${popActiveTargets} {
 `);
     }
 
+    if (config.waveEffect) {
+        const waveTargets = ALL.flatMap(b => [
+            `${b} .line.Active .word`,
+            `${b} .line.Active .letterGroup`,
+        ]).join(',\n');
+        css.push(`
+@keyframes st-word-wave {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-${config.waveIntensity}px); }
+}
+${waveTargets} {
+    display: inline-block !important;
+    animation: st-word-wave ${config.waveSpeed}s ease-in-out infinite !important;
+}
+`);
+        for (let i = 0; i < 20; i++) {
+            const nthTargets = ALL.flatMap(b => [
+                `${b} .line.Active .word:nth-child(${i + 1})`,
+                `${b} .line.Active .letterGroup:nth-child(${i + 1})`,
+            ]).join(',\n');
+            css.push(`
+${nthTargets} {
+    animation-delay: ${(i * 0.08).toFixed(2)}s !important;
+}
+`);
+        }
+    }
+
     css.push(`
-${lineSelectors(SIDEBAR, 'Active')} {
-    ${activeGrad}
 }
 ${lineSelectors(SIDEBAR, 'Sung')} {
     ${sungGrad}
@@ -447,12 +496,12 @@ function injectIntoPIPDocument(css: string): void {
     const pipWindow = getPIPWindow();
     if (!pipWindow) return;
     const pipDoc = pipWindow.document;
-    let style = pipDoc.getElementById(STYLE_ID) as HTMLStyleElement | null;
-    if (!style) {
-        style = pipDoc.createElement('style');
-        style.id = STYLE_ID;
-        pipDoc.head.appendChild(style);
-    }
+    const old = pipDoc.getElementById(STYLE_ID);
+    if (old) old.remove();
+
+    const style = pipDoc.createElement('style');
+    style.id = STYLE_ID;
+    pipDoc.head.appendChild(style);
     style.textContent = css;
 }
 
@@ -464,12 +513,14 @@ export function injectThemeStyles(): void {
 
     const css = generateThemeCSS(themeState.activeTheme);
 
-    let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
-    if (!style) {
-        style = document.createElement('style');
-        style.id = STYLE_ID;
-        document.head.appendChild(style);
-    }
+    // Always remove and re-create the style element so the browser
+    // restarts CSS animations and fully re-evaluates font rules.
+    const old = document.getElementById(STYLE_ID);
+    if (old) old.remove();
+
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    document.head.appendChild(style);
     style.textContent = css;
 
     injectIntoPIPDocument(css);

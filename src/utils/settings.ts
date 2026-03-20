@@ -2,7 +2,7 @@ import { storage } from './storage';
 import { themeState, saveThemeState, applyPreset, getAllPresets, saveCustomPreset, deleteCustomPreset, updateThemeProperty, ThemeConfig, DEFAULT_THEME, BUILTIN_PRESETS } from './state';
 import { injectThemeStyles } from './themeEngine';
 import { debug, isDebugEnabled, setDebugMode } from './debug';
-import { checkForUpdates, getCurrentVersion, getUpdateInfo } from './updater';
+import { checkForUpdates, getCurrentVersion, getUpdateInfo, isDevChannel } from './updater';
 import { Icons } from './icons';
 
 const SETTINGS_ID = 'spicy-themes-settings';
@@ -266,7 +266,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     content.appendChild(createToggleRow(
         'st-settings.enabled',
-        'Enable Spicy Themes',
+        'Spicy Themes',
         themeState.isEnabled,
         (checked) => {
             themeState.isEnabled = checked;
@@ -440,7 +440,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     optionsContainer.appendChild(createToggleRow(
         'st-settings.disable-highlight',
-        'Disable Word Highlight',
+        'Word Highlight',
         themeState.activeTheme.disableHighlight,
         (v) => {
             updateThemeProperty('disableHighlight', v);
@@ -462,7 +462,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     optionsContainer.appendChild(createToggleRow(
         'st-settings.gradient-enabled',
-        'Enable Custom Gradient',
+        'Custom Gradient',
         themeState.activeTheme.gradientEnabled,
         (v) => {
             updateThemeProperty('gradientEnabled', v);
@@ -500,7 +500,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     optionsContainer.appendChild(createToggleRow(
         'st-settings.glow-enabled',
-        'Enable Glow Effect',
+        'Glow Effect',
         themeState.activeTheme.glowEnabled,
         (v) => {
             updateThemeProperty('glowEnabled', v);
@@ -547,7 +547,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     optionsContainer.appendChild(createToggleRow(
         'st-settings.bg-glow-enabled',
-        'Enable Background Text Glow',
+        'Background Text Glow',
         themeState.activeTheme.bgGlowEnabled,
         (v) => {
             updateThemeProperty('bgGlowEnabled', v);
@@ -628,6 +628,39 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     optionsContainer.appendChild(popSubContainer);
 
+    const waveSubContainer = document.createElement('div');
+    waveSubContainer.style.display = themeState.activeTheme.waveEffect ? '' : 'none';
+
+    optionsContainer.appendChild(createToggleRow(
+        'st-settings.wave-effect',
+        'Word Wave Effect',
+        themeState.activeTheme.waveEffect,
+        (v) => {
+            updateThemeProperty('waveEffect', v);
+            waveSubContainer.style.display = v ? '' : 'none';
+        }
+    ));
+
+    waveSubContainer.appendChild(createSliderRow(
+        'st-settings.wave-intensity',
+        'Wave Intensity',
+        1, 10, 1,
+        themeState.activeTheme.waveIntensity,
+        'px',
+        (v) => updateThemeProperty('waveIntensity', v)
+    ));
+
+    waveSubContainer.appendChild(createSliderRow(
+        'st-settings.wave-speed',
+        'Wave Speed',
+        0.3, 2.0, 0.1,
+        themeState.activeTheme.waveSpeed,
+        's',
+        (v) => updateThemeProperty('waveSpeed', v)
+    ));
+
+    optionsContainer.appendChild(waveSubContainer);
+
     optionsContainer.appendChild(createSectionHeader('Background'));
 
     const bgSubContainer = document.createElement('div');
@@ -668,7 +701,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     optionsContainer.appendChild(createToggleRow(
         'st-settings.slt-styling-enabled',
-        'Enable Translation Styling',
+        'Translation Styling',
         themeState.activeTheme.sltStylingEnabled,
         (v) => {
             updateThemeProperty('sltStylingEnabled', v);
@@ -697,6 +730,22 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     optionsContainer.appendChild(sltSubContainer);
 
     optionsContainer.appendChild(createSectionHeader('Miscellaneous'));
+
+    optionsContainer.appendChild(createToggleRow(
+        'st-settings.dev-channel',
+        'Dev Channel',
+        isDevChannel(),
+        (v) => {
+            if (v) {
+                storage.set('dev-channel', 'ST_D3V_7xeh');
+            } else {
+                storage.remove('dev-channel');
+            }
+            if (Spicetify.showNotification) {
+                Spicetify.showNotification(v ? 'Dev channel enabled — reload to apply' : 'Dev channel disabled — reload to apply');
+            }
+        }
+    ));
 
     optionsContainer.appendChild(createButtonRow(
         'st-settings.check-updates',
@@ -1242,7 +1291,7 @@ function createSettingsUI(): HTMLElement {
     modalOptionsContainer.style.flexDirection = 'column';
     modalOptionsContainer.style.gap = '18px';
 
-    container.appendChild(toggle('Enable Spicy Themes', 'st-m-enabled', themeState.isEnabled, (v) => {
+    container.appendChild(toggle('Spicy Themes', 'st-m-enabled', themeState.isEnabled, (v) => {
         themeState.isEnabled = v;
         saveThemeState();
         modalOptionsContainer.style.display = v ? 'flex' : 'none';
@@ -1356,7 +1405,7 @@ function createSettingsUI(): HTMLElement {
     highlightSubSettings.style.display = themeState.activeTheme.disableHighlight ? 'flex' : 'none';
     highlightSubSettings.style.flexDirection = 'column';
     highlightSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Disable Word Highlight', 'st-m-disable-highlight', themeState.activeTheme.disableHighlight, (v) => {
+    modalOptionsContainer.appendChild(toggle('Word Highlight', 'st-m-disable-highlight', themeState.activeTheme.disableHighlight, (v) => {
         updateThemeProperty('disableHighlight', v);
         highlightSubSettings.style.display = v ? 'flex' : 'none';
     }));
@@ -1366,7 +1415,7 @@ function createSettingsUI(): HTMLElement {
     gradientSubSettings.style.display = themeState.activeTheme.gradientEnabled ? 'flex' : 'none';
     gradientSubSettings.style.flexDirection = 'column';
     gradientSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Enable Custom Gradient', 'st-m-gradient-enabled', themeState.activeTheme.gradientEnabled, (v) => {
+    modalOptionsContainer.appendChild(toggle('Custom Gradient', 'st-m-gradient-enabled', themeState.activeTheme.gradientEnabled, (v) => {
         updateThemeProperty('gradientEnabled', v);
         gradientSubSettings.style.display = v ? 'flex' : 'none';
     }));
@@ -1379,7 +1428,7 @@ function createSettingsUI(): HTMLElement {
     glowSubSettings.style.display = themeState.activeTheme.glowEnabled ? 'flex' : 'none';
     glowSubSettings.style.flexDirection = 'column';
     glowSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Enable Glow Effect', 'st-m-glow-enabled', themeState.activeTheme.glowEnabled, (v) => {
+    modalOptionsContainer.appendChild(toggle('Glow Effect', 'st-m-glow-enabled', themeState.activeTheme.glowEnabled, (v) => {
         updateThemeProperty('glowEnabled', v);
         glowSubSettings.style.display = v ? 'flex' : 'none';
     }));
@@ -1393,7 +1442,7 @@ function createSettingsUI(): HTMLElement {
     bgGlowModalSubSettings.style.display = themeState.activeTheme.bgGlowEnabled ? 'flex' : 'none';
     bgGlowModalSubSettings.style.flexDirection = 'column';
     bgGlowModalSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Enable Background Text Glow', 'st-m-bg-glow-enabled', themeState.activeTheme.bgGlowEnabled, (v) => {
+    modalOptionsContainer.appendChild(toggle('Background Text Glow', 'st-m-bg-glow-enabled', themeState.activeTheme.bgGlowEnabled, (v) => {
         updateThemeProperty('bgGlowEnabled', v);
         bgGlowModalSubSettings.style.display = v ? 'flex' : 'none';
     }));
@@ -1419,6 +1468,17 @@ function createSettingsUI(): HTMLElement {
     popSubSettings.appendChild(slider('Pop Scale', 'st-m-pop-scale', 1.0, 1.3, 0.01, themeState.activeTheme.popScale, 'x', (v) => updateThemeProperty('popScale', v)));
     popSubSettings.appendChild(slider('Pop Duration', 'st-m-pop-duration', 0.1, 0.6, 0.05, themeState.activeTheme.popDuration, 's', (v) => updateThemeProperty('popDuration', v)));
     modalOptionsContainer.appendChild(popSubSettings);
+    const waveSubSettings = document.createElement('div');
+    waveSubSettings.style.display = themeState.activeTheme.waveEffect ? 'flex' : 'none';
+    waveSubSettings.style.flexDirection = 'column';
+    waveSubSettings.style.gap = '18px';
+    modalOptionsContainer.appendChild(toggle('Word Wave Effect', 'st-m-wave-effect', themeState.activeTheme.waveEffect, (v) => {
+        updateThemeProperty('waveEffect', v);
+        waveSubSettings.style.display = v ? 'flex' : 'none';
+    }));
+    waveSubSettings.appendChild(slider('Wave Intensity', 'st-m-wave-intensity', 1, 10, 1, themeState.activeTheme.waveIntensity, 'px', (v) => updateThemeProperty('waveIntensity', v)));
+    waveSubSettings.appendChild(slider('Wave Speed', 'st-m-wave-speed', 0.3, 2.0, 0.1, themeState.activeTheme.waveSpeed, 's', (v) => updateThemeProperty('waveSpeed', v)));
+    modalOptionsContainer.appendChild(waveSubSettings);
 
     modalOptionsContainer.appendChild(section('Background'));
     const bgSubSettings = document.createElement('div');
@@ -1438,7 +1498,7 @@ function createSettingsUI(): HTMLElement {
     sltModalSubSettings.style.display = themeState.activeTheme.sltStylingEnabled ? 'flex' : 'none';
     sltModalSubSettings.style.flexDirection = 'column';
     sltModalSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Enable Translation Styling', 'st-m-slt-styling-enabled', themeState.activeTheme.sltStylingEnabled, (v) => {
+    modalOptionsContainer.appendChild(toggle('Translation Styling', 'st-m-slt-styling-enabled', themeState.activeTheme.sltStylingEnabled, (v) => {
         updateThemeProperty('sltStylingEnabled', v);
         sltModalSubSettings.style.display = v ? 'flex' : 'none';
     }));
@@ -1447,6 +1507,17 @@ function createSettingsUI(): HTMLElement {
     modalOptionsContainer.appendChild(sltModalSubSettings);
 
     modalOptionsContainer.appendChild(section('Miscellaneous'));
+
+    modalOptionsContainer.appendChild(toggle('Dev Channel', 'st-m-dev-channel', isDevChannel(), (v) => {
+        if (v) {
+            storage.set('dev-channel', 'ST_D3V_7xeh');
+        } else {
+            storage.remove('dev-channel');
+        }
+        if (Spicetify.showNotification) {
+            Spicetify.showNotification(v ? 'Dev channel enabled — reload to apply' : 'Dev channel disabled — reload to apply');
+        }
+    }));
 
     modalOptionsContainer.appendChild(btn('Reset to Default', 'st-m-reset', () => {
         applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Minimal') || BUILTIN_PRESETS[0]);
@@ -1560,7 +1631,11 @@ export function openSettingsModal(): void {
 }
 
 export async function registerSettings(): Promise<void> {
-    while (typeof Spicetify === 'undefined' || !Spicetify.Platform) {
+    while (
+        typeof Spicetify === 'undefined' ||
+        !Spicetify.Platform ||
+        !Spicetify.Player
+    ) {
         await new Promise(resolve => setTimeout(resolve, 100));
     }
 

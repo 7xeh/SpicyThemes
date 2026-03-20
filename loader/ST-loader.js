@@ -66,8 +66,14 @@
         });
     };
 
+    const getDevChannelParams = () => {
+        const devKey = storageGet('dev-channel');
+        if (devKey) return `&channel=dev&key=${encodeURIComponent(devKey)}`;
+        return '';
+    };
+
     const getVersionInfoFromPrimaryApi = async () => {
-        const response = await fetch(appendCacheBust(`${VERSION_API_URL}?action=version`));
+        const response = await fetch(appendCacheBust(`${VERSION_API_URL}?action=version${getDevChannelParams()}`));
         if (!response.ok) throw new Error(`Primary API status ${response.status}`);
         const data = await response.json();
         const version = normalizeVersion(data.version);

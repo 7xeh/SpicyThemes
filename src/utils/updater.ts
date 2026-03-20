@@ -23,6 +23,18 @@ const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 const UPDATE_API_URL = 'https://7xeh.dev/apps/SpicyThemes/api/version.php';
 
+function getDevChannelParams(): string {
+    const devKey = storage.get('dev-channel');
+    if (devKey) {
+        return `&channel=dev&key=${encodeURIComponent(devKey)}`;
+    }
+    return '';
+}
+
+export function isDevChannel(): boolean {
+    return !!storage.get('dev-channel');
+}
+
 interface VersionInfo {
     major: number;
     minor: number;
@@ -147,7 +159,7 @@ export async function getLatestVersion(): Promise<{ version: VersionInfo; releas
     }
 
     try {
-        const response = await fetchWithTimeout(`${UPDATE_API_URL}?action=version&_=${Date.now()}`);
+        const response = await fetchWithTimeout(`${UPDATE_API_URL}?action=version${getDevChannelParams()}&_=${Date.now()}`);
         if (response.ok) {
             const data = await response.json();
             const version = parseVersion(data.version);

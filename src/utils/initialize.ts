@@ -38,7 +38,11 @@ export async function initialize(): Promise<void> {
     initState.initializing = true;
 
     try {
-    while (typeof Spicetify === 'undefined' || !Spicetify.Platform) {
+    while (
+        typeof Spicetify === 'undefined' ||
+        !Spicetify.Platform ||
+        !Spicetify.Player
+    ) {
         await new Promise(resolve => setTimeout(resolve, 100));
     }
 
