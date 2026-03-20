@@ -427,7 +427,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     optionsContainer.appendChild(createSliderRow(
         'st-settings.scale-active',
         'Active Line Scale',
-        0.8, 1.5, 0.05,
+        0.95, 1.12, 0.01,
         themeState.activeTheme.scaleActive,
         'x',
         (v) => updateThemeProperty('scaleActive', v)
@@ -1398,7 +1398,7 @@ function createSettingsUI(): HTMLElement {
     ], String(themeState.activeTheme.fontWeight), (v) => updateThemeProperty('fontWeight', parseInt(v, 10))));
     modalOptionsContainer.appendChild(slider('Letter Spacing', 'st-m-letter-spacing', -0.1, 0.3, 0.01, themeState.activeTheme.letterSpacing, 'em', (v) => updateThemeProperty('letterSpacing', v)));
     modalOptionsContainer.appendChild(slider('Line Height', 'st-m-line-height', 1.0, 2.5, 0.01, themeState.activeTheme.lineHeight, '', (v) => updateThemeProperty('lineHeight', v)));
-    modalOptionsContainer.appendChild(slider('Active Line Scale', 'st-m-scale-active', 0.8, 1.5, 0.05, themeState.activeTheme.scaleActive, 'x', (v) => updateThemeProperty('scaleActive', v)));
+    modalOptionsContainer.appendChild(slider('Active Line Scale', 'st-m-scale-active', 0.95, 1.12, 0.01, themeState.activeTheme.scaleActive, 'x', (v) => updateThemeProperty('scaleActive', v)));
 
     modalOptionsContainer.appendChild(section('Effects'));
     const highlightSubSettings = document.createElement('div');

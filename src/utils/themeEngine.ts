@@ -134,6 +134,7 @@ ${ALL.flatMap(b => [
     `${b} .line .letterGroup`,
 ]).join(',\n')} {
     font-weight: ${config.fontWeight} !important;
+    ${config.fontFamily ? `font-family: ${config.fontFamily}, system-ui, sans-serif !important;` : ''}
 }
 `);
 

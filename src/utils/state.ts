@@ -55,12 +55,12 @@ export interface ThemeConfig {
 
 export const DEFAULT_THEME: ThemeConfig = {
     activeLineColor: '#ffffff',
-    sungLineColor: '#ffffff',
-    notSungLineColor: '#ffffff',
+    sungLineColor: '#b6beca',
+    notSungLineColor: '#6b7280',
 
     activeLineOpacity: 1.0,
-    sungLineOpacity: 0.25,
-    notSungLineOpacity: 0.6,
+    sungLineOpacity: 0.5,
+    notSungLineOpacity: 0.25,
 
     glowEnabled: false,
     glowColor: '#ffffff',
@@ -70,17 +70,17 @@ export const DEFAULT_THEME: ThemeConfig = {
 
     gradientEnabled: true,
     gradientStartColor: '#ffffff',
-    gradientEndColor: '#b3b3b3',
+    gradientEndColor: '#9ca3af',
     gradientAngle: 180,
 
-    fontFamily: 'system-ui, -apple-system, sans-serif',
+    fontFamily: 'Segoe UI Variable, Segoe UI, system-ui, sans-serif',
     fontWeight: 800,
-    letterSpacing: 0,
+    letterSpacing: 0.02,
     lineHeight: 1.4,
 
     blurUnsung: true,
     blurAmount: 2.0,
-    scaleActive: 1.05,
+    scaleActive: 1.02,
     animationSpeed: 1.0,
 
     pageBgOverlay: true,
@@ -95,9 +95,9 @@ export const DEFAULT_THEME: ThemeConfig = {
     bgGlowColor: '#ffffff',
     bgGlowIntensity: 12,
 
-    disableHighlight: true,
+    disableHighlight: false,
     highlightColor: 'rgba(255, 255, 255, 0.2)',
-    popEffect: true,
+    popEffect: false,
     popScale: 1.05,
     popDuration: 0.3,
 
@@ -114,16 +114,46 @@ export interface ThemePreset {
 
 export const BUILTIN_PRESETS: ThemePreset[] = [
     {
-        name: 'Neon Green',
-        description: 'High-energy, gamified feel with sharp active states',
+        name: 'Default',
+        description: 'Balanced baseline preset with clean contrast and comfortable spacing',
+        config: {
+            ...DEFAULT_THEME,
+            activeLineColor: '#ffffff',
+            sungLineColor: '#cbd5e1',
+            notSungLineColor: '#64748b',
+            activeLineOpacity: 1.0,
+            sungLineOpacity: 0.52,
+            notSungLineOpacity: 0.24,
+            gradientEnabled: true,
+            gradientStartColor: '#ffffff',
+            gradientEndColor: '#94a3b8',
+            gradientAngle: 180,
+            glowEnabled: false,
+            blurUnsung: true,
+            blurAmount: 1.6,
+            letterSpacing: 0.03,
+            lineHeight: 1.5,
+            fontFamily: 'Segoe UI Variable, Segoe UI, system-ui, sans-serif',
+            fontWeight: 760,
+            popEffect: false,
+            waveEffect: false,
+            scaleActive: 1.02,
+        }
+    },
+    {
+        name: 'SpotiGlow',
+        description: 'High-contrast Spotify green with looser spacing and cleaner glow',
         config: {
             ...DEFAULT_THEME,
             activeLineColor: '#1db954',
-            sungLineColor: '#1db954',
-            notSungLineColor: '#ffffff',
+            sungLineColor: '#7fffad',
+            notSungLineColor: '#5f7a68',
+            activeLineOpacity: 1.0,
+            sungLineOpacity: 0.55,
+            notSungLineOpacity: 0.2,
             glowEnabled: true,
             activeGlowColor: '#1db954',
-            activeGlowIntensity: 15,
+            activeGlowIntensity: 10,
             glowColor: '#1db954',
             glowIntensity: 4,
             gradientEnabled: true,
@@ -132,17 +162,26 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             gradientAngle: 135,
             bgGlowEnabled: true,
             bgGlowColor: '#1db954',
-            bgGlowIntensity: 15,
+            bgGlowIntensity: 9,
             disableHighlight: false,
             popEffect: true,
-            popScale: 1.12,
-            popDuration: 0.15,
-            scaleActive: 1.08,
+            popScale: 1.08,
+            popDuration: 0.2,
+            waveEffect: false,
+            waveIntensity: 3,
+            waveSpeed: 0.86,
+            fontFamily: 'Bahnschrift, Segoe UI, system-ui, sans-serif',
+            fontWeight: 750,
+            letterSpacing: 0.04,
+            lineHeight: 1.6,
+            blurUnsung: true,
+            blurAmount: 1.2,
+            scaleActive: 1.03,
         }
     },
     {
         name: 'Sunset',
-        description: 'Warm, smooth gradients with relaxed transitions',
+        description: 'Warm cinematic blend with looser type rhythm and softer effects',
         config: {
             ...DEFAULT_THEME,
             gradientEnabled: true,
@@ -150,31 +189,44 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             gradientEndColor: '#f7c948',
             gradientAngle: 135,
             activeLineColor: '#ff6b35',
-            sungLineColor: '#f7c948',
-            notSungLineColor: '#ffffff',
+            sungLineColor: '#ffd27a',
+            notSungLineColor: '#836d56',
+            activeLineOpacity: 1.0,
+            sungLineOpacity: 0.58,
+            notSungLineOpacity: 0.24,
             glowEnabled: true,
             activeGlowColor: '#ff6b35',
-            activeGlowIntensity: 12,
+            activeGlowIntensity: 8,
             glowColor: '#f7c948',
-            glowIntensity: 6,
+            glowIntensity: 4,
             bgGlowEnabled: true,
             bgGlowColor: '#ff6b35',
-            bgGlowIntensity: 12,
+            bgGlowIntensity: 8,
             disableHighlight: false,
-            popEffect: true,
-            popScale: 1.05,
-            popDuration: 0.4,
+            popEffect: false,
+            waveEffect: true,
+            waveIntensity: 2,
+            waveSpeed: 1.12,
+            blurUnsung: true,
+            blurAmount: 1.4,
+            fontFamily: 'Trebuchet MS, Segoe UI, sans-serif',
+            fontWeight: 700,
+            letterSpacing: 0.045,
+            lineHeight: 1.62,
             animationSpeed: 0.8,
         }
     },
     {
         name: 'Deep Ocean',
-        description: 'Ambient, calm depth-of-field effect',
+        description: 'Calm deep-blue atmosphere with crisp active focus',
         config: {
             ...DEFAULT_THEME,
             activeLineColor: '#00d4ff',
-            sungLineColor: '#004466',
-            notSungLineColor: '#ffffff',
+            sungLineColor: '#5ec8ff',
+            notSungLineColor: '#466a84',
+            activeLineOpacity: 1.0,
+            sungLineOpacity: 0.55,
+            notSungLineOpacity: 0.22,
             glowEnabled: true,
             activeGlowColor: '#00d4ff',
             activeGlowIntensity: 14,
@@ -191,12 +243,17 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             blurUnsung: true,
             blurAmount: 3.5,
             popEffect: false,
-            scaleActive: 1.05,
+            waveEffect: false,
+            fontFamily: 'Georgia, Cambria, Times New Roman, serif',
+            fontWeight: 700,
+            letterSpacing: 0.035,
+            lineHeight: 1.6,
+            scaleActive: 1.02,
         }
     },
     {
         name: 'Synthwave',
-        description: 'Retro high-contrast vibes',
+        description: 'Retro neon contrast with fast pulse and wave motion',
         config: {
             ...DEFAULT_THEME,
             gradientEnabled: true,
@@ -204,8 +261,11 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             gradientEndColor: '#00ffff',
             gradientAngle: 90,
             activeLineColor: '#ff00ff',
-            sungLineColor: '#8e44ad',
-            notSungLineColor: '#ffffff',
+            sungLineColor: '#ff8cf6',
+            notSungLineColor: '#6d4e7a',
+            activeLineOpacity: 1.0,
+            sungLineOpacity: 0.6,
+            notSungLineOpacity: 0.2,
             glowEnabled: true,
             activeGlowColor: '#ff00ff',
             activeGlowIntensity: 15,
@@ -215,9 +275,16 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             bgGlowColor: '#ff00ff',
             bgGlowIntensity: 15,
             disableHighlight: false,
-            popEffect: true,
+            popEffect: false,
             popScale: 1.1,
             popDuration: 0.2,
+            waveEffect: true,
+            waveIntensity: 5,
+            waveSpeed: 0.7,
+            fontFamily: 'Verdana, Geneva, Tahoma, sans-serif',
+            fontWeight: 800,
+            letterSpacing: 0.04,
+            lineHeight: 1.58,
         }
     },
     {
@@ -233,9 +300,15 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             disableHighlight: false,
             scaleActive: 1.0,
             activeLineColor: '#ffffff',
-            sungLineOpacity: 0.2,
-            notSungLineOpacity: 0.5,
+            sungLineColor: '#b6beca',
+            notSungLineColor: '#6b7280',
+            sungLineOpacity: 0.5,
+            notSungLineOpacity: 0.25,
             activeLineOpacity: 1.0,
+            fontFamily: 'Segoe UI, system-ui, sans-serif',
+            fontWeight: 700,
+            letterSpacing: 0.03,
+            lineHeight: 1.5,
         }
     },
 ];
@@ -245,6 +318,46 @@ export interface ThemeState {
     activePresetName: string;
     customPresets: ThemePreset[];
     isEnabled: boolean;
+}
+
+function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
+    const clamps: Partial<Record<keyof ThemeConfig, [number, number]>> = {
+        activeLineOpacity: [0, 1],
+        sungLineOpacity: [0, 1],
+        notSungLineOpacity: [0, 1],
+        pageBgOpacity: [0, 1],
+        sltTranslationOpacity: [0, 1],
+        blurAmount: [0, 8],
+        glowIntensity: [0, 15],
+        activeGlowIntensity: [0, 15],
+        bgGlowIntensity: [0, 30],
+        sltTranslationFontSize: [0.5, 2.0],
+        scaleActive: [0.95, 1.12],
+        animationSpeed: [0.3, 3.0],
+        gradientAngle: [0, 360],
+        popScale: [1.0, 1.3],
+        popDuration: [0.1, 0.6],
+        waveIntensity: [1, 10],
+        waveSpeed: [0.3, 2.0],
+        lineHeight: [1.0, 2.5],
+        letterSpacing: [-0.1, 0.3],
+        fontWeight: [100, 900],
+    };
+
+    const normalized = { ...config };
+    for (const [key, range] of Object.entries(clamps) as [keyof ThemeConfig, [number, number]][]) {
+        const value = (normalized as any)[key];
+        if (typeof value === 'number') {
+            (normalized as any)[key] = Math.min(Math.max(value, range[0]), range[1]);
+        }
+    }
+
+    if (normalized.popEffect && normalized.waveEffect) {
+        normalized.waveEffect = false;
+    }
+
+    normalized.lineHeight = Math.round(normalized.lineHeight * 100) / 100;
+    return normalized;
 }
 
 function loadCustomPresets(): ThemePreset[] {
@@ -260,15 +373,15 @@ function loadActiveTheme(): ThemeConfig {
         const raw = storage.get('active-theme');
         if (raw) {
             const parsed = JSON.parse(raw);
-            return { ...DEFAULT_THEME, ...parsed };
+            return normalizeThemeConfig({ ...DEFAULT_THEME, ...parsed });
         }
     } catch (e) {}
-    return { ...DEFAULT_THEME };
+    return normalizeThemeConfig({ ...DEFAULT_THEME });
 }
 
 export const themeState: ThemeState = {
     activeTheme: loadActiveTheme(),
-    activePresetName: storage.get('active-preset') || 'Minimal',
+    activePresetName: storage.get('active-preset') || 'Default',
     customPresets: loadCustomPresets(),
     isEnabled: storage.get('enabled') !== 'false',
 };
@@ -281,7 +394,7 @@ export function saveThemeState(): void {
 }
 
 export function applyPreset(preset: ThemePreset): void {
-    themeState.activeTheme = { ...preset.config };
+    themeState.activeTheme = normalizeThemeConfig({ ...preset.config });
     themeState.activePresetName = preset.name;
     saveThemeState();
 }
@@ -328,7 +441,7 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
             activeGlowIntensity: [0, 15],
             bgGlowIntensity: [0, 30],
             sltTranslationFontSize: [0.5, 2.0],
-            scaleActive: [0.8, 1.5],
+            scaleActive: [0.95, 1.12],
             animationSpeed: [0.3, 3.0],
             gradientAngle: [0, 360],
             popScale: [1.0, 1.3],
@@ -348,6 +461,14 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
         }
     }
     themeState.activeTheme[key] = value;
+
+    if (key === 'popEffect' && value === true) {
+        themeState.activeTheme.waveEffect = false;
+    }
+    if (key === 'waveEffect' && value === true) {
+        themeState.activeTheme.popEffect = false;
+    }
+
     themeState.activePresetName = 'Custom';
     saveThemeState();
 }
