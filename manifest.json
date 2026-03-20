@@ -3,7 +3,7 @@
   "name": "[ST] Spicy Themes",
   "description": "Customize the look and feel of Spicy Lyrics with colors, effects, fonts, glow, blur, and more!",
   "author": "7xeh",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "main": "loader/ST-loader.js",
   "readme": "README.md",
   "license": "MIT",

@@ -317,13 +317,6 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         (v) => updateThemeProperty('notSungLineColor', v)
     ));
 
-    optionsContainer.appendChild(createColorRow(
-        'st-settings.bg-line-color',
-        'Background Line Color',
-        themeState.activeTheme.bgLineColor.startsWith('rgba') ? '#ffffff' : themeState.activeTheme.bgLineColor,
-        (v) => updateThemeProperty('bgLineColor', v)
-    ));
-
     optionsContainer.appendChild(createSectionHeader('Opacity'));
 
     optionsContainer.appendChild(createSliderRow(
@@ -425,7 +418,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     optionsContainer.appendChild(createSliderRow(
         'st-settings.line-height',
         'Line Height',
-        1.0, 2.5, 0.1,
+        1.0, 2.5, 0.01,
         themeState.activeTheme.lineHeight,
         '',
         (v) => updateThemeProperty('lineHeight', v)
@@ -549,6 +542,37 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
 
     optionsContainer.appendChild(glowSubContainer);
 
+    const bgGlowSubContainer = document.createElement('div');
+    bgGlowSubContainer.style.display = themeState.activeTheme.bgGlowEnabled ? '' : 'none';
+
+    optionsContainer.appendChild(createToggleRow(
+        'st-settings.bg-glow-enabled',
+        'Enable Background Text Glow',
+        themeState.activeTheme.bgGlowEnabled,
+        (v) => {
+            updateThemeProperty('bgGlowEnabled', v);
+            bgGlowSubContainer.style.display = v ? '' : 'none';
+        }
+    ));
+
+    bgGlowSubContainer.appendChild(createColorRow(
+        'st-settings.bg-glow-color',
+        'Background Glow Color',
+        themeState.activeTheme.bgGlowColor,
+        (v) => updateThemeProperty('bgGlowColor', v)
+    ));
+
+    bgGlowSubContainer.appendChild(createSliderRow(
+        'st-settings.bg-glow-intensity',
+        'Background Glow Intensity',
+        0, 30, 1,
+        themeState.activeTheme.bgGlowIntensity,
+        'px',
+        (v) => updateThemeProperty('bgGlowIntensity', v)
+    ));
+
+    optionsContainer.appendChild(bgGlowSubContainer);
+
     const blurAmountContainer = createSliderRow(
         'st-settings.blur-amount',
         'Blur Amount',
@@ -652,13 +676,6 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         }
     ));
 
-    sltSubContainer.appendChild(createColorRow(
-        'st-settings.slt-color',
-        'Translation Text Color',
-        themeState.activeTheme.sltTranslationColor,
-        (v) => updateThemeProperty('sltTranslationColor', v)
-    ));
-
     sltSubContainer.appendChild(createSliderRow(
         'st-settings.slt-opacity',
         'Translation Opacity',
@@ -680,13 +697,6 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     optionsContainer.appendChild(sltSubContainer);
 
     optionsContainer.appendChild(createSectionHeader('Miscellaneous'));
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.hide-scrollbar',
-        'Hide Lyrics Scrollbar',
-        themeState.activeTheme.hideScrollbar,
-        (v) => updateThemeProperty('hideScrollbar', v)
-    ));
 
     optionsContainer.appendChild(createButtonRow(
         'st-settings.check-updates',
@@ -805,7 +815,6 @@ function injectSettingsIntoPage(): void {
     const inContainerSections = existingSections.filter(section => settingsContainer.contains(section));
     const existingSection = inContainerSections[0] || existingSections[0] || null;
 
-    // Keep only one settings section to avoid duplicate injection entries in Spotify settings.
     for (const section of existingSections) {
         if (section !== existingSection) {
             section.remove();
@@ -1293,7 +1302,6 @@ function createSettingsUI(): HTMLElement {
     modalOptionsContainer.appendChild(color('Active Line Color', 'st-m-active-color', themeState.activeTheme.activeLineColor, (v) => updateThemeProperty('activeLineColor', v)));
     modalOptionsContainer.appendChild(color('Sung Line Color', 'st-m-sung-color', themeState.activeTheme.sungLineColor, (v) => updateThemeProperty('sungLineColor', v)));
     modalOptionsContainer.appendChild(color('Unsung Line Color', 'st-m-notsungline-color', themeState.activeTheme.notSungLineColor, (v) => updateThemeProperty('notSungLineColor', v)));
-    modalOptionsContainer.appendChild(color('Background Line Color', 'st-m-bg-line-color', themeState.activeTheme.bgLineColor.startsWith('rgba') ? '#ffffff' : themeState.activeTheme.bgLineColor, (v) => updateThemeProperty('bgLineColor', v)));
 
     modalOptionsContainer.appendChild(section('Opacity'));
     modalOptionsContainer.appendChild(slider('Active Line Opacity', 'st-m-active-opacity', 0.1, 1.0, 0.05, themeState.activeTheme.activeLineOpacity, '', (v) => updateThemeProperty('activeLineOpacity', v)));
@@ -1340,7 +1348,7 @@ function createSettingsUI(): HTMLElement {
         { value: '900', text: 'Black (900)' },
     ], String(themeState.activeTheme.fontWeight), (v) => updateThemeProperty('fontWeight', parseInt(v, 10))));
     modalOptionsContainer.appendChild(slider('Letter Spacing', 'st-m-letter-spacing', -0.1, 0.3, 0.01, themeState.activeTheme.letterSpacing, 'em', (v) => updateThemeProperty('letterSpacing', v)));
-    modalOptionsContainer.appendChild(slider('Line Height', 'st-m-line-height', 1.0, 2.5, 0.1, themeState.activeTheme.lineHeight, '', (v) => updateThemeProperty('lineHeight', v)));
+    modalOptionsContainer.appendChild(slider('Line Height', 'st-m-line-height', 1.0, 2.5, 0.01, themeState.activeTheme.lineHeight, '', (v) => updateThemeProperty('lineHeight', v)));
     modalOptionsContainer.appendChild(slider('Active Line Scale', 'st-m-scale-active', 0.8, 1.5, 0.05, themeState.activeTheme.scaleActive, 'x', (v) => updateThemeProperty('scaleActive', v)));
 
     modalOptionsContainer.appendChild(section('Effects'));
@@ -1380,6 +1388,18 @@ function createSettingsUI(): HTMLElement {
     glowSubSettings.appendChild(color('Active Line Glow Color', 'st-m-active-glow-color', themeState.activeTheme.activeGlowColor, (v) => updateThemeProperty('activeGlowColor', v)));
     glowSubSettings.appendChild(slider('Active Glow Intensity', 'st-m-active-glow-intensity', 0, 15, 1, themeState.activeTheme.activeGlowIntensity, 'px', (v) => updateThemeProperty('activeGlowIntensity', v)));
     modalOptionsContainer.appendChild(glowSubSettings);
+
+    const bgGlowModalSubSettings = document.createElement('div');
+    bgGlowModalSubSettings.style.display = themeState.activeTheme.bgGlowEnabled ? 'flex' : 'none';
+    bgGlowModalSubSettings.style.flexDirection = 'column';
+    bgGlowModalSubSettings.style.gap = '18px';
+    modalOptionsContainer.appendChild(toggle('Enable Background Text Glow', 'st-m-bg-glow-enabled', themeState.activeTheme.bgGlowEnabled, (v) => {
+        updateThemeProperty('bgGlowEnabled', v);
+        bgGlowModalSubSettings.style.display = v ? 'flex' : 'none';
+    }));
+    bgGlowModalSubSettings.appendChild(color('Background Glow Color', 'st-m-bg-glow-color', themeState.activeTheme.bgGlowColor, (v) => updateThemeProperty('bgGlowColor', v)));
+    bgGlowModalSubSettings.appendChild(slider('Background Glow Intensity', 'st-m-bg-glow-intensity', 0, 30, 1, themeState.activeTheme.bgGlowIntensity, 'px', (v) => updateThemeProperty('bgGlowIntensity', v)));
+    modalOptionsContainer.appendChild(bgGlowModalSubSettings);
 
     const blurAmountRow = slider('Blur Amount', 'st-m-blur-amount', 0, 8, 0.5, themeState.activeTheme.blurAmount, 'px', (v) => updateThemeProperty('blurAmount', v));
     blurAmountRow.style.display = themeState.activeTheme.blurUnsung ? '' : 'none';
@@ -1422,13 +1442,11 @@ function createSettingsUI(): HTMLElement {
         updateThemeProperty('sltStylingEnabled', v);
         sltModalSubSettings.style.display = v ? 'flex' : 'none';
     }));
-    sltModalSubSettings.appendChild(color('Translation Text Color', 'st-m-slt-color', themeState.activeTheme.sltTranslationColor, (v) => updateThemeProperty('sltTranslationColor', v)));
     sltModalSubSettings.appendChild(slider('Translation Opacity', 'st-m-slt-opacity', 0.1, 1.0, 0.05, themeState.activeTheme.sltTranslationOpacity, '', (v) => updateThemeProperty('sltTranslationOpacity', v)));
     sltModalSubSettings.appendChild(slider('Translation Font Size Scale', 'st-m-slt-font-size', 0.5, 2.0, 0.05, themeState.activeTheme.sltTranslationFontSize, 'x', (v) => updateThemeProperty('sltTranslationFontSize', v)));
     modalOptionsContainer.appendChild(sltModalSubSettings);
 
     modalOptionsContainer.appendChild(section('Miscellaneous'));
-    modalOptionsContainer.appendChild(toggle('Hide Lyrics Scrollbar', 'st-m-hide-scrollbar', themeState.activeTheme.hideScrollbar, (v) => updateThemeProperty('hideScrollbar', v)));
 
     modalOptionsContainer.appendChild(btn('Reset to Default', 'st-m-reset', () => {
         applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Minimal') || BUILTIN_PRESETS[0]);

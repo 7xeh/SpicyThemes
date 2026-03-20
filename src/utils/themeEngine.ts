@@ -71,8 +71,6 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const activeRgb = hexToRgb(config.activeLineColor);
     const sungRgb = hexToRgb(config.sungLineColor);
     const notSungRgb = hexToRgb(config.notSungLineColor);
-    const bgRgb = hexToRgb(config.bgLineColor.startsWith('rgba') ? '#ffffff' : config.bgLineColor);
-    const sltRgb = hexToRgb(config.sltTranslationColor);
     const gradStartRgb = hexToRgb(config.gradientStartColor);
     const gradEndRgb = hexToRgb(config.gradientEndColor);
 
@@ -99,9 +97,6 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const notSungGrad = config.gradientEnabled
         ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
         : colorRule(config.notSungLineColor);
-    const sltGrad = config.gradientEnabled
-        ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
-        : colorRule(config.sltTranslationColor);
 
     const clampedActiveGlow = Math.min(config.activeGlowIntensity, 15);
     const clampedGlow = Math.min(config.glowIntensity, 15);
@@ -175,6 +170,22 @@ ${blurTargets} {
 `);
     }
 
+    if (config.bgGlowEnabled) {
+        const bgGlowRgb = hexToRgb(config.bgGlowColor);
+        const clampedBgGlow = Math.min(config.bgGlowIntensity, 30);
+        const bgGlowTargets = ALL.flatMap(b => [
+            `${b} .line.Active`,
+            `${b} .line.Active .word`,
+            `${b} .line.Active .letter`,
+            `${b} .line.Active .letterGroup`,
+        ]).join(',\n');
+        css.push(`
+${bgGlowTargets} {
+    text-shadow: 0 0 ${clampedBgGlow}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1)) !important;
+}
+`);
+    }
+
     if (config.disableHighlight) {
         const states = ['Active', 'Sung', 'NotSung'];
         const highlightTargets = ALL.flatMap(b =>
@@ -205,33 +216,6 @@ ${sltHighlightTargets} {
     background-clip: unset !important;
     color: ${config.highlightColor} !important;
     -webkit-text-fill-color: ${config.highlightColor} !important;
-}
-`);
-    }
-
-    if (config.gradientEnabled) {
-        css.push(`
-${sel(BASES, '.line.bg-line')},
-${sel(BASES, '.line.bg-line .word')},
-${sel(BASES, '.line.bg-line .letterGroup')},
-${sel(BASES, '.line.bg-line .letterGroup .letter')} {
-    background-image: linear-gradient(
-        var(--gradient-degrees),
-        rgba(${gradStartRgb.r}, ${gradStartRgb.g}, ${gradStartRgb.b}, 0.6) var(--gradient-position),
-        rgba(${gradEndRgb.r}, ${gradEndRgb.g}, ${gradEndRgb.b}, 0.3) calc(var(--gradient-position) + 20% + var(--gradient-offset))
-    ) !important;
-    -webkit-background-clip: text !important;
-    background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-}
-`);
-    } else {
-        css.push(`
-${sel(BASES, '.line.bg-line')},
-${sel(BASES, '.line.bg-line .word')},
-${sel(BASES, '.line.bg-line .letterGroup')},
-${sel(BASES, '.line.bg-line .letterGroup .letter')} {
-    ${gradientRule(bgRgb.r, bgRgb.g, bgRgb.b)}
 }
 `);
     }
@@ -267,7 +251,7 @@ ${sel(BASES, '')} {
     if (config.sltStylingEnabled) {
     css.push(`
 .slt-replace-line {
-    ${buildProps(sltGrad, `opacity: ${config.sltTranslationOpacity} !important;`, sltFontOverrides)}
+    ${buildProps(notSungGrad, `opacity: ${config.sltTranslationOpacity} !important;`, sltFontOverrides)}
 }
 
 .slt-replace-line:has(.slt-replace-word) {
@@ -275,12 +259,12 @@ ${sel(BASES, '')} {
 }
 
 .slt-replace-word {
-    ${sltGrad}
+    ${notSungGrad}
 }
 
 .slt-interleaved-translation:not(.slt-sync-translation) {
     ${buildProps(
-        sltGrad,
+        notSungGrad,
         `opacity: ${config.sltTranslationOpacity} !important;`,
         sltFontOverrides,
     )}
@@ -288,7 +272,7 @@ ${sel(BASES, '')} {
 
 .slt-sync-translation.slt-interleaved-translation {
     ${buildProps(
-        sltGrad,
+        notSungGrad,
         `opacity: ${config.sltTranslationOpacity} !important;`,
         `background-size: 100% 100% !important;`,
         `background-repeat: no-repeat !important;`,
@@ -303,7 +287,7 @@ ${sel(BASES, '')} {
 }
 
 .slt-sync-word {
-    ${sltGrad}
+    ${notSungGrad}
 }
 
 .slt-replace-line.Active,
@@ -406,28 +390,6 @@ ${sel(BASES, '')} {
 
 .slt-sync-word.slt-word-future {
     ${notSungGrad}
-}
-`);
-    }
-
-    if (config.hideScrollbar) {
-        const scrollTargets = [
-            '#SpicyLyricsPage .LyricsContainer',
-            '#SpicyLyricsPage .LyricsContainer .LyricsContent',
-            '#SpicyLyricsPage .SpicyLyricsScrollContainer',
-            '#SpicyLyricsPage .ContentBox',
-            '.spicy-pip-wrapper #SpicyLyricsPage .LyricsContainer',
-            '.spicy-pip-wrapper #SpicyLyricsPage .SpicyLyricsScrollContainer',
-            'body.SpicySidebarLyrics__Active #SpicyLyricsPage .LyricsContainer',
-        ];
-        css.push(`
-${scrollTargets.map(s => `${s}::-webkit-scrollbar`).join(',\n')} {
-    display: none !important;
-    width: 0 !important;
-}
-${scrollTargets.join(',\n')} {
-    scrollbar-width: none !important;
-    -ms-overflow-style: none !important;
 }
 `);
     }
@@ -645,13 +607,6 @@ const BASE_STYLES = `
 
 #ThemeToggle.active svg {
     color: var(--spice-button-active, #1db954);
-}
-
-// .ST_ConnectionIndicator removed: no longer used
-    align-items: center;
-    margin-right: 8px;
-    position: relative;
-    z-index: 100;
 }
 
 .st-ci-button {

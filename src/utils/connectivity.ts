@@ -38,8 +38,7 @@ const state: STConnectivityState = {
 };
 
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-let sltStatsElement: HTMLElement | null = null;
-let standaloneElement: HTMLElement | null = null;
+let tippyPatched = false;
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout: number = CONNECTION_TIMEOUT): Promise<Response> {
     const controller = new AbortController();
@@ -139,96 +138,59 @@ function findSLTIndicator(): HTMLElement | null {
     return document.querySelector('.SLT_ConnectionIndicator');
 }
 
-function createSTStatsRow(): HTMLElement {
-    const row = document.createElement('div');
-    row.className = 'st-ci-stats-row';
-    row.innerHTML = `
-        <span class="slt-ci-sep" style="width:100%;height:1px;margin:2px 0;"></span>
-        <div class="slt-ci-stats-row" style="width:100%;">
-            <span class="st-ci-label" title="Spicy Themes users" style="font-size:0.58rem;opacity:0.5;font-weight:600;letter-spacing:0.03em;">ST</span>
-            <span class="slt-ci-sep"></span>
-            <span class="slt-ci-users-count slt-ci-total" title="Total ST users installed">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                    <circle cx="9" cy="7" r="4"/>
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                <span class="st-ci-total-count">0</span>
-            </span>
-        </div>
-    `;
-    return row;
-}
-
-// Removed standalone ST indicator. Only show ST stats in the tippy/tooltip.
-
-function appendToSLTIndicator(): boolean {
+function patchSLTTippy(): boolean {
     const sltIndicator = findSLTIndicator();
-    if (!sltIndicator) return false;
+    const button = sltIndicator?.querySelector('.slt-ci-button');
+    if (!button || !(button as any)?._tippy) return false;
 
-    if (sltIndicator.querySelector('.st-ci-stats-row')) return true;
+    if (tippyPatched) return true;
+    tippyPatched = true;
 
-    const expanded = sltIndicator.querySelector('.slt-ci-expanded');
-    if (!expanded) return false;
+    const existingOnShow = (button as any)._tippy.props?.onShow;
+    if (!existingOnShow) return false;
 
-    sltStatsElement = createSTStatsRow();
-    expanded.appendChild(sltStatsElement);
-    debug('ST stats appended to SLT indicator');
+    const origOnShow = existingOnShow;
+    (button as any)._tippy.setProps({
+        onShow(instance: any) {
+            origOnShow(instance);
+            const currentContent = instance.props.content;
+            if (typeof currentContent === 'string' && !currentContent.includes('ST Server')) {
+                const stSection = getSTTooltipSection();
+                const insertPoint = currentContent.lastIndexOf('</div>');
+                if (insertPoint >= 0) {
+                    instance.setContent(currentContent.slice(0, insertPoint) + stSection + currentContent.slice(insertPoint));
+                }
+            }
+        }
+    });
+    debug('ST tippy patched on SLT indicator');
     return true;
 }
 
-// Removed standalone creation. Only append ST stats to the main indicator.
 function updateDisplay(): void {
-    const root = sltStatsElement;
-    if (!root) return;
-
-    const totalEl = root.querySelector('.st-ci-total-count');
-    if (totalEl) totalEl.textContent = `${state.totalUsers}`;
-
-    // Only update the tippy/tooltip, not a standalone indicator
-    if (sltStatsElement) {
-        const sltIndicator = findSLTIndicator();
-        const button = sltIndicator?.querySelector('.slt-ci-button');
-        if (button && (button as any)?._tippy) {
-            const existingOnShow = (button as any)._tippy.props?.onShow;
-            if (existingOnShow && !(button as any)._stTippyPatched) {
-                (button as any)._stTippyPatched = true;
-                const origOnShow = existingOnShow;
-                (button as any)._tippy.setProps({
-                    onShow(instance: any) {
-                        origOnShow(instance);
-                        const currentContent = instance.props.content;
-                        if (typeof currentContent === 'string' && !currentContent.includes('ST Server')) {
-                            const stSection = getSTTooltipSection();
-                            const insertPoint = currentContent.lastIndexOf('</div>');
-                            if (insertPoint >= 0) {
-                                instance.setContent(currentContent.slice(0, insertPoint) + stSection + currentContent.slice(insertPoint));
-                            }
-                        }
-                    }
-                });
-            }
-        }
-    }
+    patchSLTTippy();
 }
 
 function getSTTooltipSection(): string {
+    const dotColor = state.connected ? '#1db954' : '#555';
+    const dotShadow = state.connected ? '0 0 6px rgba(29,185,84,0.4)' : 'none';
+    const statusText = state.connected ? 'Connected' : 'Offline';
+
     return `
-        <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:6px;padding-top:6px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:default;margin-bottom:6px;" title="Spicy Themes connectivity">
+        <div style="border-top:1px solid rgba(255,255,255,0.08);margin-top:8px;padding-top:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;cursor:default;">
                 <div style="display:flex;align-items:center;gap:6px;">
-                    <span style="width:7px;height:7px;border-radius:50%;background:${state.connected ? '#1db954' : '#555'};box-shadow:0 0 6px ${state.connected ? 'rgba(29,185,84,0.4)' : 'transparent'};"></span>
-                    <span style="font-weight:600;">ST Server</span>
+                    <span style="width:7px;height:7px;border-radius:50%;background:${dotColor};box-shadow:${dotShadow};flex-shrink:0;"></span>
+                    <span style="font-weight:700;font-size:12px;letter-spacing:0.02em;">ST Server</span>
                 </div>
+                <span style="font-size:9px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.45;font-weight:600;">${statusText}</span>
             </div>
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:6px;background:rgba(255,255,255,0.06);">
-                <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;cursor:default;" title="Total Spicy Themes users">
-                    <span style="font-size:10px;opacity:0.5;text-transform:uppercase;letter-spacing:0.05em;">Users</span>
-                    <span style="font-weight:700;font-size:13px;">${state.totalUsers}</span>
-                    <span style="font-size:9px;opacity:0.4;">installed</span>
+            <div style="display:flex;align-items:stretch;gap:1px;border-radius:8px;overflow:hidden;background:rgba(255,255,255,0.04);">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;padding:8px 12px;cursor:default;" title="Total Spicy Themes users">
+                    <span style="font-size:9px;text-transform:uppercase;letter-spacing:0.06em;opacity:0.4;font-weight:600;">USERS</span>
+                    <span style="font-weight:800;font-size:14px;color:#fff;">${state.totalUsers}</span>
+                    <span style="font-size:8px;opacity:0.35;">installed</span>
                 </div>
-                <!-- Active users section removed -->
             </div>
         </div>
     `;
@@ -238,7 +200,6 @@ function startHeartbeat(): void {
     if (heartbeatInterval) return;
     heartbeatInterval = setInterval(async () => {
         if (!state.connected) {
-            // Not connected yet — retry initial connection
             await connectToAPI();
             return;
         }
@@ -261,35 +222,26 @@ export async function initConnectivity(): Promise<void> {
         debug('ST connectivity: initial connection failed, will retry via heartbeat');
     }
 
-    // Try to attach to SLT indicator, with retries
-    let attached = false;
+    let patched = false;
     for (let i = 0; i < SLT_DETECT_MAX_ATTEMPTS; i++) {
-        attached = appendToSLTIndicator();
-        if (attached) break;
+        patched = patchSLTTippy();
+        if (patched) break;
         await new Promise(resolve => setTimeout(resolve, SLT_DETECT_INTERVAL));
     }
 
-    if (!attached) {
-        debug('SLT indicator not found, skipping standalone creation');
+    if (!patched) {
+        debug('SLT indicator tippy not found after retries');
     }
 
-    updateDisplay();
     startHeartbeat();
 
-    // Watch for SLT indicator appearing later (e.g. SLT loads after ST)
-    if (!attached) {
+    if (!patched) {
         const observer = new MutationObserver(() => {
-            if (sltStatsElement) {
+            if (tippyPatched) {
                 observer.disconnect();
                 return;
             }
-            if (appendToSLTIndicator()) {
-                // Remove standalone since we're now in SLT
-                if (standaloneElement && standaloneElement.parentNode) {
-                    standaloneElement.parentNode.removeChild(standaloneElement);
-                    standaloneElement = null;
-                }
-                updateDisplay();
+            if (patchSLTTippy()) {
                 observer.disconnect();
             }
         });
@@ -312,14 +264,7 @@ export function setViewingLyrics(isViewing: boolean): void {
 
 export function cleanupConnectivity(): void {
     disconnectFromAPI();
-    if (sltStatsElement && sltStatsElement.parentNode) {
-        sltStatsElement.parentNode.removeChild(sltStatsElement);
-        sltStatsElement = null;
-    }
-    if (standaloneElement && standaloneElement.parentNode) {
-        standaloneElement.parentNode.removeChild(standaloneElement);
-        standaloneElement = null;
-    }
+    tippyPatched = false;
     state.isInitialized = false;
 }
 

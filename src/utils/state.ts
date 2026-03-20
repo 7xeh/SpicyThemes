@@ -5,8 +5,6 @@ export interface ThemeConfig {
     sungLineColor: string;
     notSungLineColor: string;
 
-    bgLineColor: string;
-
     activeLineOpacity: number;
     sungLineOpacity: number;
     notSungLineOpacity: number;
@@ -37,11 +35,13 @@ export interface ThemeConfig {
     pageBgOpacity: number;
 
     sltStylingEnabled: boolean;
-    sltTranslationColor: string;
     sltTranslationOpacity: number;
     sltTranslationFontSize: number;
 
-    hideScrollbar: boolean;
+    bgGlowEnabled: boolean;
+    bgGlowColor: string;
+    bgGlowIntensity: number;
+
     disableHighlight: boolean;
     highlightColor: string;
     popEffect: boolean;
@@ -53,7 +53,6 @@ export const DEFAULT_THEME: ThemeConfig = {
     activeLineColor: '#ffffff',
     sungLineColor: '#ffffff',
     notSungLineColor: '#ffffff',
-    bgLineColor: 'rgba(0, 0, 0, 0.2)',
 
     activeLineOpacity: 1.0,
     sungLineOpacity: 0.25,
@@ -85,11 +84,13 @@ export const DEFAULT_THEME: ThemeConfig = {
     pageBgOpacity: 0.5,
 
     sltStylingEnabled: true,
-    sltTranslationColor: '#a0a0a0',
     sltTranslationOpacity: 0.8,
     sltTranslationFontSize: 0.75,
 
-    hideScrollbar: true,
+    bgGlowEnabled: false,
+    bgGlowColor: '#ffffff',
+    bgGlowIntensity: 12,
+
     disableHighlight: true,
     highlightColor: 'rgba(255, 255, 255, 0.2)',
     popEffect: true,
@@ -115,7 +116,7 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             glowEnabled: true,
             activeGlowColor: '#1db954',
             activeGlowIntensity: 15,
-            glowColor: 'rgba(29, 185, 84, 0.4)',
+            glowColor: '#1db954',
             glowIntensity: 4,
             popEffect: true,
             popScale: 1.12,
@@ -133,7 +134,7 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             gradientEndColor: '#f7c948',
             gradientAngle: 135,
             activeLineColor: '#ff6b35',
-            sungLineColor: 'rgba(247, 201, 72, 0.8)',
+            sungLineColor: '#f7c948',
             notSungLineColor: '#ffffff',
             glowEnabled: true,
             activeGlowColor: '#ff6b35',
@@ -285,6 +286,7 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
             blurAmount: [0, 8],
             glowIntensity: [0, 15],
             activeGlowIntensity: [0, 15],
+            bgGlowIntensity: [0, 30],
             sltTranslationFontSize: [0.5, 2.0],
             scaleActive: [0.8, 1.5],
             animationSpeed: [0.3, 3.0],
@@ -300,7 +302,7 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
             value = Math.min(Math.max(value as number, range[0]), range[1]) as ThemeConfig[K];
         }
         if (key === 'lineHeight') {
-            value = Math.round((value as number) * 10) / 10 as ThemeConfig[K];
+            value = Math.round((value as number) * 100) / 100 as ThemeConfig[K];
         }
     }
     themeState.activeTheme[key] = value;
