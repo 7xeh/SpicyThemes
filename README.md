@@ -16,7 +16,7 @@ Customize [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) with colors, 
 - **Animation Speed** - Speed up or slow down lyric transitions
 - **Background Overlay** - Add a tinted color overlay behind lyrics with adjustable opacity
 - **Theme Presets** - Choose from built-in presets or save your own custom themes
-- **SLT Compatibility** - Style translation text from [Spicy Lyric Translator](https://github.com/7xeh/SpicyLyricTranslator) independently (color, opacity, font size)
+- **SLT Compatibility** - Style translation text from [Spicy Lyric Translator](https://github.com/7xeh/SpicyLyricTranslator) independently
 - **Multi-Context** - Works in full page, sidebar, Cinema mode and Picture-in-Picture
 - **Toggle Button** - Palette icon in the lyrics view to quickly enable/disable theming
 - **Auto Updates** - Automatically updates to the latest version
