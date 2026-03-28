@@ -1,5 +1,5 @@
 import { themeState, ThemeConfig } from './state';
-import { debug } from './debug';
+
 
 const STYLE_ID = 'spicy-themes-injected-styles';
 const BASE_STYLE_ID = 'spicy-themes-base-styles';
@@ -526,14 +526,12 @@ export function injectThemeStyles(): void {
 
     injectIntoPIPDocument(css);
 
-    debug('Theme styles injected');
 }
 
 export function removeThemeStyles(): void {
     const style = document.getElementById(STYLE_ID);
     if (style) {
         style.remove();
-        debug('Theme styles removed');
     }
 
     const pipWindow = getPIPWindow();
@@ -550,7 +548,6 @@ export function injectBaseStyles(): void {
     style.id = BASE_STYLE_ID;
     style.textContent = BASE_STYLES;
     document.head.appendChild(style);
-    debug('Base styles injected');
 }
 
 const BASE_STYLES = `

@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import { debug } from './debug';
+
 
 const API_BASE = 'https://7xeh.dev/apps/SpicyThemes/api/connectivity.php';
 const CLIENT_ID_KEY = 'client-id';
@@ -69,12 +69,10 @@ async function connectToAPI(): Promise<boolean> {
             state.totalUsers = data.totalUsers || 0;
             state.connected = true;
             updateDisplay();
-            debug('ST connectivity connected');
             return true;
         }
         return false;
     } catch (e) {
-        debug('ST connectivity connect failed:', e);
         return false;
     }
 }
@@ -163,7 +161,6 @@ function patchSLTTippy(): boolean {
             }
         }
     });
-    debug('ST tippy patched on SLT indicator');
     return true;
 }
 
@@ -219,7 +216,6 @@ export async function initConnectivity(): Promise<void> {
 
     const connected = await connectToAPI();
     if (!connected) {
-        debug('ST connectivity: initial connection failed, will retry via heartbeat');
     }
 
     let patched = false;
@@ -230,7 +226,6 @@ export async function initConnectivity(): Promise<void> {
     }
 
     if (!patched) {
-        debug('SLT indicator tippy not found after retries');
     }
 
     startHeartbeat();

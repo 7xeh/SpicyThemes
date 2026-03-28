@@ -2,7 +2,7 @@ import { themeState, saveThemeState } from './state';
 import { injectThemeStyles, removeThemeStyles } from './themeEngine';
 import { Icons } from './icons';
 import { openSettingsModal } from './settings';
-import { debug } from './debug';
+
 import { setViewingLyrics } from './connectivity';
 
 let themeButton: HTMLElement | null = null;
@@ -31,7 +31,6 @@ export function createThemeButton(): void {
 
     const viewControls = document.querySelector('#SpicyLyricsPage .ViewControls');
     if (!viewControls) {
-        debug('ViewControls not found, skipping button creation');
         return;
     }
 
@@ -88,20 +87,17 @@ export function createThemeButton(): void {
     }
 
     themeButton = button;
-    debug('Theme button created');
 }
 
 export function removeThemeButton(): void {
     if (themeButton) {
         themeButton.remove();
         themeButton = null;
-        debug('Theme button removed');
     }
     document.getElementById('ThemeToggle')?.remove();
 }
 
 export function onSpicyLyricsOpen(): void {
-    debug('Spicy Lyrics opened');
     createThemeButton();
     setViewingLyrics(true);
     if (themeState.isEnabled) {
@@ -110,7 +106,6 @@ export function onSpicyLyricsOpen(): void {
 }
 
 export function onSpicyLyricsClose(): void {
-    debug('Spicy Lyrics closed');
     setViewingLyrics(false);
     removeThemeButton();
 }
@@ -150,12 +145,9 @@ export function injectIntoPiP(): void {
         });
 
         pipViewControls.appendChild(button);
-        debug('Theme button injected into PiP');
-
         if (themeState.isEnabled) {
             injectThemeStyles();
         }
     } catch (e) {
-        debug('PiP injection failed:', e);
     }
 }

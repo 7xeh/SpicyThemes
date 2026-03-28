@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import { debug, warn, error as logError, info } from './debug';
+import { warn, error as logError } from './debug';
 
 declare const __VERSION__: string;
 
@@ -155,7 +155,6 @@ export async function getLatestVersion(): Promise<{ version: VersionInfo; releas
             releaseNotes = githubRelease?.body || '';
         }
     } catch (e) {
-        debug('Could not fetch GitHub release notes:', e);
     }
 
     try {
@@ -164,7 +163,6 @@ export async function getLatestVersion(): Promise<{ version: VersionInfo; releas
             const data = await response.json();
             const version = parseVersion(data.version);
             if (version) {
-                debug('Got version from self-hosted API:', data.version);
                 return {
                     version,
                     release: {
@@ -357,15 +355,12 @@ export async function checkForUpdates(force: boolean = false): Promise<void> {
 
         const current = getCurrentVersion();
         if (compareVersions(latest.version, current) > 0) {
-            debug(`Update available: ${current.text} → ${latest.version.text}`);
             if (!hasShownUpdateNotice) {
                 hasShownUpdateNotice = true;
-                info(`Auto-updating Spicy Themes to ${latest.version.text}`);
             }
             await performSilentAutoUpdate(latest.version, latest.release.body);
             hasShownUpdateNotice = true;
         } else {
-            debug('Already on latest version:', current.text);
             resetBackoff();
             hasShownUpdateNotice = false;
         }
@@ -400,7 +395,6 @@ export function startUpdateChecker(intervalMs: number = DEFAULT_CHECK_INTERVAL_M
     });
 
     scheduleNextCheck(5000);
-    info('Update checker started');
 }
 
 export async function getUpdateInfo(): Promise<{
@@ -495,7 +489,6 @@ async function fetchChangelogForVersion(version: string): Promise<string> {
             if (release.body) return release.body;
         }
     } catch (e) {
-        debug('Could not fetch changelog for version', version, ':', e);
     }
 
     try {
@@ -507,10 +500,173 @@ async function fetchChangelogForVersion(version: string): Promise<string> {
             if (release.body) return release.body;
         }
     } catch (e) {
-        debug('Could not fetch latest release changelog:', e);
     }
 
     return '';
+}
+
+function showHotfixModal(version: string, hashShort: string): void {
+    const content = document.createElement('div');
+    content.className = 'st-hotfix-modal';
+    content.innerHTML = `
+        <style>
+            @keyframes st-hf-fadeIn {
+                from { opacity: 0; transform: translateY(8px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .st-hotfix-modal {
+                padding: 20px;
+                color: var(--spice-text);
+                animation: st-hf-fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+            }
+            .st-hotfix-modal .hotfix-hero {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                margin-bottom: 20px;
+                padding: 16px 18px;
+                border-radius: 12px;
+                background: linear-gradient(135deg, rgba(255, 170, 51, 0.12) 0%, rgba(255, 136, 0, 0.06) 100%);
+                border: 1px solid rgba(255, 170, 51, 0.18);
+                position: relative;
+                overflow: hidden;
+            }
+            .st-hotfix-modal .hotfix-hero::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 1px;
+                background: linear-gradient(90deg, transparent, rgba(255, 170, 51, 0.4), transparent);
+            }
+            .st-hotfix-modal .hotfix-hero-icon {
+                width: 44px;
+                height: 44px;
+                border-radius: 12px;
+                background: linear-gradient(135deg, #ff9800, #ffb74d);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 22px;
+                flex-shrink: 0;
+                box-shadow: 0 4px 12px rgba(255, 152, 0, 0.25);
+            }
+            .st-hotfix-modal .hotfix-hero-text {
+                flex: 1;
+            }
+            .st-hotfix-modal .hotfix-hero-title {
+                font-size: 16px;
+                font-weight: 700;
+                color: var(--spice-text);
+            }
+            .st-hotfix-modal .hotfix-hero-subtitle {
+                font-size: 12px;
+                color: var(--spice-subtext);
+                margin-top: 3px;
+            }
+            .st-hotfix-modal .hotfix-info {
+                background: rgba(255, 255, 255, 0.04);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                padding: 14px 18px;
+                border-radius: 10px;
+                margin-bottom: 18px;
+                border: 1px solid rgba(255, 255, 255, 0.07);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 12px;
+            }
+            .st-hotfix-modal .hotfix-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 5px 12px;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 600;
+                font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            }
+            .st-hotfix-modal .hotfix-badge.version {
+                background: linear-gradient(135deg, rgba(255, 152, 0, 0.2), rgba(255, 183, 77, 0.12));
+                color: #ffb74d;
+                border: 1px solid rgba(255, 152, 0, 0.25);
+            }
+            .st-hotfix-modal .hotfix-badge.hash {
+                background: rgba(255, 255, 255, 0.06);
+                color: var(--spice-subtext);
+                font-size: 11px;
+            }
+            .st-hotfix-modal .hotfix-buttons {
+                display: flex;
+                gap: 10px;
+                justify-content: flex-end;
+            }
+            .st-hotfix-modal .hotfix-btn {
+                padding: 10px 24px;
+                border-radius: 24px;
+                border: none;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 700;
+                letter-spacing: 0.2px;
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                position: relative;
+                overflow: hidden;
+                background: linear-gradient(135deg, #ff9800, #ffb74d);
+                color: #000;
+                box-shadow: 0 2px 12px rgba(255, 152, 0, 0.25);
+            }
+            .st-hotfix-modal .hotfix-btn::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                opacity: 0;
+                background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%);
+                transition: opacity 0.3s;
+            }
+            .st-hotfix-modal .hotfix-btn:hover::after {
+                opacity: 1;
+            }
+            .st-hotfix-modal .hotfix-btn:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 20px rgba(255, 152, 0, 0.35);
+            }
+            .st-hotfix-modal .hotfix-btn:active {
+                transform: translateY(0);
+                box-shadow: 0 1px 6px rgba(255, 152, 0, 0.2);
+            }
+        </style>
+        <div class="hotfix-hero">
+            <div class="hotfix-hero-icon">🔧</div>
+            <div class="hotfix-hero-text">
+                <div class="hotfix-hero-title">Hotfix Applied</div>
+                <div class="hotfix-hero-subtitle">A quick fix has been automatically applied to Spicy Themes.</div>
+            </div>
+        </div>
+        <div class="hotfix-info">
+            <span class="hotfix-badge version">v${version}</span>
+            ${hashShort ? `<span class="hotfix-badge hash">${hashShort}</span>` : ''}
+        </div>
+        <div class="hotfix-buttons">
+            <button class="hotfix-btn" id="st-hotfix-dismiss">Got it</button>
+        </div>
+    `;
+
+    if (Spicetify.PopupModal) {
+        Spicetify.PopupModal.display({
+            title: 'Spicy Themes',
+            content: content,
+            isLarge: false
+        });
+        setTimeout(() => {
+            const dismissBtn = document.getElementById('st-hotfix-dismiss');
+            if (dismissBtn) {
+                dismissBtn.addEventListener('click', () => Spicetify.PopupModal.hide());
+            }
+        }, 100);
+    }
 }
 
 export async function showPostUpdateChangelog(): Promise<void> {
@@ -524,11 +680,7 @@ export async function showPostUpdateChangelog(): Promise<void> {
         await new Promise(r => setTimeout(r, 2000));
         const metadata = (window as any)._spicy_themes_metadata;
         const hashShort = metadata?.ContentHash ? metadata.ContentHash.substring(0, 8) : '';
-        const hashLabel = hashShort ? ` [${hashShort}]` : '';
-        if (Spicetify.showNotification) {
-            Spicetify.showNotification(`Spicy Themes v${currentVersion} hotfix applied!${hashLabel}`);
-        }
-        info(`Hotfix applied for v${currentVersion}${hashLabel}`);
+        showHotfixModal(currentVersion, hashShort);
     }
 
     const pendingVersion = storage.get('pending-update-version');
@@ -556,7 +708,6 @@ export async function showPostUpdateChangelog(): Promise<void> {
             const currentParsed = parseVersion(currentVersion);
             if (lastParsed && currentParsed && compareVersions(currentParsed, lastParsed) > 0) {
                 targetVersion = currentVersion;
-                debug(`Version change detected: ${lastKnownVersion} → ${currentVersion}`);
             }
         } else if (!lastKnownVersion) {
             storage.set('last-known-version', currentVersion);

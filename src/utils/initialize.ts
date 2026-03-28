@@ -4,7 +4,7 @@ import { registerSettings } from './settings';
 import { isSpicyLyricsOpen, onSpicyLyricsOpen, onSpicyLyricsClose, createThemeButton, injectIntoPiP } from './core';
 import { startUpdateChecker, checkForUpdates, getUpdateInfo, VERSION, showPostUpdateChangelog } from './updater';
 import { initConnectivity, getConnectivityState } from './connectivity';
-import { info, debug } from './debug';
+
 
 const INIT_STATE_KEY = '__spicyThemesInitState';
 
@@ -27,11 +27,9 @@ function getInitState(): InitState {
 export async function initialize(): Promise<void> {
     const initState = getInitState();
     if (initState.initialized) {
-        debug('Initialization skipped: already initialized');
         return;
     }
     if (initState.initializing) {
-        debug('Initialization skipped: initialization already in progress');
         return;
     }
 
@@ -46,8 +44,6 @@ export async function initialize(): Promise<void> {
         await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    info('Initializing...');
-
     injectBaseStyles();
 
     if (themeState.isEnabled) {
@@ -58,9 +54,9 @@ export async function initialize(): Promise<void> {
 
     startUpdateChecker(30 * 60 * 1000);
 
-    initConnectivity().catch(e => debug('Connectivity init error:', e));
+    initConnectivity().catch(() => {});
 
-    showPostUpdateChangelog().catch(e => debug('Changelog display error:', e));
+    showPostUpdateChangelog().catch(() => {});
 
     let wasSpicyLyricsOpen = false;
     let observerDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -96,7 +92,6 @@ export async function initialize(): Promise<void> {
             });
         }
     } catch (e) {
-        debug('PiP listener registration failed:', e);
     }
 
     (window as any).SpicyThemes = {
@@ -125,7 +120,6 @@ export async function initialize(): Promise<void> {
     };
 
     initState.initialized = true;
-    info('Initialized successfully!');
     } finally {
         initState.initializing = false;
     }

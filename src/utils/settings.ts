@@ -1,7 +1,7 @@
 import { storage } from './storage';
 import { themeState, saveThemeState, applyPreset, getAllPresets, saveCustomPreset, deleteCustomPreset, updateThemeProperty, ThemeConfig, DEFAULT_THEME, BUILTIN_PRESETS } from './state';
 import { injectThemeStyles } from './themeEngine';
-import { debug, isDebugEnabled, setDebugMode } from './debug';
+import { isDebugEnabled, setDebugMode } from './debug';
 import { checkForUpdates, getCurrentVersion, getUpdateInfo, isDevChannel } from './updater';
 import { Icons } from './icons';
 
@@ -40,12 +40,12 @@ async function handleManualUpdateCheck(button: HTMLButtonElement, idleText: stri
 
 function createColorRow(id: string, label: string, currentValue: string, onChange: (value: string) => void): HTMLElement {
     const row = document.createElement('div');
-    row.className = 'x-settings-row';
+    row.className = 'x-settings-row qV_CxbowaNkMarye';
     row.innerHTML = `
-        <div class="x-settings-firstColumn">
+        <div class="x-settings-firstColumn FLjFgCRmVaE0WSqc">
             <label class="e-91000-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
         </div>
-        <div class="x-settings-secondColumn">
+        <div class="x-settings-secondColumn hgljrmQksnQei4xj">
             <div class="st-inline-group">
                 <input type="color" id="${id}" class="st-color-swatch" value="${currentValue.startsWith('#') ? currentValue : '#ffffff'}">
             </div>
@@ -61,12 +61,12 @@ function createColorRow(id: string, label: string, currentValue: string, onChang
 
 function createSliderRow(id: string, label: string, min: number, max: number, step: number, currentValue: number, unit: string, onChange: (value: number) => void): HTMLElement {
     const row = document.createElement('div');
-    row.className = 'x-settings-row';
+    row.className = 'x-settings-row qV_CxbowaNkMarye';
     row.innerHTML = `
-        <div class="x-settings-firstColumn">
+        <div class="x-settings-firstColumn FLjFgCRmVaE0WSqc">
             <label class="e-91000-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
         </div>
-        <div class="x-settings-secondColumn">
+        <div class="x-settings-secondColumn hgljrmQksnQei4xj">
             <div class="st-inline-group">
                 <input type="range" id="${id}" class="st-slider" min="${min}" max="${max}" step="${step}" value="${currentValue}">
                 <span class="st-value-display" id="${id}-value">${currentValue}${unit}</span>
@@ -86,16 +86,16 @@ function createSliderRow(id: string, label: string, min: number, max: number, st
 
 function createToggleRow(id: string, label: string, checked: boolean, onChange: (checked: boolean) => void): HTMLElement {
     const row = document.createElement('div');
-    row.className = 'x-settings-row';
+    row.className = 'x-settings-row qV_CxbowaNkMarye';
     row.innerHTML = `
-        <div class="x-settings-firstColumn">
+        <div class="x-settings-firstColumn FLjFgCRmVaE0WSqc">
             <label class="e-91000-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
         </div>
-        <div class="x-settings-secondColumn">
-            <label class="x-toggle-wrapper">
-                <input id="${id}" class="x-toggle-input" type="checkbox" ${checked ? 'checked' : ''}>
-                <span class="x-toggle-indicatorWrapper">
-                    <span class="x-toggle-indicator"></span>
+        <div class="x-settings-secondColumn hgljrmQksnQei4xj">
+            <label class="x-toggle-wrapper _nD_jYvjV80Rf8sX">
+                <input id="${id}" class="x-toggle-input vTxmx3oTF8tWUPD7" type="checkbox" ${checked ? 'checked' : ''}>
+                <span class="x-toggle-indicator t3q6uAPe7y0rAqRKWrapper hzLQN8eYDPYyn1km">
+                    <span class="x-toggle-indicator t3q6uAPe7y0rAqRK"></span>
                 </span>
             </label>
         </div>
@@ -110,14 +110,14 @@ function createToggleRow(id: string, label: string, checked: boolean, onChange: 
 
 function createDropdownRow(id: string, label: string, options: { value: string; text: string }[], currentValue: string, onChange: (value: string) => void): HTMLElement {
     const row = document.createElement('div');
-    row.className = 'x-settings-row';
+    row.className = 'x-settings-row qV_CxbowaNkMarye';
     row.innerHTML = `
-        <div class="x-settings-firstColumn">
+        <div class="x-settings-firstColumn FLjFgCRmVaE0WSqc">
             <label class="e-91000-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
         </div>
-        <div class="x-settings-secondColumn">
+        <div class="x-settings-secondColumn hgljrmQksnQei4xj">
             <span>
-                <select class="main-dropDown-dropDown" id="${id}">
+                <select class="main-dropDown-dropDown lu9EejNhmuMFF3oS" id="${id}">
                     ${options.map(opt => `<option value="${opt.value}" ${opt.value === currentValue ? 'selected' : ''}>${opt.text}</option>`).join('')}
                 </select>
             </span>
@@ -133,13 +133,13 @@ function createDropdownRow(id: string, label: string, options: { value: string; 
 
 function createButtonRow(id: string, label: string, buttonText: string, onClick: () => void): HTMLElement {
     const row = document.createElement('div');
-    row.className = 'x-settings-row';
+    row.className = 'x-settings-row qV_CxbowaNkMarye';
     row.innerHTML = `
-        <div class="x-settings-firstColumn">
+        <div class="x-settings-firstColumn FLjFgCRmVaE0WSqc">
             <label class="e-91000-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
         </div>
-        <div class="x-settings-secondColumn">
-            <button id="${id}" class="Button-sc-y0gtbx-0 Button-buttonSecondary-small-useBrowserDefaultFocusStyle encore-text-body-small-bold e-91000-button--small" data-encore-id="buttonSecondary" type="button">${buttonText}</button>
+        <div class="x-settings-secondColumn hgljrmQksnQei4xj">
+            <button id="${id}" class="encore-text-body-small-bold e-10180-legacy-button--small e-10180-legacy-button-secondary--text-base encore-internal-color-text-base e-10180-legacy-button e-10180-legacy-button-secondary e-10180-overflow-wrap-anywhere x-settings-button" data-encore-id="buttonSecondary" type="button">${buttonText}</button>
         </div>
     `;
     const button = row.querySelector('button') as HTMLButtonElement;
@@ -149,13 +149,13 @@ function createButtonRow(id: string, label: string, buttonText: string, onClick:
 
 function createTextInputRow(id: string, label: string, currentValue: string, placeholder: string, onChange: (value: string) => void): HTMLElement {
     const row = document.createElement('div');
-    row.className = 'x-settings-row';
+    row.className = 'x-settings-row qV_CxbowaNkMarye';
     row.innerHTML = `
-        <div class="x-settings-firstColumn">
+        <div class="x-settings-firstColumn FLjFgCRmVaE0WSqc">
             <label class="e-91000-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
         </div>
-        <div class="x-settings-secondColumn">
-            <input type="text" id="${id}" class="main-dropDown-dropDown" style="width: 200px;" value="${currentValue}" placeholder="${placeholder}">
+        <div class="x-settings-secondColumn hgljrmQksnQei4xj">
+            <input type="text" id="${id}" class="main-dropDown-dropDown lu9EejNhmuMFF3oS" style="width: 200px;" value="${currentValue}" placeholder="${placeholder}">
         </div>
     `;
     const input = row.querySelector('input') as HTMLInputElement;
@@ -176,7 +176,7 @@ function createSectionHeader(text: string): HTMLElement {
 function createPresetSelector(): HTMLElement {
     const container = document.createElement('div');
     container.id = 'st-preset-container';
-    container.className = 'x-settings-row';
+    container.className = 'x-settings-row qV_CxbowaNkMarye';
     container.style.cssText = 'flex-direction: column; align-items: flex-start;';
 
     const label = document.createElement('label');
@@ -253,12 +253,12 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     section.id = id;
     section.className = 'spicy-themes-settings';
     section.innerHTML = `
-        <div class="x-settings-section">
+        <div class="x-settings-section fNaaQ0Cp8Yzy19j8">
             <h2 class="e-91000-text encore-text-body-medium-bold encore-internal-color-text-base">Spicy Themes</h2>
         </div>
     `;
 
-    const content = section.querySelector('.x-settings-section') as HTMLElement;
+    const content = section.querySelector('.x-settings-section fNaaQ0Cp8Yzy19j8') as HTMLElement;
 
     const optionsContainer = document.createElement('div');
     optionsContainer.id = 'st-settings-options';
@@ -835,13 +835,13 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     ));
 
     const githubRow = document.createElement('div');
-    githubRow.className = 'x-settings-row';
+    githubRow.className = 'x-settings-row qV_CxbowaNkMarye';
     githubRow.innerHTML = `
-        <div class="x-settings-firstColumn">
+        <div class="x-settings-firstColumn FLjFgCRmVaE0WSqc">
             <label class="e-91000-text encore-text-body-small encore-internal-color-text-subdued">GitHub Repository</label>
         </div>
-        <div class="x-settings-secondColumn">
-            <a href="https://github.com/7xeh/SpicyThemes" target="_blank" class="Button-sc-y0gtbx-0 Button-buttonSecondary-small-iconTrailing-useBrowserDefaultFocusStyle encore-text-body-small-bold e-91000-button--small e-91000-button--trailing" data-encore-id="buttonSecondary">View<span aria-hidden="true" class="e-91000-button__icon-wrapper"><svg data-encore-id="icon" role="img" aria-hidden="true" class="e-91000-icon e-91000-baseline" viewBox="0 0 16 16" style="--encore-icon-height: var(--encore-graphic-size-decorative-smaller); --encore-icon-width: var(--encore-graphic-size-decorative-smaller);"><path d="M1 2.75A.75.75 0 0 1 1.75 2H7v1.5H2.5v11h10.219V9h1.5v6.25a.75.75 0 0 1-.75.75H1.75a.75.75 0 0 1-.75-.75z"></path><path d="M15 1v4.993a.75.75 0 1 1-1.5 0V3.56L8.78 8.28a.75.75 0 0 1-1.06-1.06l4.72-4.72h-2.433a.75.75 0 0 1 0-1.5z"></path></svg></span></a>
+        <div class="x-settings-secondColumn hgljrmQksnQei4xj">
+            <a href="https://github.com/7xeh/SpicyThemes" target="_blank" class="encore-text-body-small-bold e-10180-legacy-button--small e-10180-legacy-button-secondary--text-base encore-internal-color-text-base e-10180-legacy-button e-10180-legacy-button-secondary e-10180-overflow-wrap-anywhere x-settings-button e-10180-legacy-button--trailing" data-encore-id="buttonSecondary">View<span aria-hidden="true" class="e-91000-button__icon-wrapper"><svg data-encore-id="icon" role="img" aria-hidden="true" class="e-91000-icon e-91000-baseline" viewBox="0 0 16 16" style="--encore-icon-height: var(--encore-graphic-size-decorative-smaller); --encore-icon-width: var(--encore-graphic-size-decorative-smaller);"><path d="M1 2.75A.75.75 0 0 1 1.75 2H7v1.5H2.5v11h10.219V9h1.5v6.25a.75.75 0 0 1-.75.75H1.75a.75.75 0 0 1-.75-.75z"></path><path d="M15 1v4.993a.75.75 0 1 1-1.5 0V3.56L8.78 8.28a.75.75 0 0 1-1.06-1.06l4.72-4.72h-2.433a.75.75 0 0 1 0-1.5z"></path></svg></span></a>
         </div>
     `;
     optionsContainer.appendChild(githubRow);
@@ -856,7 +856,6 @@ function injectSettingsIntoPage(): void {
                               document.querySelector('[data-testid="settings-page"]') ||
                               document.querySelector('main.x-settings-container');
     if (!settingsContainer) {
-        debug('Settings container not found');
         return;
     }
 
@@ -873,8 +872,6 @@ function injectSettingsIntoPage(): void {
     const alreadyInContainer = !!existingSection && settingsContainer.contains(existingSection);
     if (alreadyInContainer) return;
 
-    debug('Found settings container, injecting settings...');
-
     const settingsSection = existingSection || createSettingsSection();
 
     const sltSettings = document.getElementById('spicy-lyric-translator-settings');
@@ -883,23 +880,18 @@ function injectSettingsIntoPage(): void {
 
     if (sltSettings) {
         sltSettings.after(settingsSection);
-        debug('Settings injected after SLT settings');
     } else if (spicyLyricsDevSettings) {
         spicyLyricsDevSettings.after(settingsSection);
-        debug('Settings injected after spicy-lyrics-dev-settings');
     } else if (spicyLyricsSettings) {
         spicyLyricsSettings.after(settingsSection);
-        debug('Settings injected after spicy-lyrics-settings');
     } else {
-        const pageSections = settingsContainer.querySelectorAll('.x-settings-section');
+        const pageSections = settingsContainer.querySelectorAll('.x-settings-section fNaaQ0Cp8Yzy19j8');
         if (pageSections.length > 0) {
             const lastSection = pageSections[pageSections.length - 1];
-            const lastSectionParent = lastSection.closest('div:not(.x-settings-section):not(.x-settings-container)') || lastSection;
+            const lastSectionParent = lastSection.closest('div:not(.x-settings-section fNaaQ0Cp8Yzy19j8):not(.x-settings-container)') || lastSection;
             lastSectionParent.after(settingsSection);
-            debug('Settings injected after last settings section');
         } else {
             settingsContainer.appendChild(settingsSection);
-            debug('Settings appended to settings container');
         }
     }
 }
@@ -932,10 +924,7 @@ function watchForSettingsPage(): void {
     }
     globalWindow[SETTINGS_WATCHER_FLAG] = true;
 
-    debug('Starting settings page watcher...');
-
     if (isOnSettingsPage()) {
-        debug('Already on settings page, injecting...');
         setTimeout(injectSettingsIntoPage, 100);
     }
 
@@ -948,10 +937,8 @@ function watchForSettingsPage(): void {
                     setTimeout(injectSettingsIntoPage, 500);
                 }
             });
-            debug('History listener registered');
         }
     } catch (e) {
-        debug('Failed to register history listener:', e);
     }
 
     let settingsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1655,10 +1642,8 @@ export async function registerSettings(): Promise<void> {
                     openSettingsModal
                 ).register();
                 globalWindow[MENU_REGISTERED_FLAG] = true;
-                debug('Menu item registered');
                 return true;
             } catch (e) {
-                debug('Menu.Item not available:', e);
             }
         }
         return false;
@@ -1674,5 +1659,4 @@ export async function registerSettings(): Promise<void> {
         }, 500);
     }
 
-    debug('Settings registered');
 }
