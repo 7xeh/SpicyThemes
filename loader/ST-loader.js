@@ -68,12 +68,20 @@
 
     const getDevChannelParams = () => {
         const devKey = storageGet('dev-channel');
-        if (devKey) return `&channel=dev&key=${encodeURIComponent(devKey)}`;
+        if (devKey) return '&channel=dev';
         return '';
     };
 
+    const getDevChannelHeaders = () => {
+        const devKey = storageGet('dev-channel');
+        if (devKey) return { 'X-Dev-Channel-Key': devKey };
+        return {};
+    };
+
     const getVersionInfoFromPrimaryApi = async () => {
-        const response = await fetch(appendCacheBust(`${VERSION_API_URL}?action=version${getDevChannelParams()}`));
+        const response = await fetch(appendCacheBust(`${VERSION_API_URL}?action=version${getDevChannelParams()}`), {
+            headers: getDevChannelHeaders()
+        });
         if (!response.ok) throw new Error(`Primary API status ${response.status}`);
         const data = await response.json();
         const version = normalizeVersion(data.version);
@@ -117,7 +125,7 @@
         }
     };
 
-    const loadExtension = async (version, preferredDownloadUrl = '') => {
+    const loadExtension = async (version, preferredDownloadUrl = '', expectedHash = null) => {
         const candidates = [
             preferredDownloadUrl,
             `${EXTENSION_BASE_URL}/versions/v${version}/spicy-themes.js`,
@@ -153,6 +161,10 @@
 
         const code = await response.text();
         const contentHash = await computeSHA256(code);
+
+        if (expectedHash && contentHash && expectedHash !== contentHash) {
+            throw new Error(`Integrity check failed: expected ${expectedHash.substring(0, 12)}, got ${contentHash.substring(0, 12)}`);
+        }
 
         const previousHash = storageGet('content-hash');
         const previousVersion = storageGet('loaded-version');
@@ -337,7 +349,7 @@
         for (let i = 0; i < retries; i++) {
             try {
                 const info = await getVersionInfo();
-                await loadExtension(info.version, info.downloadUrl || '');
+                await loadExtension(info.version, info.downloadUrl || '', info.hash);
                 startHotfixChecker();
                 return;
             } catch (err) {

@@ -26,9 +26,17 @@ const UPDATE_API_URL = 'https://7xeh.dev/apps/SpicyThemes/api/version.php';
 function getDevChannelParams(): string {
     const devKey = storage.get('dev-channel');
     if (devKey) {
-        return `&channel=dev&key=${encodeURIComponent(devKey)}`;
+        return '&channel=dev';
     }
     return '';
+}
+
+function getDevChannelHeaders(): Record<string, string> {
+    const devKey = storage.get('dev-channel');
+    if (devKey) {
+        return { 'X-Dev-Channel-Key': devKey };
+    }
+    return {};
 }
 
 export function isDevChannel(): boolean {
@@ -158,7 +166,9 @@ export async function getLatestVersion(): Promise<{ version: VersionInfo; releas
     }
 
     try {
-        const response = await fetchWithTimeout(`${UPDATE_API_URL}?action=version${getDevChannelParams()}&_=${Date.now()}`);
+        const response = await fetchWithTimeout(`${UPDATE_API_URL}?action=version${getDevChannelParams()}&_=${Date.now()}`, {
+            headers: getDevChannelHeaders()
+        });
         if (response.ok) {
             const data = await response.json();
             const version = parseVersion(data.version);
@@ -251,9 +261,20 @@ function escapeHtml(text: string): string {
 }
 
 function processInlineMarkdown(text: string): string {
+    const sanitizeUrl = (url: string): string => {
+        const trimmed = url.trim();
+        if (/^https?:\/\//i.test(trimmed)) return trimmed;
+        return '';
+    };
     return text
-        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; border-radius: 4px; margin: 4px 0;">')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #1db954; text-decoration: none;" target="_blank" rel="noopener noreferrer">$1</a>')
+        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt: string, url: string) => {
+            const safe = sanitizeUrl(url);
+            return safe ? `<img src="${safe}" alt="${alt}" style="max-width: 100%; border-radius: 4px; margin: 4px 0;">` : alt;
+        })
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text: string, url: string) => {
+            const safe = sanitizeUrl(url);
+            return safe ? `<a href="${safe}" style="color: #1db954; text-decoration: none;" target="_blank" rel="noopener noreferrer">${text}</a>` : text;
+        })
         .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/(?<![*\w])\*([^*]+?)\*(?![*\w])/g, '<em>$1</em>')
@@ -357,9 +378,15 @@ export async function checkForUpdates(force: boolean = false): Promise<void> {
         if (compareVersions(latest.version, current) > 0) {
             if (!hasShownUpdateNotice) {
                 hasShownUpdateNotice = true;
+                if (Spicetify.showNotification) {
+                    Spicetify.showNotification(`SpicyThemes v${latest.version.text} available! Restart Spotify to update.`, false, 10000);
+                }
+                storage.set('pending-update-version', latest.version.text);
+                storage.set('pending-update-timestamp', Date.now().toString());
+                if (latest.release.body) {
+                    storage.set('pending-update-changelog', latest.release.body);
+                }
             }
-            await performSilentAutoUpdate(latest.version, latest.release.body);
-            hasShownUpdateNotice = true;
         } else {
             resetBackoff();
             hasShownUpdateNotice = false;

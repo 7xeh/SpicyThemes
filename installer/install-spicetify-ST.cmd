@@ -33,7 +33,7 @@ echo [STEP 1] Checking Spicetify installation...
 where spicetify >nul 2>&1
 if errorlevel 1 (
     echo [INFO] Spicetify not found. Installing...
-    %PWSH% -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/spicetify/cli/main/install.ps1 | iex"
+    %PWSH% -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/spicetify/cli/main/install.ps1 -OutFile '%TEMP%\spicetify-install.ps1'; & '%TEMP%\spicetify-install.ps1'; Remove-Item '%TEMP%\spicetify-install.ps1' -ErrorAction SilentlyContinue"
     set "PATH=%PATH%;%USERPROFILE%\.spicetify;%APPDATA%\spicetify"
 ) else (
     echo [OK] Spicetify is installed.

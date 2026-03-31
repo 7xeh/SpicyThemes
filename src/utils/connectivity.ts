@@ -80,7 +80,7 @@ async function connectToAPI(): Promise<boolean> {
 async function sendHeartbeat(): Promise<boolean> {
     if (!state.sessionId) return false;
     try {
-        const shareData = storage.get('share-usage-data') !== 'false';
+        const shareData = storage.get('share-usage-data') === 'true';
         const params = new URLSearchParams({
             action: 'heartbeat',
             session: state.sessionId,

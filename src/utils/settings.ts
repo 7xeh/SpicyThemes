@@ -155,10 +155,11 @@ function createTextInputRow(id: string, label: string, currentValue: string, pla
             <label class="e-91000-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
         </div>
         <div class="x-settings-secondColumn hgljrmQksnQei4xj">
-            <input type="text" id="${id}" class="main-dropDown-dropDown lu9EejNhmuMFF3oS" style="width: 200px;" value="${currentValue}" placeholder="${placeholder}">
+            <input type="text" id="${id}" class="main-dropDown-dropDown lu9EejNhmuMFF3oS" style="width: 200px;" value="" placeholder="${placeholder}">
         </div>
     `;
     const input = row.querySelector('input') as HTMLInputElement;
+    if (input) input.value = currentValue;
     input?.addEventListener('change', () => {
         onChange(input.value);
         injectThemeStyles();
