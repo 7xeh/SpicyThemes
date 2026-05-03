@@ -2,6 +2,8 @@ import { storage } from './storage';
 import { themeState, saveThemeState, applyPreset, getAllPresets, saveCustomPreset, deleteCustomPreset, updateThemeProperty, DEFAULT_THEME, BUILTIN_PRESETS } from './state';
 import { injectThemeStyles } from './themeEngine';
 import { checkForUpdates, getCurrentVersion, getUpdateInfo, isDevChannel } from './updater';
+import { createSettingsModal, SCHEMA, FONT_OPTIONS, FieldDef } from './settingsModal';
+import { ThemeConfig } from './state';
 
 const SETTINGS_ID = 'spicy-themes-settings';
 const MODAL_SETTINGS_ID = 'spicy-themes-modal-settings';
@@ -247,6 +249,97 @@ function refreshSettings(): void {
     isRefreshing = false;
 }
 
+function slugifyId(key: string): string {
+    return `st-settings.${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+}
+
+function renderSchemaFields(container: HTMLElement): void {
+    let lastSection = '';
+    const conditionalRows: { def: FieldDef; row: HTMLElement }[] = [];
+
+    const updateConditionalVisibility = () => {
+        conditionalRows.forEach(({ def, row }) => {
+            if (def.when) {
+                row.style.display = def.when(themeState.activeTheme) ? '' : 'none';
+            }
+        });
+    };
+
+    SCHEMA.forEach((def) => {
+        if (def.section !== lastSection) {
+            container.appendChild(createSectionHeader(def.section));
+            lastSection = def.section;
+        }
+
+        const id = slugifyId(def.id);
+        const cur = themeState.activeTheme[def.id];
+        let row: HTMLElement | null = null;
+
+        const setProp = (v: any) => updateThemeProperty(def.id as keyof ThemeConfig, v);
+
+        switch (def.type) {
+            case 'color': {
+                row = createColorRow(id, def.label, String(cur || '#ffffff'), (v) => setProp(v));
+                break;
+            }
+            case 'slider': {
+                row = createSliderRow(
+                    id,
+                    def.label,
+                    def.min ?? 0,
+                    def.max ?? 1,
+                    def.step ?? 0.05,
+                    Number(cur),
+                    def.unit || '',
+                    (v) => setProp(v)
+                );
+                break;
+            }
+            case 'toggle': {
+                row = createToggleRow(id, def.label, Boolean(cur), (v) => {
+                    setProp(v);
+                    updateConditionalVisibility();
+                });
+                break;
+            }
+            case 'dropdown': {
+                const opts = def.options || [];
+                if (def.id === 'fontFamily' && opts.some(o => o.value === '__custom__')) {
+                    const isCustom = !FONT_OPTIONS.some(o => o.value === cur);
+                    const currentVal = isCustom && cur !== '' ? '__custom__' : String(cur);
+                    row = createDropdownRow(id, def.label, opts, currentVal, (v) => {
+                        if (v === '__custom__') {
+                            updateConditionalVisibility();
+                        } else {
+                            setProp(v);
+                            updateConditionalVisibility();
+                        }
+                    });
+                } else {
+                    row = createDropdownRow(id, def.label, opts, String(cur), (v) => {
+                        const parsed: any = def.id === 'fontWeight' ? parseInt(v, 10) : v;
+                        setProp(parsed);
+                    });
+                }
+                break;
+            }
+            case 'text': {
+                row = createTextInputRow(id, def.label, String(cur || ''), 'Enter font name', (v) => setProp(v));
+                break;
+            }
+        }
+
+        if (!row) return;
+
+        if (def.when) {
+            row.style.display = def.when(themeState.activeTheme) ? '' : 'none';
+            conditionalRows.push({ def, row });
+        }
+
+        container.appendChild(row);
+    });
+}
+
 function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     const section = document.createElement('div');
     section.id = id;
@@ -293,440 +386,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         }
     ));
 
-    optionsContainer.appendChild(createSectionHeader('Colors'));
-
-    optionsContainer.appendChild(createColorRow(
-        'st-settings.active-line-color',
-        'Active Line Color',
-        themeState.activeTheme.activeLineColor,
-        (v) => updateThemeProperty('activeLineColor', v)
-    ));
-
-    optionsContainer.appendChild(createColorRow(
-        'st-settings.sung-line-color',
-        'Sung Line Color',
-        themeState.activeTheme.sungLineColor,
-        (v) => updateThemeProperty('sungLineColor', v)
-    ));
-
-    optionsContainer.appendChild(createColorRow(
-        'st-settings.notsungline-color',
-        'Unsung Line Color',
-        themeState.activeTheme.notSungLineColor,
-        (v) => updateThemeProperty('notSungLineColor', v)
-    ));
-
-    optionsContainer.appendChild(createSectionHeader('Opacity'));
-
-    optionsContainer.appendChild(createSliderRow(
-        'st-settings.active-opacity',
-        'Active Line Opacity',
-        0.1, 1.0, 0.05,
-        themeState.activeTheme.activeLineOpacity,
-        '',
-        (v) => updateThemeProperty('activeLineOpacity', v)
-    ));
-
-    optionsContainer.appendChild(createSliderRow(
-        'st-settings.sung-opacity',
-        'Sung Line Opacity',
-        0.1, 1.0, 0.05,
-        themeState.activeTheme.sungLineOpacity,
-        '',
-        (v) => updateThemeProperty('sungLineOpacity', v)
-    ));
-
-    optionsContainer.appendChild(createSliderRow(
-        'st-settings.notsungopacity',
-        'Unsung Line Opacity',
-        0.1, 1.0, 0.05,
-        themeState.activeTheme.notSungLineOpacity,
-        '',
-        (v) => updateThemeProperty('notSungLineOpacity', v)
-    ));
-
-    optionsContainer.appendChild(createSectionHeader('Text'));
-
-    const fontPresetOptions = [
-        { value: '', text: 'Default (Spotify)' },
-        { value: 'Arial', text: 'Arial' },
-        { value: 'Helvetica Neue', text: 'Helvetica Neue' },
-        { value: 'Georgia', text: 'Georgia' },
-        { value: 'Verdana', text: 'Verdana' },
-        { value: 'Segoe UI', text: 'Segoe UI' },
-        { value: 'Trebuchet MS', text: 'Trebuchet MS' },
-        { value: 'Courier New', text: 'Courier New' },
-        { value: 'Consolas', text: 'Consolas' },
-        { value: 'Impact', text: 'Impact' },
-        { value: '__custom__', text: 'Custom...' },
-    ];
-    const isCustomFont = themeState.activeTheme.fontFamily !== '' && !fontPresetOptions.some(o => o.value === themeState.activeTheme.fontFamily);
-    const currentFontValue = isCustomFont ? '__custom__' : themeState.activeTheme.fontFamily;
-
-    const customFontRow = createTextInputRow(
-        'st-settings.font-family',
-        'Custom Font Name',
-        themeState.activeTheme.fontFamily,
-        'Enter font name',
-        (v) => updateThemeProperty('fontFamily', v)
-    );
-    customFontRow.style.display = currentFontValue === '__custom__' ? '' : 'none';
-
-    optionsContainer.appendChild(createDropdownRow(
-        'st-settings.font-type',
-        'Font Type',
-        fontPresetOptions,
-        currentFontValue,
-        (v) => {
-            if (v === '__custom__') {
-                customFontRow.style.display = '';
-            } else {
-                customFontRow.style.display = 'none';
-                updateThemeProperty('fontFamily', v);
-            }
-        }
-    ));
-
-    optionsContainer.appendChild(customFontRow);
-
-    optionsContainer.appendChild(createDropdownRow(
-        'st-settings.font-weight',
-        'Font Weight',
-        [
-            { value: '300', text: 'Light (300)' },
-            { value: '400', text: 'Regular (400)' },
-            { value: '500', text: 'Medium (500)' },
-            { value: '600', text: 'Semi-Bold (600)' },
-            { value: '700', text: 'Bold (700)' },
-            { value: '800', text: 'Extra-Bold (800)' },
-            { value: '900', text: 'Black (900)' },
-        ],
-        String(themeState.activeTheme.fontWeight),
-        (v) => updateThemeProperty('fontWeight', parseInt(v, 10))
-    ));
-
-    optionsContainer.appendChild(createSliderRow(
-        'st-settings.letter-spacing',
-        'Letter Spacing',
-        -0.1, 0.3, 0.01,
-        themeState.activeTheme.letterSpacing,
-        'em',
-        (v) => updateThemeProperty('letterSpacing', v)
-    ));
-
-    optionsContainer.appendChild(createSliderRow(
-        'st-settings.line-height',
-        'Line Height',
-        1.0, 2.5, 0.01,
-        themeState.activeTheme.lineHeight,
-        '',
-        (v) => updateThemeProperty('lineHeight', v)
-    ));
-
-    optionsContainer.appendChild(createSliderRow(
-        'st-settings.scale-active',
-        'Active Line Scale',
-        0.95, 1.12, 0.01,
-        themeState.activeTheme.scaleActive,
-        'x',
-        (v) => updateThemeProperty('scaleActive', v)
-    ));
-
-    optionsContainer.appendChild(createSectionHeader('Effects'));
-
-    const highlightSubContainer = document.createElement('div');
-    highlightSubContainer.style.display = themeState.activeTheme.disableHighlight ? '' : 'none';
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.disable-highlight',
-        'Word Highlight',
-        themeState.activeTheme.disableHighlight,
-        (v) => {
-            updateThemeProperty('disableHighlight', v);
-            highlightSubContainer.style.display = v ? '' : 'none';
-        }
-    ));
-
-    highlightSubContainer.appendChild(createColorRow(
-        'st-settings.highlight-color',
-        'Highlight Color',
-        themeState.activeTheme.highlightColor,
-        (v) => updateThemeProperty('highlightColor', v)
-    ));
-
-    optionsContainer.appendChild(highlightSubContainer);
-
-    const gradientSubContainer = document.createElement('div');
-    gradientSubContainer.style.display = themeState.activeTheme.gradientEnabled ? '' : 'none';
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.gradient-enabled',
-        'Custom Gradient',
-        themeState.activeTheme.gradientEnabled,
-        (v) => {
-            updateThemeProperty('gradientEnabled', v);
-            gradientSubContainer.style.display = v ? '' : 'none';
-        }
-    ));
-
-    gradientSubContainer.appendChild(createColorRow(
-        'st-settings.gradient-start-color',
-        'Gradient Start Color',
-        themeState.activeTheme.gradientStartColor,
-        (v) => updateThemeProperty('gradientStartColor', v)
-    ));
-
-    gradientSubContainer.appendChild(createColorRow(
-        'st-settings.gradient-end-color',
-        'Gradient End Color',
-        themeState.activeTheme.gradientEndColor.startsWith('rgba') ? '#aaaaaa' : themeState.activeTheme.gradientEndColor,
-        (v) => updateThemeProperty('gradientEndColor', v)
-    ));
-
-    gradientSubContainer.appendChild(createSliderRow(
-        'st-settings.gradient-angle',
-        'Gradient Angle',
-        0, 360, 5,
-        themeState.activeTheme.gradientAngle,
-        '°',
-        (v) => updateThemeProperty('gradientAngle', v)
-    ));
-
-    optionsContainer.appendChild(gradientSubContainer);
-
-    const glowSubContainer = document.createElement('div');
-    glowSubContainer.style.display = themeState.activeTheme.glowEnabled ? '' : 'none';
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.glow-enabled',
-        'Glow Effect',
-        themeState.activeTheme.glowEnabled,
-        (v) => {
-            updateThemeProperty('glowEnabled', v);
-            glowSubContainer.style.display = v ? '' : 'none';
-        }
-    ));
-
-    glowSubContainer.appendChild(createColorRow(
-        'st-settings.glow-color',
-        'Glow Color',
-        themeState.activeTheme.glowColor,
-        (v) => updateThemeProperty('glowColor', v)
-    ));
-
-    glowSubContainer.appendChild(createSliderRow(
-        'st-settings.glow-intensity',
-        'Glow Intensity',
-        0, 15, 1,
-        themeState.activeTheme.glowIntensity,
-        'px',
-        (v) => updateThemeProperty('glowIntensity', v)
-    ));
-
-    glowSubContainer.appendChild(createColorRow(
-        'st-settings.active-glow-color',
-        'Active Line Glow Color',
-        themeState.activeTheme.activeGlowColor,
-        (v) => updateThemeProperty('activeGlowColor', v)
-    ));
-
-    glowSubContainer.appendChild(createSliderRow(
-        'st-settings.active-glow-intensity',
-        'Active Glow Intensity',
-        0, 15, 1,
-        themeState.activeTheme.activeGlowIntensity,
-        'px',
-        (v) => updateThemeProperty('activeGlowIntensity', v)
-    ));
-
-    optionsContainer.appendChild(glowSubContainer);
-
-    const bgGlowSubContainer = document.createElement('div');
-    bgGlowSubContainer.style.display = themeState.activeTheme.bgGlowEnabled ? '' : 'none';
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.bg-glow-enabled',
-        'Background Text Glow',
-        themeState.activeTheme.bgGlowEnabled,
-        (v) => {
-            updateThemeProperty('bgGlowEnabled', v);
-            bgGlowSubContainer.style.display = v ? '' : 'none';
-        }
-    ));
-
-    bgGlowSubContainer.appendChild(createColorRow(
-        'st-settings.bg-glow-color',
-        'Background Glow Color',
-        themeState.activeTheme.bgGlowColor,
-        (v) => updateThemeProperty('bgGlowColor', v)
-    ));
-
-    bgGlowSubContainer.appendChild(createSliderRow(
-        'st-settings.bg-glow-intensity',
-        'Background Glow Intensity',
-        0, 30, 1,
-        themeState.activeTheme.bgGlowIntensity,
-        'px',
-        (v) => updateThemeProperty('bgGlowIntensity', v)
-    ));
-
-    optionsContainer.appendChild(bgGlowSubContainer);
-
-    const blurAmountContainer = createSliderRow(
-        'st-settings.blur-amount',
-        'Blur Amount',
-        0, 8, 0.5,
-        themeState.activeTheme.blurAmount,
-        'px',
-        (v) => updateThemeProperty('blurAmount', v)
-    );
-    blurAmountContainer.style.display = themeState.activeTheme.blurUnsung ? '' : 'none';
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.blur-unsung',
-        'Blur Unsung Lines',
-        themeState.activeTheme.blurUnsung,
-        (v) => {
-            updateThemeProperty('blurUnsung', v);
-            blurAmountContainer.style.display = v ? '' : 'none';
-        }
-    ));
-
-    optionsContainer.appendChild(blurAmountContainer);
-
-    const popSubContainer = document.createElement('div');
-    popSubContainer.style.display = themeState.activeTheme.popEffect ? '' : 'none';
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.pop-effect',
-        'Word Pop Effect',
-        themeState.activeTheme.popEffect,
-        (v) => {
-            updateThemeProperty('popEffect', v);
-            popSubContainer.style.display = v ? '' : 'none';
-        }
-    ));
-
-    popSubContainer.appendChild(createSliderRow(
-        'st-settings.pop-scale',
-        'Pop Scale',
-        1.0, 1.3, 0.01,
-        themeState.activeTheme.popScale,
-        'x',
-        (v) => updateThemeProperty('popScale', v)
-    ));
-
-    popSubContainer.appendChild(createSliderRow(
-        'st-settings.pop-duration',
-        'Pop Duration',
-        0.1, 0.6, 0.05,
-        themeState.activeTheme.popDuration,
-        's',
-        (v) => updateThemeProperty('popDuration', v)
-    ));
-
-    optionsContainer.appendChild(popSubContainer);
-
-    const waveSubContainer = document.createElement('div');
-    waveSubContainer.style.display = themeState.activeTheme.waveEffect ? '' : 'none';
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.wave-effect',
-        'Word Wave Effect',
-        themeState.activeTheme.waveEffect,
-        (v) => {
-            updateThemeProperty('waveEffect', v);
-            waveSubContainer.style.display = v ? '' : 'none';
-        }
-    ));
-
-    waveSubContainer.appendChild(createSliderRow(
-        'st-settings.wave-intensity',
-        'Wave Intensity',
-        1, 10, 1,
-        themeState.activeTheme.waveIntensity,
-        'px',
-        (v) => updateThemeProperty('waveIntensity', v)
-    ));
-
-    waveSubContainer.appendChild(createSliderRow(
-        'st-settings.wave-speed',
-        'Wave Speed',
-        0.3, 2.0, 0.1,
-        themeState.activeTheme.waveSpeed,
-        's',
-        (v) => updateThemeProperty('waveSpeed', v)
-    ));
-
-    optionsContainer.appendChild(waveSubContainer);
-
-    optionsContainer.appendChild(createSectionHeader('Background'));
-
-    const bgSubContainer = document.createElement('div');
-    bgSubContainer.style.display = themeState.activeTheme.pageBgOverlay ? '' : 'none';
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.pagebg-overlay',
-        'Page Background Overlay',
-        themeState.activeTheme.pageBgOverlay,
-        (v) => {
-            updateThemeProperty('pageBgOverlay', v);
-            bgSubContainer.style.display = v ? '' : 'none';
-        }
-    ));
-
-    bgSubContainer.appendChild(createColorRow(
-        'st-settings.pagebg-color',
-        'Background Overlay Color',
-        themeState.activeTheme.pageBgColor,
-        (v) => updateThemeProperty('pageBgColor', v)
-    ));
-
-    bgSubContainer.appendChild(createSliderRow(
-        'st-settings.pagebg-opacity',
-        'Background Overlay Opacity',
-        0, 1, 0.05,
-        themeState.activeTheme.pageBgOpacity,
-        '',
-        (v) => updateThemeProperty('pageBgOpacity', v)
-    ));
-
-    optionsContainer.appendChild(bgSubContainer);
-
-    optionsContainer.appendChild(createSectionHeader('Translation Styling (SLT)'));
-
-    const sltSubContainer = document.createElement('div');
-    sltSubContainer.style.display = themeState.activeTheme.sltStylingEnabled ? '' : 'none';
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.slt-styling-enabled',
-        'Translation Styling',
-        themeState.activeTheme.sltStylingEnabled,
-        (v) => {
-            updateThemeProperty('sltStylingEnabled', v);
-            sltSubContainer.style.display = v ? '' : 'none';
-        }
-    ));
-
-    sltSubContainer.appendChild(createSliderRow(
-        'st-settings.slt-opacity',
-        'Translation Opacity',
-        0.1, 1.0, 0.05,
-        themeState.activeTheme.sltTranslationOpacity,
-        '',
-        (v) => updateThemeProperty('sltTranslationOpacity', v)
-    ));
-
-    sltSubContainer.appendChild(createSliderRow(
-        'st-settings.slt-font-size',
-        'Translation Font Size Scale',
-        0.5, 2.0, 0.05,
-        themeState.activeTheme.sltTranslationFontSize,
-        'x',
-        (v) => updateThemeProperty('sltTranslationFontSize', v)
-    ));
-
-    optionsContainer.appendChild(sltSubContainer);
+    renderSchemaFields(optionsContainer);
 
     optionsContainer.appendChild(createSectionHeader('Miscellaneous'));
 
@@ -953,664 +613,12 @@ function watchForSettingsPage(): void {
     observer.observe(document.body, { childList: true, subtree: true });
 }
 
-function createSettingsUI(): HTMLElement {
-    const container = document.createElement('div');
-    container.className = 'st-modal-settings';
-    container.innerHTML = `
-        <style>
-            .st-modal-settings {
-                padding: 20px;
-                display: flex;
-                flex-direction: column;
-                gap: 18px;
-                width: min(760px, 92vw);
-                max-width: 100%;
-                max-height: 78vh;
-                box-sizing: border-box;
-                overflow-x: hidden;
-                overflow-y: auto;
-            }
-            .st-modal-settings .st-m-row {
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-            }
-            .st-modal-settings .st-m-row label {
-                font-size: 15px;
-                font-weight: 500;
-                color: var(--spice-text);
-            }
-            .st-modal-settings .st-m-row select,
-            .st-modal-settings .st-m-row input[type="text"],
-            .st-modal-settings .st-m-row input[type="number"] {
-                padding: 10px 14px;
-                border-radius: 4px;
-                border: 1px solid var(--spice-button-disabled);
-                background: var(--spice-card);
-                color: var(--spice-text);
-                font-size: 15px;
-            }
-            .st-modal-settings .st-m-row select:focus,
-            .st-modal-settings .st-m-row input:focus {
-                outline: none;
-                border-color: var(--spice-button);
-            }
-            .st-modal-settings .st-m-toggle-row {
-                flex-direction: row;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 12px;
-            }
-            .st-modal-settings .st-m-toggle-row > label:first-child {
-                margin: 0;
-                line-height: 1.35;
-                flex: 1;
-            }
-            .st-modal-settings .st-m-toggle-row .st-m-toggle {
-                margin-left: auto;
-                flex-shrink: 0;
-            }
-            .st-modal-settings .st-m-toggle {
-                position: relative;
-                width: 40px;
-                height: 20px;
-            }
-            .st-modal-settings .st-m-toggle input {
-                opacity: 0;
-                width: 0;
-                height: 0;
-            }
-            .st-modal-settings .st-m-toggle-slider {
-                position: absolute;
-                cursor: pointer;
-                top: 0; left: 0; right: 0; bottom: 0;
-                background-color: var(--spice-button-disabled);
-                transition: .3s;
-                border-radius: 20px;
-            }
-            .st-modal-settings .st-m-toggle-slider:before {
-                position: absolute;
-                content: "";
-                height: 16px;
-                width: 16px;
-                left: 2px;
-                bottom: 2px;
-                background-color: white;
-                transition: .3s;
-                border-radius: 50%;
-            }
-            .st-modal-settings .st-m-toggle input:checked + .st-m-toggle-slider {
-                background-color: var(--spice-button);
-            }
-            .st-modal-settings .st-m-toggle input:checked + .st-m-toggle-slider:before {
-                transform: translateX(20px);
-            }
-            .st-modal-settings .st-m-button {
-                padding: 11px 22px;
-                border-radius: 500px;
-                border: none;
-                background: var(--spice-button);
-                color: var(--spice-text);
-                font-size: 15px;
-                font-weight: 700;
-                cursor: pointer;
-                transition: transform 0.1s, background 0.2s;
-            }
-            .st-modal-settings .st-m-button:hover {
-                transform: scale(1.02);
-                background: var(--spice-button-active);
-            }
-            .st-modal-settings .st-m-button:active {
-                transform: scale(0.98);
-            }
-            .st-modal-settings .st-m-section {
-                font-size: 11px;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 0.1em;
-                color: var(--spice-subtext);
-                margin: 6px 0 0;
-                padding-bottom: 4px;
-                border-bottom: 1px solid rgba(255,255,255,0.06);
-            }
-            .st-modal-settings .st-m-description {
-                font-size: 13px;
-                color: var(--spice-subtext);
-                margin-top: 0;
-                line-height: 1.35;
-            }
-            .st-modal-settings .st-m-color-row {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 12px;
-            }
-            .st-modal-settings .st-m-color-swatch {
-                width: 32px;
-                height: 32px;
-                border-radius: 50%;
-                border: 2px solid rgba(255,255,255,0.2);
-                cursor: pointer;
-                padding: 0;
-                appearance: none;
-                -webkit-appearance: none;
-                background: none;
-                outline: none;
-            }
-            .st-modal-settings .st-m-color-swatch::-webkit-color-swatch-wrapper { padding: 0; }
-            .st-modal-settings .st-m-color-swatch::-webkit-color-swatch { border: none; border-radius: 50%; }
-            .st-modal-settings .st-m-slider-row {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 12px;
-            }
-            .st-modal-settings .st-m-slider-row label { flex: 1; }
-            .st-modal-settings .st-m-slider-group {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-            .st-modal-settings .st-m-slider {
-                -webkit-appearance: none;
-                appearance: none;
-                width: 120px;
-                height: 4px;
-                border-radius: 2px;
-                background: rgba(255,255,255,0.2);
-                outline: none;
-                cursor: pointer;
-            }
-            .st-modal-settings .st-m-slider::-webkit-slider-thumb {
-                -webkit-appearance: none;
-                appearance: none;
-                width: 14px;
-                height: 14px;
-                border-radius: 50%;
-                background: var(--spice-button-active, #1db954);
-                cursor: pointer;
-            }
-            .st-modal-settings .st-m-value {
-                font-family: 'JetBrains Mono', 'Consolas', monospace;
-                font-size: 11px;
-                color: var(--spice-subtext);
-                min-width: 40px;
-                text-align: right;
-            }
-            .st-modal-settings .st-m-preset-wrap {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 4px;
-            }
-            .st-modal-settings .st-m-preset {
-                display: inline-block;
-                padding: 8px 16px;
-                border-radius: 20px;
-                background: rgba(255,255,255,0.07);
-                color: var(--spice-text);
-                cursor: pointer;
-                transition: background 0.2s, transform 0.15s;
-                border: 1px solid transparent;
-                font-size: 13px;
-            }
-            .st-modal-settings .st-m-preset:hover {
-                background: rgba(255,255,255,0.12);
-                transform: scale(1.03);
-            }
-            .st-modal-settings .st-m-preset.active {
-                border-color: var(--spice-button-active, #1db954);
-                background: rgba(29,185,84,0.15);
-            }
-            .st-modal-settings .st-m-preset .st-m-preset-del {
-                margin-left: 8px;
-                opacity: 0.5;
-                cursor: pointer;
-                font-size: 11px;
-            }
-            .st-modal-settings .st-m-preset .st-m-preset-del:hover {
-                opacity: 1;
-                color: #e74c3c;
-            }
-        </style>
-    `;
-
-    const toggle = (label: string, id: string, checked: boolean, onChange: (v: boolean) => void) => {
-        const row = document.createElement('div');
-        row.className = 'st-m-row st-m-toggle-row';
-        row.innerHTML = `
-            <label for="${id}">${label}</label>
-            <label class="st-m-toggle">
-                <input type="checkbox" id="${id}" ${checked ? 'checked' : ''}>
-                <span class="st-m-toggle-slider"></span>
-            </label>
-        `;
-        (row.querySelector('input') as HTMLInputElement)?.addEventListener('change', function () {
-            onChange(this.checked);
-            injectThemeStyles();
-        });
-        return row;
-    };
-
-    const color = (label: string, id: string, value: string, onChange: (v: string) => void) => {
-        const row = document.createElement('div');
-        row.className = 'st-m-row st-m-color-row';
-        row.innerHTML = `
-            <label for="${id}">${label}</label>
-            <input type="color" id="${id}" class="st-m-color-swatch" value="${value.startsWith('#') ? value : '#ffffff'}">
-        `;
-        (row.querySelector('input') as HTMLInputElement)?.addEventListener('input', function () {
-            onChange(this.value);
-            injectThemeStyles();
-        });
-        return row;
-    };
-
-    const slider = (label: string, id: string, min: number, max: number, step: number, value: number, unit: string, onChange: (v: number) => void) => {
-        const row = document.createElement('div');
-        row.className = 'st-m-row st-m-slider-row';
-        row.innerHTML = `
-            <label for="${id}">${label}</label>
-            <div class="st-m-slider-group">
-                <input type="range" id="${id}" class="st-m-slider" min="${min}" max="${max}" step="${step}" value="${value}">
-                <span class="st-m-value">${value}${unit}</span>
-            </div>
-        `;
-        const inp = row.querySelector('input') as HTMLInputElement;
-        const disp = row.querySelector('.st-m-value') as HTMLElement;
-        inp?.addEventListener('input', function () {
-            const v = parseFloat(this.value);
-            if (disp) disp.textContent = `${v}${unit}`;
-            onChange(v);
-            injectThemeStyles();
-        });
-        return row;
-    };
-
-    const dropdown = (label: string, id: string, options: { value: string; text: string }[], current: string, onChange: (v: string) => void) => {
-        const row = document.createElement('div');
-        row.className = 'st-m-row';
-        row.innerHTML = `
-            <label for="${id}">${label}</label>
-            <select id="${id}">
-                ${options.map(o => `<option value="${o.value}" ${o.value === current ? 'selected' : ''}>${o.text}</option>`).join('')}
-            </select>
-        `;
-        (row.querySelector('select') as HTMLSelectElement)?.addEventListener('change', function () {
-            onChange(this.value);
-            injectThemeStyles();
-        });
-        return row;
-    };
-
-    const textInput = (label: string, id: string, value: string, placeholder: string, onChange: (v: string) => void) => {
-        const row = document.createElement('div');
-        row.className = 'st-m-row';
-        row.innerHTML = `
-            <label for="${id}">${label}</label>
-            <input type="text" id="${id}" value="${value}" placeholder="${placeholder}">
-        `;
-        (row.querySelector('input') as HTMLInputElement)?.addEventListener('change', function () {
-            onChange(this.value);
-            injectThemeStyles();
-        });
-        return row;
-    };
-
-    const btn = (label: string, id: string, onClick: () => void) => {
-        const row = document.createElement('div');
-        row.className = 'st-m-row';
-        row.innerHTML = `<button class="st-m-button" id="${id}">${label}</button>`;
-        (row.querySelector('button') as HTMLButtonElement)?.addEventListener('click', onClick);
-        return row;
-    };
-
-    const section = (text: string) => {
-        const h = document.createElement('div');
-        h.className = 'st-m-section';
-        h.textContent = text;
-        return h;
-    };
-
-    const modalOptionsContainer = document.createElement('div');
-    modalOptionsContainer.style.display = themeState.isEnabled ? 'flex' : 'none';
-    modalOptionsContainer.style.flexDirection = 'column';
-    modalOptionsContainer.style.gap = '18px';
-
-    container.appendChild(toggle('Spicy Themes', 'st-m-enabled', themeState.isEnabled, (v) => {
-        themeState.isEnabled = v;
-        saveThemeState();
-        modalOptionsContainer.style.display = v ? 'flex' : 'none';
-    }));
-
-    const presetsRow = document.createElement('div');
-    presetsRow.className = 'st-m-row';
-    const presetsLabel = document.createElement('label');
-    presetsLabel.textContent = 'Theme Presets';
-    presetsLabel.style.marginBottom = '4px';
-    presetsRow.appendChild(presetsLabel);
-    const presetsWrap = document.createElement('div');
-    presetsWrap.className = 'st-m-preset-wrap';
-    const allPresets = getAllPresets();
-    for (const preset of allPresets) {
-        const card = document.createElement('span');
-        card.className = `st-m-preset${preset.name === themeState.activePresetName ? ' active' : ''}`;
-        card.title = preset.description;
-        let cardHTML = preset.name;
-        const isCustom = !BUILTIN_PRESETS.some(b => b.name === preset.name);
-        if (isCustom) {
-            cardHTML += `<span class="st-m-preset-del" title="Delete preset">\u00D7</span>`;
-        }
-        card.innerHTML = cardHTML;
-        card.addEventListener('click', (e) => {
-            if ((e.target as HTMLElement).classList.contains('st-m-preset-del')) {
-                deleteCustomPreset(preset.name);
-                Spicetify.PopupModal?.hide();
-                setTimeout(() => openSettingsModal(), 120);
-                injectThemeStyles();
-                return;
-            }
-            applyPreset(preset);
-            injectThemeStyles();
-            Spicetify.PopupModal?.hide();
-            setTimeout(() => openSettingsModal(), 120);
-        });
-        presetsWrap.appendChild(card);
-    }
-    presetsRow.appendChild(presetsWrap);
-    modalOptionsContainer.appendChild(presetsRow);
-
-    modalOptionsContainer.appendChild(btn('Save Current as Preset', 'st-m-save-preset', () => {
-        const name = prompt('Enter preset name:');
-        if (name && name.trim()) {
-            const desc = prompt('Enter description (optional):') || '';
-            saveCustomPreset(name.trim(), desc.trim());
-            Spicetify.PopupModal?.hide();
-            setTimeout(() => openSettingsModal(), 120);
-            if (Spicetify.showNotification) {
-                Spicetify.showNotification(`Preset "${name.trim()}" saved!`);
-            }
-        }
-    }));
-
-    modalOptionsContainer.appendChild(section('Colors'));
-    modalOptionsContainer.appendChild(color('Active Line Color', 'st-m-active-color', themeState.activeTheme.activeLineColor, (v) => updateThemeProperty('activeLineColor', v)));
-    modalOptionsContainer.appendChild(color('Sung Line Color', 'st-m-sung-color', themeState.activeTheme.sungLineColor, (v) => updateThemeProperty('sungLineColor', v)));
-    modalOptionsContainer.appendChild(color('Unsung Line Color', 'st-m-notsungline-color', themeState.activeTheme.notSungLineColor, (v) => updateThemeProperty('notSungLineColor', v)));
-
-    modalOptionsContainer.appendChild(section('Opacity'));
-    modalOptionsContainer.appendChild(slider('Active Line Opacity', 'st-m-active-opacity', 0.1, 1.0, 0.05, themeState.activeTheme.activeLineOpacity, '', (v) => updateThemeProperty('activeLineOpacity', v)));
-    modalOptionsContainer.appendChild(slider('Sung Line Opacity', 'st-m-sung-opacity', 0.1, 1.0, 0.05, themeState.activeTheme.sungLineOpacity, '', (v) => updateThemeProperty('sungLineOpacity', v)));
-    modalOptionsContainer.appendChild(slider('Unsung Line Opacity', 'st-m-notsungopacity', 0.1, 1.0, 0.05, themeState.activeTheme.notSungLineOpacity, '', (v) => updateThemeProperty('notSungLineOpacity', v)));
-
-    modalOptionsContainer.appendChild(section('Text'));
-    const modalFontPresetOptions = [
-        { value: '', text: 'Default (Spotify)' },
-        { value: 'Arial', text: 'Arial' },
-        { value: 'Helvetica Neue', text: 'Helvetica Neue' },
-        { value: 'Georgia', text: 'Georgia' },
-        { value: 'Verdana', text: 'Verdana' },
-        { value: 'Segoe UI', text: 'Segoe UI' },
-        { value: 'Trebuchet MS', text: 'Trebuchet MS' },
-        { value: 'Courier New', text: 'Courier New' },
-        { value: 'Consolas', text: 'Consolas' },
-        { value: 'Impact', text: 'Impact' },
-        { value: '__custom__', text: 'Custom...' },
-    ];
-    const isModalCustomFont = themeState.activeTheme.fontFamily !== '' && !modalFontPresetOptions.some(o => o.value === themeState.activeTheme.fontFamily);
-    const currentModalFontValue = isModalCustomFont ? '__custom__' : themeState.activeTheme.fontFamily;
-
-    const modalCustomFontRow = textInput('Custom Font Name', 'st-m-font-family', themeState.activeTheme.fontFamily, 'Enter font name', (v) => updateThemeProperty('fontFamily', v));
-    modalCustomFontRow.style.display = currentModalFontValue === '__custom__' ? '' : 'none';
-
-    modalOptionsContainer.appendChild(dropdown('Font Type', 'st-m-font-type', modalFontPresetOptions, currentModalFontValue, (v) => {
-        if (v === '__custom__') {
-            modalCustomFontRow.style.display = '';
-        } else {
-            modalCustomFontRow.style.display = 'none';
-            updateThemeProperty('fontFamily', v);
-        }
-    }));
-    modalOptionsContainer.appendChild(modalCustomFontRow);
-
-    modalOptionsContainer.appendChild(dropdown('Font Weight', 'st-m-font-weight', [
-        { value: '300', text: 'Light (300)' },
-        { value: '400', text: 'Regular (400)' },
-        { value: '500', text: 'Medium (500)' },
-        { value: '600', text: 'Semi-Bold (600)' },
-        { value: '700', text: 'Bold (700)' },
-        { value: '800', text: 'Extra-Bold (800)' },
-        { value: '900', text: 'Black (900)' },
-    ], String(themeState.activeTheme.fontWeight), (v) => updateThemeProperty('fontWeight', parseInt(v, 10))));
-    modalOptionsContainer.appendChild(slider('Letter Spacing', 'st-m-letter-spacing', -0.1, 0.3, 0.01, themeState.activeTheme.letterSpacing, 'em', (v) => updateThemeProperty('letterSpacing', v)));
-    modalOptionsContainer.appendChild(slider('Line Height', 'st-m-line-height', 1.0, 2.5, 0.01, themeState.activeTheme.lineHeight, '', (v) => updateThemeProperty('lineHeight', v)));
-    modalOptionsContainer.appendChild(slider('Active Line Scale', 'st-m-scale-active', 0.95, 1.12, 0.01, themeState.activeTheme.scaleActive, 'x', (v) => updateThemeProperty('scaleActive', v)));
-
-    modalOptionsContainer.appendChild(section('Effects'));
-    const highlightSubSettings = document.createElement('div');
-    highlightSubSettings.style.display = themeState.activeTheme.disableHighlight ? 'flex' : 'none';
-    highlightSubSettings.style.flexDirection = 'column';
-    highlightSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Word Highlight', 'st-m-disable-highlight', themeState.activeTheme.disableHighlight, (v) => {
-        updateThemeProperty('disableHighlight', v);
-        highlightSubSettings.style.display = v ? 'flex' : 'none';
-    }));
-    highlightSubSettings.appendChild(color('Highlight Color', 'st-m-highlight-color', themeState.activeTheme.highlightColor, (v) => updateThemeProperty('highlightColor', v)));
-    modalOptionsContainer.appendChild(highlightSubSettings);
-    const gradientSubSettings = document.createElement('div');
-    gradientSubSettings.style.display = themeState.activeTheme.gradientEnabled ? 'flex' : 'none';
-    gradientSubSettings.style.flexDirection = 'column';
-    gradientSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Custom Gradient', 'st-m-gradient-enabled', themeState.activeTheme.gradientEnabled, (v) => {
-        updateThemeProperty('gradientEnabled', v);
-        gradientSubSettings.style.display = v ? 'flex' : 'none';
-    }));
-    gradientSubSettings.appendChild(color('Gradient Start Color', 'st-m-gradient-start-color', themeState.activeTheme.gradientStartColor, (v) => updateThemeProperty('gradientStartColor', v)));
-    gradientSubSettings.appendChild(color('Gradient End Color', 'st-m-gradient-end-color', themeState.activeTheme.gradientEndColor.startsWith('rgba') ? '#aaaaaa' : themeState.activeTheme.gradientEndColor, (v) => updateThemeProperty('gradientEndColor', v)));
-    gradientSubSettings.appendChild(slider('Gradient Angle', 'st-m-gradient-angle', 0, 360, 5, themeState.activeTheme.gradientAngle, '°', (v) => updateThemeProperty('gradientAngle', v)));
-    modalOptionsContainer.appendChild(gradientSubSettings);
-
-    const glowSubSettings = document.createElement('div');
-    glowSubSettings.style.display = themeState.activeTheme.glowEnabled ? 'flex' : 'none';
-    glowSubSettings.style.flexDirection = 'column';
-    glowSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Glow Effect', 'st-m-glow-enabled', themeState.activeTheme.glowEnabled, (v) => {
-        updateThemeProperty('glowEnabled', v);
-        glowSubSettings.style.display = v ? 'flex' : 'none';
-    }));
-    glowSubSettings.appendChild(color('Glow Color', 'st-m-glow-color', themeState.activeTheme.glowColor, (v) => updateThemeProperty('glowColor', v)));
-    glowSubSettings.appendChild(slider('Glow Intensity', 'st-m-glow-intensity', 0, 15, 1, themeState.activeTheme.glowIntensity, 'px', (v) => updateThemeProperty('glowIntensity', v)));
-    glowSubSettings.appendChild(color('Active Line Glow Color', 'st-m-active-glow-color', themeState.activeTheme.activeGlowColor, (v) => updateThemeProperty('activeGlowColor', v)));
-    glowSubSettings.appendChild(slider('Active Glow Intensity', 'st-m-active-glow-intensity', 0, 15, 1, themeState.activeTheme.activeGlowIntensity, 'px', (v) => updateThemeProperty('activeGlowIntensity', v)));
-    modalOptionsContainer.appendChild(glowSubSettings);
-
-    const bgGlowModalSubSettings = document.createElement('div');
-    bgGlowModalSubSettings.style.display = themeState.activeTheme.bgGlowEnabled ? 'flex' : 'none';
-    bgGlowModalSubSettings.style.flexDirection = 'column';
-    bgGlowModalSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Background Text Glow', 'st-m-bg-glow-enabled', themeState.activeTheme.bgGlowEnabled, (v) => {
-        updateThemeProperty('bgGlowEnabled', v);
-        bgGlowModalSubSettings.style.display = v ? 'flex' : 'none';
-    }));
-    bgGlowModalSubSettings.appendChild(color('Background Glow Color', 'st-m-bg-glow-color', themeState.activeTheme.bgGlowColor, (v) => updateThemeProperty('bgGlowColor', v)));
-    bgGlowModalSubSettings.appendChild(slider('Background Glow Intensity', 'st-m-bg-glow-intensity', 0, 30, 1, themeState.activeTheme.bgGlowIntensity, 'px', (v) => updateThemeProperty('bgGlowIntensity', v)));
-    modalOptionsContainer.appendChild(bgGlowModalSubSettings);
-
-    const blurAmountRow = slider('Blur Amount', 'st-m-blur-amount', 0, 8, 0.5, themeState.activeTheme.blurAmount, 'px', (v) => updateThemeProperty('blurAmount', v));
-    blurAmountRow.style.display = themeState.activeTheme.blurUnsung ? '' : 'none';
-    modalOptionsContainer.appendChild(toggle('Blur Unsung Lines', 'st-m-blur-unsung', themeState.activeTheme.blurUnsung, (v) => {
-        updateThemeProperty('blurUnsung', v);
-        blurAmountRow.style.display = v ? '' : 'none';
-    }));
-    modalOptionsContainer.appendChild(blurAmountRow);
-    const popSubSettings = document.createElement('div');
-    popSubSettings.style.display = themeState.activeTheme.popEffect ? 'flex' : 'none';
-    popSubSettings.style.flexDirection = 'column';
-    popSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Word Pop Effect', 'st-m-pop-effect', themeState.activeTheme.popEffect, (v) => {
-        updateThemeProperty('popEffect', v);
-        popSubSettings.style.display = v ? 'flex' : 'none';
-    }));
-    popSubSettings.appendChild(slider('Pop Scale', 'st-m-pop-scale', 1.0, 1.3, 0.01, themeState.activeTheme.popScale, 'x', (v) => updateThemeProperty('popScale', v)));
-    popSubSettings.appendChild(slider('Pop Duration', 'st-m-pop-duration', 0.1, 0.6, 0.05, themeState.activeTheme.popDuration, 's', (v) => updateThemeProperty('popDuration', v)));
-    modalOptionsContainer.appendChild(popSubSettings);
-    const waveSubSettings = document.createElement('div');
-    waveSubSettings.style.display = themeState.activeTheme.waveEffect ? 'flex' : 'none';
-    waveSubSettings.style.flexDirection = 'column';
-    waveSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Word Wave Effect', 'st-m-wave-effect', themeState.activeTheme.waveEffect, (v) => {
-        updateThemeProperty('waveEffect', v);
-        waveSubSettings.style.display = v ? 'flex' : 'none';
-    }));
-    waveSubSettings.appendChild(slider('Wave Intensity', 'st-m-wave-intensity', 1, 10, 1, themeState.activeTheme.waveIntensity, 'px', (v) => updateThemeProperty('waveIntensity', v)));
-    waveSubSettings.appendChild(slider('Wave Speed', 'st-m-wave-speed', 0.3, 2.0, 0.1, themeState.activeTheme.waveSpeed, 's', (v) => updateThemeProperty('waveSpeed', v)));
-    modalOptionsContainer.appendChild(waveSubSettings);
-
-    modalOptionsContainer.appendChild(section('Background'));
-    const bgSubSettings = document.createElement('div');
-    bgSubSettings.style.display = themeState.activeTheme.pageBgOverlay ? 'flex' : 'none';
-    bgSubSettings.style.flexDirection = 'column';
-    bgSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Page Background Overlay', 'st-m-pagebg-overlay', themeState.activeTheme.pageBgOverlay, (v) => {
-        updateThemeProperty('pageBgOverlay', v);
-        bgSubSettings.style.display = v ? 'flex' : 'none';
-    }));
-    bgSubSettings.appendChild(color('Background Overlay Color', 'st-m-pagebg-color', themeState.activeTheme.pageBgColor, (v) => updateThemeProperty('pageBgColor', v)));
-    bgSubSettings.appendChild(slider('Background Overlay Opacity', 'st-m-pagebg-opacity', 0, 1, 0.05, themeState.activeTheme.pageBgOpacity, '', (v) => updateThemeProperty('pageBgOpacity', v)));
-    modalOptionsContainer.appendChild(bgSubSettings);
-
-    modalOptionsContainer.appendChild(section('Translation Styling (SLT)'));
-    const sltModalSubSettings = document.createElement('div');
-    sltModalSubSettings.style.display = themeState.activeTheme.sltStylingEnabled ? 'flex' : 'none';
-    sltModalSubSettings.style.flexDirection = 'column';
-    sltModalSubSettings.style.gap = '18px';
-    modalOptionsContainer.appendChild(toggle('Translation Styling', 'st-m-slt-styling-enabled', themeState.activeTheme.sltStylingEnabled, (v) => {
-        updateThemeProperty('sltStylingEnabled', v);
-        sltModalSubSettings.style.display = v ? 'flex' : 'none';
-    }));
-    sltModalSubSettings.appendChild(slider('Translation Opacity', 'st-m-slt-opacity', 0.1, 1.0, 0.05, themeState.activeTheme.sltTranslationOpacity, '', (v) => updateThemeProperty('sltTranslationOpacity', v)));
-    sltModalSubSettings.appendChild(slider('Translation Font Size Scale', 'st-m-slt-font-size', 0.5, 2.0, 0.05, themeState.activeTheme.sltTranslationFontSize, 'x', (v) => updateThemeProperty('sltTranslationFontSize', v)));
-    modalOptionsContainer.appendChild(sltModalSubSettings);
-
-    modalOptionsContainer.appendChild(section('Miscellaneous'));
-
-    modalOptionsContainer.appendChild(toggle('Dev Channel', 'st-m-dev-channel', isDevChannel(), (v) => {
-        if (v) {
-            storage.set('dev-channel', 'ST_D3V_7xeh');
-        } else {
-            storage.remove('dev-channel');
-        }
-        if (Spicetify.showNotification) {
-            Spicetify.showNotification(v ? 'Dev channel enabled — reload to apply' : 'Dev channel disabled — reload to apply');
-        }
-    }));
-
-    modalOptionsContainer.appendChild(btn('Reset to Default', 'st-m-reset', () => {
-        applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Default') || BUILTIN_PRESETS[0]);
-        injectThemeStyles();
-        Spicetify.PopupModal?.hide();
-        setTimeout(() => openSettingsModal(), 120);
-        if (Spicetify.showNotification) {
-            Spicetify.showNotification('Theme reset to default!');
-        }
-    }));
-
-    const ioRow = document.createElement('div');
-    ioRow.className = 'st-m-row';
-    ioRow.style.cssText = 'flex-direction: row; gap: 8px; flex-wrap: wrap;';
-    const exportBtn = document.createElement('button');
-    exportBtn.className = 'st-m-button';
-    exportBtn.style.cssText = 'padding: 9px 18px; font-size: 13px;';
-    exportBtn.textContent = 'Export';
-    exportBtn.addEventListener('click', () => {
-        const data = JSON.stringify({
-            theme: themeState.activeTheme,
-            presets: themeState.customPresets,
-            presetName: themeState.activePresetName,
-        }, null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'spicy-themes-config.json';
-        a.click();
-        URL.revokeObjectURL(url);
-    });
-    const importBtn = document.createElement('button');
-    importBtn.className = 'st-m-button';
-    importBtn.style.cssText = 'padding: 9px 18px; font-size: 13px;';
-    importBtn.textContent = 'Import';
-    importBtn.addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.addEventListener('change', () => {
-            const file = input.files?.[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = () => {
-                try {
-                    const data = JSON.parse(reader.result as string);
-                    if (data.theme) {
-                        themeState.activeTheme = { ...DEFAULT_THEME, ...data.theme };
-                    }
-                    if (data.presets && Array.isArray(data.presets)) {
-                        themeState.customPresets = data.presets;
-                    }
-                    if (data.presetName) {
-                        themeState.activePresetName = data.presetName;
-                    }
-                    saveThemeState();
-                    injectThemeStyles();
-                    Spicetify.PopupModal?.hide();
-                    setTimeout(() => openSettingsModal(), 120);
-                    if (Spicetify.showNotification) {
-                        Spicetify.showNotification('Theme imported successfully!');
-                    }
-                } catch (e) {
-                    if (Spicetify.showNotification) {
-                        Spicetify.showNotification('Invalid theme file', true);
-                    }
-                }
-            };
-            reader.readAsText(file);
-        });
-        input.click();
-    });
-    ioRow.appendChild(exportBtn);
-    ioRow.appendChild(importBtn);
-    modalOptionsContainer.appendChild(ioRow);
-
-    const footerRow = document.createElement('div');
-    footerRow.className = 'st-m-row';
-    footerRow.style.cssText = 'flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;';
-    footerRow.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; opacity: 0.7;">
-            <span style="font-size: 14px; color: var(--spice-subtext);">Version v${getCurrentVersion().text}</span>
-            <span style="color: var(--spice-subtext);">•</span>
-            <a href="https://github.com/7xeh/SpicyThemes" target="_blank" style="font-size: 14px; color: var(--spice-button);">GitHub</a>
-        </div>
-        <button class="st-m-button" id="st-m-check-updates" style="padding: 9px 18px; font-size: 13px; white-space: nowrap;">Check for Updates</button>
-    `;
-
-    const modalCheckUpdatesButton = footerRow.querySelector('#st-m-check-updates') as HTMLButtonElement | null;
-    modalCheckUpdatesButton?.addEventListener('click', async () => {
-        if (!modalCheckUpdatesButton) return;
-        await handleManualUpdateCheck(modalCheckUpdatesButton, 'Check for Updates');
-    });
-
-    modalOptionsContainer.appendChild(footerRow);
-
-    container.appendChild(modalOptionsContainer);
-
-    return container;
-}
 
 export function openSettingsModal(): void {
     if (Spicetify.PopupModal) {
         Spicetify.PopupModal.display({
             title: 'Spicy Themes',
-            content: createSettingsUI(),
+            content: createSettingsModal(),
             isLarge: true
         });
     }
