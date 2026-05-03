@@ -38,7 +38,7 @@ const state: STConnectivityState = {
 };
 
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-let tippyPatched = false;
+let tippyAttached = false;
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout: number = CONNECTION_TIMEOUT): Promise<Response> {
     const controller = new AbortController();
@@ -136,36 +136,64 @@ function findSLTIndicator(): HTMLElement | null {
     return document.querySelector('.SLT_ConnectionIndicator');
 }
 
-function patchSLTTippy(): boolean {
+function attachSTTippy(): boolean {
     const sltIndicator = findSLTIndicator();
-    const button = sltIndicator?.querySelector('.slt-ci-button');
-    if (!button || !(button as any)?._tippy) return false;
+    const button = sltIndicator?.querySelector('.slt-ci-button') as HTMLElement | null;
+    if (!button) return false;
 
-    if (tippyPatched) return true;
-    tippyPatched = true;
+    if (typeof Spicetify === 'undefined' || !Spicetify.Tippy) return false;
 
-    const existingOnShow = (button as any)._tippy.props?.onShow;
-    if (!existingOnShow) return false;
+    if ((button as any)._tippy) {
+        (button as any)._tippy.setContent(getCombinedTooltipContent(button));
+        tippyAttached = true;
+        return true;
+    }
 
-    const origOnShow = existingOnShow;
-    (button as any)._tippy.setProps({
-        onShow(instance: any) {
-            origOnShow(instance);
-            const currentContent = instance.props.content;
-            if (typeof currentContent === 'string' && !currentContent.includes('ST Server')) {
-                const stSection = getSTTooltipSection();
-                const insertPoint = currentContent.lastIndexOf('</div>');
-                if (insertPoint >= 0) {
-                    instance.setContent(currentContent.slice(0, insertPoint) + stSection + currentContent.slice(insertPoint));
-                }
+    if (tippyAttached) return true;
+
+    try {
+        Spicetify.Tippy(button, {
+            ...Spicetify.TippyProps,
+            interactive: false,
+            appendTo: document.body,
+            allowHTML: true,
+            delay: [200, 100],
+            content: getCombinedTooltipContent(button),
+            onShow: (instance: any) => {
+                instance.setContent(getCombinedTooltipContent(button));
             }
-        }
-    });
-    return true;
+        });
+        tippyAttached = true;
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+function getCombinedTooltipContent(button: HTMLElement): string {
+    const sltAriaLabel = button.getAttribute('aria-label') || '';
+    const sltSection = sltAriaLabel
+        ? `<div style="font-size:11px;color:rgba(255,255,255,0.65);padding:2px 0 6px;">${escapeHtml(sltAriaLabel)}</div>`
+        : '';
+    return `${sltSection}${getSTTooltipSection()}`;
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function updateDisplay(): void {
-    patchSLTTippy();
+    if (!tippyAttached) return;
+    const button = findSLTIndicator()?.querySelector('.slt-ci-button');
+    const tippy = button && (button as any)._tippy;
+    if (tippy) {
+        tippy.setContent(getCombinedTooltipContent(button as HTMLElement));
+    }
 }
 
 function getSTTooltipSection(): string {
@@ -218,25 +246,22 @@ export async function initConnectivity(): Promise<void> {
     if (!connected) {
     }
 
-    let patched = false;
+    let attached = false;
     for (let i = 0; i < SLT_DETECT_MAX_ATTEMPTS; i++) {
-        patched = patchSLTTippy();
-        if (patched) break;
+        attached = attachSTTippy();
+        if (attached) break;
         await new Promise(resolve => setTimeout(resolve, SLT_DETECT_INTERVAL));
-    }
-
-    if (!patched) {
     }
 
     startHeartbeat();
 
-    if (!patched) {
+    if (!attached) {
         const observer = new MutationObserver(() => {
-            if (tippyPatched) {
+            if (tippyAttached) {
                 observer.disconnect();
                 return;
             }
-            if (patchSLTTippy()) {
+            if (attachSTTippy()) {
                 observer.disconnect();
             }
         });
@@ -259,7 +284,7 @@ export function setViewingLyrics(isViewing: boolean): void {
 
 export function cleanupConnectivity(): void {
     disconnectFromAPI();
-    tippyPatched = false;
+    tippyAttached = false;
     state.isInitialized = false;
 }
 

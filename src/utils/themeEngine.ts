@@ -265,7 +265,9 @@ ${sel(BASES, '.line')} {
 #SpicyLyricsPage .LyricsContainer {
     position: relative;
 }
-${sel(BASES, '')} {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent,
+.spicy-pip-wrapper #SpicyLyricsPage .LyricsContainer .LyricsContent,
+.spicy-pip-wrapper #SpicyLyricsPage .LyricsContent {
     position: relative;
     z-index: 1;
 }
@@ -514,8 +516,6 @@ export function injectThemeStyles(): void {
 
     const css = generateThemeCSS(themeState.activeTheme);
 
-    // Always remove and re-create the style element so the browser
-    // restarts CSS animations and fully re-evaluates font rules.
     const old = document.getElementById(STYLE_ID);
     if (old) old.remove();
 

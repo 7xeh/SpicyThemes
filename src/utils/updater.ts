@@ -3,11 +3,6 @@ import { warn, error as logError } from './debug';
 
 declare const __VERSION__: string;
 
-const isLoaderMode = (): boolean => {
-    const metadata = (window as any)._spicy_themes_metadata;
-    return metadata?.IsLoader === true;
-};
-
 const getLoadedVersion = (): string => {
     const metadata = (window as any)._spicy_themes_metadata;
     if (metadata?.LoadedVersion) {
@@ -223,32 +218,6 @@ export async function getLatestVersion(): Promise<{ version: VersionInfo; releas
     } catch (error) {
         logError('Error fetching latest version:', error);
         return null;
-    }
-}
-
-async function performSilentAutoUpdate(version: VersionInfo, releaseBody?: string): Promise<void> {
-    if (updateState.isUpdating) return;
-    try {
-        updateState.isUpdating = true;
-        updateState.progress = 100;
-        updateState.status = 'Reloading to apply update';
-
-        storage.set('pending-update-version', version.text);
-        storage.set('pending-update-timestamp', Date.now().toString());
-        if (releaseBody) {
-            storage.set('pending-update-changelog', releaseBody);
-        }
-
-        if ((window as any)._spicy_themes_metadata) {
-            (window as any)._spicy_themes_metadata = {};
-        }
-
-        window.setTimeout(() => {
-            window.location.reload();
-        }, 350);
-    } catch (e) {
-        logError('Silent auto-update failed:', e);
-        updateState.isUpdating = false;
     }
 }
 

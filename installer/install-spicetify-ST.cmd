@@ -1,10 +1,6 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-:: ============================================================================
-:: SpicyThemes - Spicetify Extension Installer
-:: ============================================================================
-
 title SpicyThemes Installer
 cls
 echo.
@@ -13,7 +9,6 @@ echo                       SpicyThemes Installer
 echo ============================================================================
 echo.
 
-:: Find PowerShell
 set "PWSH="
 for %%P in (pwsh.exe powershell.exe) do (
     where %%P >nul 2>&1 && (set "PWSH=%%P" & goto :found_ps)
@@ -26,9 +21,6 @@ exit /b 1
 echo [INFO] Using: %PWSH%
 echo.
 
-:: ============================================================================
-:: STEP 1: Check Spicetify Installation
-:: ============================================================================
 echo [STEP 1] Checking Spicetify installation...
 where spicetify >nul 2>&1
 if errorlevel 1 (
@@ -39,9 +31,6 @@ if errorlevel 1 (
     echo [OK] Spicetify is installed.
 )
 
-:: ============================================================================
-:: STEP 2: Copy Extension
-:: ============================================================================
 echo.
 echo [STEP 2] Installing SpicyThemes extension...
 
@@ -69,9 +58,6 @@ if errorlevel 1 (
 
 echo [OK] Extension copied to: %EXT_DIR%\spicy-themes.js
 
-:: ============================================================================
-:: STEP 3: Apply
-:: ============================================================================
 echo.
 echo [STEP 3] Applying changes...
 spicetify apply
