@@ -45,7 +45,11 @@ function gradientRule(r: number, g: number, b: number, r2?: number, g2?: number,
 }
 
 function colorRule(color: string): string {
-    return `color: ${color} !important;\n    -webkit-text-fill-color: ${color} !important;`;
+    return `color: ${color} !important;
+    -webkit-text-fill-color: ${color} !important;
+    background-image: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;`;
 }
 
 function sel(bases: string[], suffix: string): string {
@@ -91,12 +95,8 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const activeGrad = config.gradientEnabled
         ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
         : colorRule(config.activeLineColor);
-    const sungGrad = config.gradientEnabled
-        ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
-        : colorRule(config.sungLineColor);
-    const notSungGrad = config.gradientEnabled
-        ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
-        : colorRule(config.notSungLineColor);
+    const sungGrad = colorRule(config.sungLineColor);
+    const notSungGrad = colorRule(config.notSungLineColor);
 
     const clampedActiveGlow = Math.min(config.activeGlowIntensity, 15);
     const clampedGlow = Math.min(config.glowIntensity, 15);
@@ -467,7 +467,6 @@ ${nthTargets} {
     }
 
     css.push(`
-}
 ${lineSelectors(SIDEBAR, 'Sung')} {
     ${sungGrad}
 }
