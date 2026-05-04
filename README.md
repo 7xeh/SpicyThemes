@@ -1,120 +1,226 @@
-# SpicyThemes
+# Spicy Themes
 
-Customize [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) with colors, glow effects, gradients, blur, fonts, opacity and more.
+Customize [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) with colors, glow effects, gradients, blur, fonts, opacity, animations, presets, and community themes on Spicetify.
+
+[![Discord](https://img.shields.io/badge/Discord-Join%20the%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/fXK34DeDW5)
+
+![Spicetify](https://img.shields.io/badge/Spicetify-Extension-1DB954?style=flat-square&logo=spotify&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
+![Status](https://img.shields.io/badge/Status-Online-success?style=flat-square)
 
 ![Preview](preview.png)
 
+## Need Help or Want to Chat?
+
+> Join the official Discord server for live support, bug reports, feature requests, theme sharing, marketplace help, and release announcements. The fastest way to get unstuck is to ask in the community.
+>
+> [**Join the Discord**](https://discord.gg/fXK34DeDW5)
+>
+> - Get help with installation and setup
+> - Report bugs or broken Spotify / Spicy Lyrics behavior
+> - Share themes and get feedback
+> - Suggest new effects, presets, and Marketplace features
+> - Stay up to date with new releases and hotfixes
+
 ## Features
 
-- **Color Customization** — Change active, sung, unsung and background lyric line colors
-- **Opacity Control** — Fine-tune the visibility of active, sung and unsung lines independently
-- **Glow Effects** — Customizable glow with separate colors and intensity for active vs normal lines, plus background text glow
-- **Gradient Text** — Gradient rendering on lyrics with configurable start/end colors and angle
-- **Font Options** — Font family, weight, size, letter spacing and line height
-- **Blur Effects** — Blur unsung lines with adjustable intensity for a cinematic focus effect
-- **Word Effects** — Word Pop (scale burst on highlight), Word Wave (vertical wave animation), and Word Highlight with custom color
-- **Scale & Speed** — Scale active lines and control animation speed
-- **Background Overlay** — Tinted color overlay behind lyrics with adjustable opacity
-- **Theme Presets** — 6 built-in presets or save your own custom themes
-- **Theme Creator** — Design themes on the web with a [live preview editor](https://7xeh.dev/apps/SpicyThemes/create/) and publish directly to the Marketplace
-- **Theme Marketplace** — Browse, download and share community-made themes at the [Marketplace](https://7xeh.dev/apps/SpicyThemes/marketplace/)
-- **SLT Compatibility** — Style translation text from [Spicy Lyric Translator](https://github.com/7xeh/SpicyLyricTranslator) independently
-- **Multi-Context** — Works in full page, sidebar, Cinema mode and Picture-in-Picture
-- **Toggle Button** — Palette icon in the lyrics view to quickly enable/disable theming
-- **Auto Updates** — Automatically updates to the latest version
-- **Export / Import** — Export your full theme configuration as JSON or import one from the community
+- Full lyric color customization
+  - Active line color
+  - Sung line color
+  - Unsung line color
+  - Background lyric color
+- Independent opacity controls for active, sung, and unsung lines
+- Glow effects
+  - Normal line glow
+  - Active line glow
+  - Background text glow
+  - Adjustable glow colors and intensity
+- Gradient lyric text with configurable start color, end color, and angle
+- Font customization
+  - Font family
+  - Font weight
+  - Font size
+  - Letter spacing
+  - Line height
+- Blur effects for unsung lines with adjustable intensity
+- Word effects
+  - Word Pop
+  - Word Wave
+  - Word Highlight
+- Active line scaling and animation speed controls
+- Background overlay with custom color and opacity
+- 6 built-in theme presets
+- Custom preset saving and management
+- Web-based Theme Creator with live preview
+- Community Theme Marketplace
+- Export and import full theme configurations as JSON
+- Dedicated styling support for [Spicy Lyric Translator](https://github.com/7xeh/SpicyLyricTranslator)
+- Works in full page lyrics, sidebar lyrics, Cinema mode, and Picture-in-Picture
+- Palette toggle button in the lyrics view
+- Right-click palette shortcut to open settings
+- Built-in update support
 
-## Installation
+## Theme Creator
 
-### Spicetify Marketplace (Recommended)
+- Design Spicy Themes directly in your browser
+- Live preview every color, effect, font, blur, glow, and animation setting
+- Publish themes directly to the Marketplace
+- Export themes as `.json` files for sharing or backup
 
-1. Open Spotify and go to the Marketplace
-2. Search for **Spicy Themes**
-3. Click **Install**
+Open the Theme Creator here:
 
-### Manual Install
+https://7xeh.dev/apps/SpicyThemes/create/
 
-1. Make sure [Spicetify](https://spicetify.app/) and [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) are installed
-2. Download the latest `spicy-themes.js` from [Releases](https://github.com/7xeh/SpicyThemes/releases)
-3. Copy it to your Spicetify extensions folder:
-   ```
-   %APPDATA%\spicetify\Extensions\
-   ```
-4. Run `spicetify apply`
-5. Restart Spotify
+## Theme Marketplace
 
-### From Source
+- Browse community-made Spicy Themes
+- Search by theme name or author
+- Sort by newest or most popular
+- Download themes as `.json` files
+- Import downloaded themes directly inside Spicy Themes settings
 
-```bash
-git clone https://github.com/7xeh/SpicyThemes.git
-cd SpicyThemes
-npm install
-npm run build
-npm run deploy
-```
+Open the Marketplace here:
+
+https://7xeh.dev/apps/SpicyThemes/marketplace/
+
+## Built-in Presets
+
+- Default
+  - Balanced baseline with clean contrast and comfortable spacing
+- SpotiGlow
+  - Spotify green with vibrant neon glow and gradient styling
+- Sunset
+  - Warm orange and yellow gradient tones with glow and wave effects
+- Deep Ocean
+  - Cool blue tones with crisp active focus and strong glow
+- Synthwave
+  - Retro neon magenta and cyan styling with wave motion
+- Raw Performance
+  - Zero expensive CSS effects for maximum FPS on low-end devices
+
+## Requirements
+
+- Spicetify `>= 2.0.0`
+- Spicy Lyrics extension installed and working
+- Spotify Desktop
+- Internet connection for Marketplace, Theme Creator, and update checks
+
+For installation instructions, see [INSTALL.md](INSTALL.md).
 
 ## Usage
 
-1. Open Spotify and navigate to the lyrics page (Spicy Lyrics)
-2. Click the **palette icon** in the lyrics view controls to toggle theming
-3. Go to **Settings** in Spotify to find the **Spicy Themes** section
-4. Pick a preset or customize colors, effects, fonts and more
-5. Right-click the palette icon to open the settings modal directly
+- Open Spotify and go to a Spicy Lyrics view
+- Click the palette icon in the lyrics controls to toggle theming
+- Open Spotify Settings and find the Spicy Themes section
+- Pick a preset or customize your own theme
+- Right-click the palette icon to open the settings modal directly
+- Use Export to save your theme as JSON
+- Use Import to apply themes downloaded from the Marketplace
 
-## Theme Creator & Marketplace
+Spicy Themes works in full lyrics view, sidebar lyrics view, Cinema mode, and Picture-in-Picture where available.
 
-Design, publish and discover community themes:
+## Settings
 
-### Creating a Theme
+- Active line color
+- Sung line color
+- Unsung line color
+- Active line opacity
+- Sung line opacity
+- Unsung line opacity
+- Enable / disable glow
+- Glow color
+- Glow intensity
+- Active glow color
+- Active glow intensity
+- Background text glow
+- Enable / disable gradient text
+- Gradient start color
+- Gradient end color
+- Gradient angle
+- Font family
+- Font weight
+- Font size
+- Letter spacing
+- Line height
+- Word Highlight
+- Word Pop scale
+- Word Pop duration
+- Word Wave intensity
+- Word Wave speed
+- Blur unsung lyrics
+- Blur amount
+- Active line scale
+- Animation speed
+- Page background overlay
+- Overlay color
+- Overlay opacity
+- Translation opacity for Spicy Lyric Translator
+- Translation font size scale for Spicy Lyric Translator
+- Dev channel
+- Export theme
+- Import theme
+- Check for updates
+- Reset settings
 
-1. Open the **[Theme Creator](https://7xeh.dev/apps/SpicyThemes/create/)** on the web
-2. Design your theme with a live preview — adjust every color, effect, and font
-3. Click **Publish** to upload it to the Marketplace, or **Export** to save as a `.json` file
+## SLT Compatibility
 
-### Marketplace
+Spicy Themes includes dedicated styling support for [Spicy Lyric Translator](https://github.com/7xeh/SpicyLyricTranslator).
 
-1. Browse the **[Theme Marketplace](https://7xeh.dev/apps/SpicyThemes/marketplace/)** to discover themes shared by the community
-2. Search by name or author, sort by newest or most popular
-3. Click **Get** to download any theme as a `.json` file
-4. Open Spicy Themes settings in Spotify and click **Import** to apply it
+- Style translated lyrics independently
+- Adjust translation opacity
+- Adjust translation font size scale
+- Keep lyric themes compatible with translated lines
+- Works alongside SLT without requiring extra setup
 
-## Configuration
+## Exporting and Importing Themes
 
-All settings are available in Spotify Settings > Spicy Themes:
+- Export saves your full theme configuration as a `.json` file
+- Import applies a saved or downloaded theme configuration
+- Marketplace themes are downloaded as `.json` files
+- Custom exported themes can be shared with other users
 
-| Category | Settings |
-|----------|----------|
-| Colors | Active line, sung line, unsung line |
-| Opacity | Active line, sung line, unsung line |
-| Glow | Enable/disable, glow color and intensity, active glow color and intensity, background text glow |
-| Gradient | Enable/disable, start color, end color, angle |
-| Typography | Font family, font weight, letter spacing, line height |
-| Effects | Word highlight, word pop (scale + duration), word wave (intensity + speed), blur unsung, blur amount, scale active, animation speed |
-| Background | Page overlay toggle, overlay color, overlay opacity |
-| SLT Styling | Translation opacity, translation font size scale |
-| Misc | Dev channel, export/import, check for updates, reset |
+## Performance
 
-## Presets
+Spicy Themes includes a Raw Performance preset for lower-end devices.
 
-Built-in presets:
+Use Raw Performance if:
 
-| Preset | Description |
-|--------|-------------|
-| Default | Balanced baseline with clean contrast and comfortable spacing |
-| SpotiGlow | Spotify green with vibrant neon glow and gradient |
-| Sunset | Warm orange/yellow gradient tones with glow and wave effect |
-| Deep Ocean | Cool blue tones with crisp active focus and strong glow |
-| Synthwave | Retro neon magenta/cyan with wave motion |
-| Raw Performance | Zero expensive CSS effects — maximum FPS for low-end devices |
+- Spotify feels laggy
+- Lyrics animations stutter
+- Your system has trouble with blur, glow, or gradient effects
+- You want the cleanest high-FPS lyric experience
 
-You can also save and manage your own custom presets.
+For best performance, reduce or disable:
 
-## Compatibility
+- Glow
+- Background text glow
+- Blur
+- Word Wave
+- Large active scaling
+- Heavy gradient effects
 
-- Requires [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics)
-- Works alongside [Spicy Lyric Translator](https://github.com/7xeh/SpicyLyricTranslator) with dedicated translation styling
-- Supports all Spicy Lyrics view modes: full page, sidebar, Cinema and PiP
+## Troubleshooting
 
-## License
+- Palette icon does not appear: make sure Spicy Lyrics is installed and the lyrics view is open
+- Theme does not apply: toggle Spicy Themes off and back on using the palette icon
+- Settings do not show: restart Spotify and run `spicetify apply`
+- Lyrics look wrong after importing a theme: reset settings, then import again
+- Spotify feels laggy: switch to the Raw Performance preset
+- Marketplace theme will not apply: make sure you imported the downloaded `.json` file from Spicy Themes settings
+- Manual install not loading: confirm `spicy-themes.js` is installed correctly, then run `spicetify apply`
+- SLT text does not match your theme: adjust the SLT Styling settings inside Spicy Themes
 
-MIT
+[![Discord](https://img.shields.io/badge/Need%20help%3F-Join%20the%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/fXK34DeDW5)
+
+## Links
+
+- Discord support, updates, feedback: https://discord.gg/fXK34DeDW5
+- Theme Creator: https://7xeh.dev/apps/SpicyThemes/create/
+- Theme Marketplace: https://7xeh.dev/apps/SpicyThemes/marketplace/
+- GitHub: https://github.com/7xeh/SpicyThemes
+- Spicy Lyrics: https://github.com/Spikerko/spicy-lyrics
+- Spicy Lyric Translator: https://github.com/7xeh/SpicyLyricTranslator
+
+## Credits
+
+Made with <3 for the Spicetify community by 7xeh.
