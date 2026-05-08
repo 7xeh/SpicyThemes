@@ -309,6 +309,7 @@ function renderSchemaFields(container: HTMLElement): void {
                     const currentVal = isCustom && cur !== '' ? '__custom__' : String(cur);
                     row = createDropdownRow(id, def.label, opts, currentVal, (v) => {
                         if (v === '__custom__') {
+                            setProp('Custom Font' as any);
                             updateConditionalVisibility();
                         } else {
                             setProp(v);
@@ -401,7 +402,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
                 storage.remove('dev-channel');
             }
             if (Spicetify.showNotification) {
-                Spicetify.showNotification(v ? 'Dev channel enabled — reload to apply' : 'Dev channel disabled — reload to apply');
+                Spicetify.showNotification(v ? 'Dev channel enabled. Reload to apply' : 'Dev channel disabled. Reload to apply');
             }
         }
     ));

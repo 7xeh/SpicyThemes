@@ -70,7 +70,7 @@ export const SCHEMA: FieldDef[] = [
     { id: 'gradientEnabled', label: 'Gradient text', type: 'toggle', section: 'Gradient' },
     { id: 'gradientStartColor', label: 'Gradient start', type: 'color', section: 'Gradient', when: (t) => t.gradientEnabled },
     { id: 'gradientEndColor', label: 'Gradient end', type: 'color', section: 'Gradient', when: (t) => t.gradientEnabled },
-    { id: 'gradientAngle', label: 'Gradient angle', type: 'slider', section: 'Gradient', min: 0, max: 360, step: 5, unit: '°', when: (t) => t.gradientEnabled },
+    { id: 'gradientAngle', label: 'Gradient angle', type: 'slider', section: 'Gradient', min: 0, max: 360, step: 5, unit: 'deg', when: (t) => t.gradientEnabled },
     { id: 'glowEnabled', label: 'Glow', type: 'toggle', section: 'Glow' },
     { id: 'glowColor', label: 'Glow color', type: 'color', section: 'Glow', when: (t) => t.glowEnabled },
     { id: 'glowIntensity', label: 'Glow intensity', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', when: (t) => t.glowEnabled },
@@ -251,6 +251,14 @@ function refreshCustomizeVisibility(): void {
     });
 }
 
+function formatFieldValue(value: unknown, unit = ''): string {
+    if (typeof value === 'number') {
+        const rounded = Math.round(value * 100) / 100;
+        return `${rounded}${unit}`;
+    }
+    return `${value ?? ''}${unit}`;
+}
+
 function buildField(def: FieldDef, index: number): HTMLElement {
     const row = document.createElement('div');
     row.className = `st-m-field st-m-field-${def.type}`;
@@ -302,10 +310,10 @@ function buildField(def: FieldDef, index: number): HTMLElement {
             input.value = String(cur);
             const value = document.createElement('span');
             value.className = 'st-m-slider-value';
-            value.textContent = `${cur}${def.unit || ''}`;
+            value.textContent = formatFieldValue(cur, def.unit);
             input.addEventListener('input', () => {
                 const v = parseFloat(input.value);
-                value.textContent = `${v}${def.unit || ''}`;
+                value.textContent = formatFieldValue(v, def.unit);
                 liveUpdate(def.id, v as any);
             });
             wrap.appendChild(input);
@@ -330,7 +338,7 @@ function buildField(def: FieldDef, index: number): HTMLElement {
                 });
                 select.addEventListener('change', () => {
                     if (select.value === '__custom__') {
-                        refreshCustomizeVisibility();
+                        liveUpdate(def.id, 'Custom Font' as any);
                     } else {
                         liveUpdate(def.id, select.value as any);
                     }
@@ -368,7 +376,7 @@ function buildField(def: FieldDef, index: number): HTMLElement {
 
 function buildCustomizeTab(): HTMLElement {
     const tab = document.createElement('div');
-    tab.className = 'st-m-tab-content';
+    tab.className = 'st-m-tab-content st-m-customize-grid';
 
     const sections = new Map<string, HTMLElement>();
     SCHEMA.forEach((def, i) => {
@@ -531,7 +539,7 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
                 <div class="st-m-mp-name">${escapeHtml(t.name)}${t.featured ? ' <span class="st-m-mp-featured">FEATURED</span>' : ''}</div>
                 <div class="st-m-mp-author">by ${escapeHtml(t.author)}</div>
                 ${t.description ? `<div class="st-m-mp-desc">${escapeHtml(t.description)}</div>` : ''}
-                <div class="st-m-mp-stats"><span>⬇ ${t.downloads || 0}</span></div>
+                <div class="st-m-mp-stats"><span>${t.downloads || 0} downloads</span></div>
             `;
 
             const actions = document.createElement('div');
@@ -774,10 +782,10 @@ function buildAboutTab(): HTMLElement {
     devToggle.addEventListener('change', () => {
         if (devToggle.checked) {
             storage.set('dev-channel', 'ST_D3V_7xeh');
-            notify('Dev channel enabled — reload to apply');
+            notify('Dev channel enabled. Reload to apply');
         } else {
             storage.remove('dev-channel');
-            notify('Dev channel disabled — reload to apply');
+            notify('Dev channel disabled. Reload to apply');
         }
     });
 
@@ -808,12 +816,6 @@ export function createSettingsModal(): HTMLElement {
         injectThemeStyles();
     });
 
-    const previewWrap = document.createElement('div');
-    previewWrap.className = 'st-modal-preview-wrap';
-    const preview = document.createElement('div');
-    preview.className = 'st-modal-preview';
-    previewWrap.appendChild(preview);
-
     const tabBar = document.createElement('div');
     tabBar.className = 'st-m-tabbar';
 
@@ -821,9 +823,9 @@ export function createSettingsModal(): HTMLElement {
     tabContent.className = 'st-m-tab-host';
 
     const tabs: { id: string; label: string; render: () => HTMLElement }[] = [
+        { id: 'customize', label: 'Customize', render: () => buildCustomizeTab() },
         { id: 'presets', label: 'Presets', render: () => buildPresetsTab(rerender) },
         { id: 'marketplace', label: 'Marketplace', render: () => buildMarketplaceTab(rerender) },
-        { id: 'customize', label: 'Customize', render: () => buildCustomizeTab() },
         { id: 'about', label: 'About', render: () => buildAboutTab() },
     ];
     let activeTab = tabs[0].id;
@@ -832,7 +834,6 @@ export function createSettingsModal(): HTMLElement {
         const current = tabs.find(t => t.id === activeTab) || tabs[0];
         tabContent.innerHTML = '';
         tabContent.appendChild(current.render());
-        renderPreview(preview, themeState.activeTheme);
     }
 
     tabs.forEach(t => {
@@ -849,12 +850,10 @@ export function createSettingsModal(): HTMLElement {
     });
 
     container.appendChild(enabledHeader);
-    container.appendChild(previewWrap);
     container.appendChild(tabBar);
     container.appendChild(tabContent);
 
     rerender();
-    renderPreview(preview, themeState.activeTheme);
 
     return container;
 }
