@@ -35,10 +35,12 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 function gradientRule(r: number, g: number, b: number, r2?: number, g2?: number, b2?: number): string {
     const er = r2 ?? r, eg = g2 ?? g, eb = b2 ?? b;
     return `background-image: linear-gradient(
-        var(--gradient-degrees),
-        rgba(${r}, ${g}, ${b}, var(--gradient-alpha)) var(--gradient-position),
-        rgba(${er}, ${eg}, ${eb}, var(--gradient-alpha-end)) calc(var(--gradient-position) + 20% + var(--gradient-offset))
+        var(--gradient-degrees, 180deg),
+        rgba(${r}, ${g}, ${b}, var(--gradient-alpha, 1)) var(--gradient-position, 0%),
+        rgba(${er}, ${eg}, ${eb}, var(--gradient-alpha-end, 1)) calc(var(--gradient-position, 0%) + 20% + var(--gradient-offset, 0%))
     ) !important;
+    background-size: 100% 100% !important;
+    background-repeat: no-repeat !important;
     -webkit-background-clip: text !important;
     background-clip: text !important;
     -webkit-text-fill-color: transparent !important;`;
@@ -104,7 +106,9 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const glowActive = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedActiveGlow}px ${config.activeGlowColor}) !important;`;
     const glowNormal = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`;
     const glowSidebar = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedSidebarGlow}px ${config.activeGlowColor}) !important;`;
-    const scaleEffect = config.scaleActive !== 1.0 && `transform: scale(${config.scaleActive}) !important; transform-origin: left center !important;`;
+    const scaleEffect = config.scaleActive !== 1.0 && `transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1) !important; transform-origin: left center !important;`;
+    const lyricTransitionMs = Math.max(8.333, 110 / config.animationSpeed).toFixed(3);
+    const lyricSnapMs = Math.max(8.333, 56 / config.animationSpeed).toFixed(3);
 
     const sltFontOverrides = buildProps(
         config.sltTranslationFontSize !== 1.0 && `font-size: calc(1em * ${config.sltTranslationFontSize}) !important;`,
@@ -113,17 +117,51 @@ export function generateThemeCSS(config: ThemeConfig): string {
     );
 
     css.push(`
+@property --gradient-position {
+    syntax: '<percentage>';
+    inherits: true;
+    initial-value: 0%;
+}
+
+@property --gradient-offset {
+    syntax: '<percentage>';
+    inherits: true;
+    initial-value: 0%;
+}
+
+@property --gradient-alpha {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 1;
+}
+
+@property --gradient-alpha-end {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 1;
+}
+`);
+
+    css.push(`
 ${sel(ALL, '.line')} {
     ${buildProps(
         `--Vocal-Active-opacity: ${config.activeLineOpacity} !important;`,
         `--Vocal-Sung-opacity: ${config.sungLineOpacity} !important;`,
         `--Vocal-NotSung-opacity: ${config.notSungLineOpacity} !important;`,
         `--gradient-degrees: ${config.gradientAngle}deg !important;`,
+        `--st-lyric-transition: ${lyricTransitionMs}ms !important;`,
+        `--st-lyric-snap: ${lyricSnapMs}ms !important;`,
         config.fontFamily && `font-family: ${config.fontFamily}, system-ui, sans-serif !important;`,
         `font-weight: ${config.fontWeight} !important;`,
         config.letterSpacing !== 0 && `letter-spacing: ${config.letterSpacing}em !important;`,
         config.lineHeight !== 1.1818181818 && `--lyrics-line-height: ${config.lineHeight} !important;`,
     )}
+    transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
+    transition-duration: var(--st-lyric-transition) !important;
+    transition-timing-function: linear !important;
+    backface-visibility: hidden !important;
+    transform-style: preserve-3d !important;
+    contain: paint style !important;
 }
 `);
 
@@ -135,6 +173,23 @@ ${ALL.flatMap(b => [
 ]).join(',\n')} {
     font-weight: ${config.fontWeight} !important;
     ${config.fontFamily ? `font-family: ${config.fontFamily}, system-ui, sans-serif !important;` : ''}
+    transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
+    transition-duration: var(--st-lyric-snap) !important;
+    transition-timing-function: linear !important;
+    backface-visibility: hidden !important;
+}
+`);
+
+    css.push(`
+${ALL.flatMap(b => [
+    `${b} .line.Active`,
+    `${b} .line.Active .word`,
+    `${b} .line.Active .letter`,
+    `${b} .line.Active .letterGroup`,
+    `${b} .line.Sung`,
+    `${b} .line.NotSung`,
+]).join(',\n')} {
+    will-change: opacity, filter, transform !important;
 }
 `);
 
@@ -176,7 +231,7 @@ ${ALL.map(b => `${b} .line.NotSung`).join(',\n')} {
         css.push(`
 ${blurTargets} {
     ${blurFilter}
-    will-change: filter;
+    will-change: filter, opacity, transform;
 }
 `);
 
@@ -240,14 +295,9 @@ ${sltHighlightTargets} {
     background-clip: unset !important;
     color: ${config.highlightColor} !important;
     -webkit-text-fill-color: ${config.highlightColor} !important;
-}
-`);
-    }
-
-    if (config.animationSpeed !== 1.0) {
-        css.push(`
-${sel(BASES, '.line')} {
-    transition-duration: ${(0.3 / config.animationSpeed).toFixed(3)}s !important;
+    transition-property: color, -webkit-text-fill-color, opacity, filter, transform !important;
+    transition-duration: var(--st-lyric-snap, ${lyricSnapMs}ms) !important;
+    transition-timing-function: linear !important;
 }
 `);
     }
@@ -278,6 +328,10 @@ ${sel(BASES, '.line')} {
     css.push(`
 .slt-replace-line {
     ${buildProps(notSungGrad, `opacity: ${config.sltTranslationOpacity} !important;`, sltFontOverrides)}
+    transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
+    transition-duration: ${lyricTransitionMs}ms !important;
+    transition-timing-function: linear !important;
+    backface-visibility: hidden !important;
 }
 
 .slt-replace-line:has(.slt-replace-word) {
@@ -286,6 +340,10 @@ ${sel(BASES, '.line')} {
 
 .slt-replace-word {
     ${notSungGrad}
+    transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
+    transition-duration: ${lyricSnapMs}ms !important;
+    transition-timing-function: linear !important;
+    backface-visibility: hidden !important;
 }
 
 .slt-interleaved-translation:not(.slt-sync-translation) {
@@ -294,6 +352,10 @@ ${sel(BASES, '.line')} {
         `opacity: ${config.sltTranslationOpacity} !important;`,
         sltFontOverrides,
     )}
+    transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
+    transition-duration: ${lyricTransitionMs}ms !important;
+    transition-timing-function: linear !important;
+    backface-visibility: hidden !important;
 }
 
 .slt-sync-translation.slt-interleaved-translation {
@@ -306,6 +368,10 @@ ${sel(BASES, '.line')} {
         `box-decoration-break: slice !important;`,
         sltFontOverrides,
     )}
+    transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
+    transition-duration: ${lyricTransitionMs}ms !important;
+    transition-timing-function: linear !important;
+    backface-visibility: hidden !important;
 }
 
 .slt-sync-translation.slt-interleaved-translation:has(.slt-sync-word) {
@@ -314,6 +380,10 @@ ${sel(BASES, '.line')} {
 
 .slt-sync-word {
     ${notSungGrad}
+    transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
+    transition-duration: ${lyricSnapMs}ms !important;
+    transition-timing-function: linear !important;
+    backface-visibility: hidden !important;
 }
 
 .slt-replace-line.Active,
@@ -428,13 +498,15 @@ ${sel(BASES, '.line')} {
         ]).join(',\n');
         css.push(`
 @keyframes st-word-pop {
-    0% { transform: scale(1); }
-    40% { transform: scale(${config.popScale}); }
-    100% { transform: scale(1); }
+    0% { transform: scale3d(1, 1, 1); }
+    40% { transform: scale3d(${config.popScale}, ${config.popScale}, 1); }
+    100% { transform: scale3d(1, 1, 1); }
 }
 ${popActiveTargets} {
     display: inline-block !important;
-    animation: st-word-pop ${config.popDuration}s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    animation: st-word-pop ${config.popDuration}s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+    will-change: transform, opacity !important;
+    backface-visibility: hidden !important;
 }
 `);
     }
@@ -446,12 +518,14 @@ ${popActiveTargets} {
         ]).join(',\n');
         css.push(`
 @keyframes st-word-wave {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-${config.waveIntensity}px); }
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    50% { transform: translate3d(0, -${config.waveIntensity}px, 0); }
 }
 ${waveTargets} {
     display: inline-block !important;
     animation: st-word-wave ${config.waveSpeed}s ease-in-out infinite !important;
+    will-change: transform, opacity !important;
+    backface-visibility: hidden !important;
 }
 `);
         for (let i = 0; i < 20; i++) {
