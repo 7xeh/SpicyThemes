@@ -8,7 +8,8 @@ Customize [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) with colors, 
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-Online-success?style=flat-square)
 
-![Preview](preview.png)
+![Preview](https://github.com/7xeh/SpicyThemes/blob/main/st-preview.gif?raw=true)
+![Preview2](preview.png)
 
 ## Need Help or Want to Chat?
 
