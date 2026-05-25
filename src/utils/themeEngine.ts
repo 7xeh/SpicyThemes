@@ -304,7 +304,8 @@ ${sltHighlightTargets} {
 
     if (config.pageBgOverlay) {
         css.push(`
-#SpicyLyricsPage .LyricsContainer::before {
+#SpicyLyricsPage .LyricsContainer::before,
+#SpicyLyricsPage.CompactMode::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -312,12 +313,14 @@ ${sltHighlightTargets} {
     pointer-events: none;
     z-index: 0;
 }
-#SpicyLyricsPage .LyricsContainer {
+#SpicyLyricsPage .LyricsContainer,
+#SpicyLyricsPage.CompactMode {
     position: relative;
 }
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent,
 .spicy-pip-wrapper #SpicyLyricsPage .LyricsContainer .LyricsContent,
-.spicy-pip-wrapper #SpicyLyricsPage .LyricsContent {
+.spicy-pip-wrapper #SpicyLyricsPage .LyricsContent,
+#SpicyLyricsPage.CompactMode .ContentBox {
     position: relative;
     z-index: 1;
 }
