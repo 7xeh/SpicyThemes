@@ -51,6 +51,19 @@ export interface ThemeConfig {
     waveEffect: boolean;
     waveIntensity: number;
     waveSpeed: number;
+
+    playerStylingEnabled: boolean;
+    playerArtRadius: number;
+    playerProgressThickness: number;
+    playerControlsAnimation: boolean;
+    playerHideShuffle: boolean;
+    playerHideRepeat: boolean;
+    playerHideLike: boolean;
+
+    videoBgEnabled: boolean;
+    videoBgUrl: string;
+    videoBgBlur: number;
+    videoBgDim: number;
 }
 
 export const DEFAULT_THEME: ThemeConfig = {
@@ -104,6 +117,19 @@ export const DEFAULT_THEME: ThemeConfig = {
     waveEffect: false,
     waveIntensity: 4,
     waveSpeed: 0.8,
+
+    playerStylingEnabled: false,
+    playerArtRadius: 12,
+    playerProgressThickness: 1.0,
+    playerControlsAnimation: false,
+    playerHideShuffle: false,
+    playerHideRepeat: false,
+    playerHideLike: false,
+
+    videoBgEnabled: false,
+    videoBgUrl: '',
+    videoBgBlur: 0,
+    videoBgDim: 0.4,
 };
 
 export interface ThemePreset {
@@ -342,6 +368,10 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         lineHeight: [1.0, 2.5],
         letterSpacing: [-0.1, 0.3],
         fontWeight: [100, 900],
+        playerArtRadius: [0, 50],
+        playerProgressThickness: [0.5, 5],
+        videoBgBlur: [0, 30],
+        videoBgDim: [0, 1],
     };
 
     const normalized = { ...config };

@@ -3,6 +3,7 @@ import { themeState, ThemeConfig } from './state';
 
 const STYLE_ID = 'spicy-themes-injected-styles';
 const BASE_STYLE_ID = 'spicy-themes-base-styles';
+const VIDEO_BG_ID = 'spicy-themes-video-bg';
 
 function hexToRgba(hex: string, alpha: number): string {
     if (hex.startsWith('rgba') || hex.startsWith('rgb')) return hex;
@@ -161,7 +162,7 @@ ${sel(ALL, '.line')} {
     transition-timing-function: linear !important;
     backface-visibility: hidden !important;
     transform-style: preserve-3d !important;
-    contain: paint style !important;
+    ${(config.glowEnabled || config.bgGlowEnabled) ? 'contain: layout style !important;' : 'contain: paint style !important;'}
 }
 `);
 
@@ -323,6 +324,21 @@ ${sltHighlightTargets} {
 #SpicyLyricsPage.CompactMode .ContentBox {
     position: relative;
     z-index: 1;
+}
+/* Compact mode: the now-bar header lives inside .ContentBox, which sits
+   above the .spicy-dynamic-bg background canvas. The canvas is a later
+   sibling with z-index auto, so a z-index:0 overlay paints behind it and
+   the header area stays undimmed. Lift the full-page overlay above the
+   canvas, put content above the overlay, and drop the per-container
+   overlay so the lyrics aren't dimmed twice. */
+#SpicyLyricsPage.CompactMode::before {
+    z-index: 1;
+}
+#SpicyLyricsPage.CompactMode .ContentBox {
+    z-index: 2;
+}
+#SpicyLyricsPage.CompactMode .LyricsContainer::before {
+    display: none !important;
 }
 `);
     }
@@ -561,6 +577,80 @@ ${SIDEBAR.map(b => `${b} .line.Active`).join(',\n')} {
 `);
     }
 
+    const PLAYER = ['#SpicyLyricsPage', '.spicy-pip-wrapper #SpicyLyricsPage'];
+
+    if (config.playerStylingEnabled) {
+        const radius = Math.min(Math.max(config.playerArtRadius, 0), 50);
+        const barH = (1.3 * config.playerProgressThickness).toFixed(2);
+
+        css.push(`
+${PLAYER.map(p => `${p} .ContentBox .NowBar .MediaImageContainer`).join(',\n')} {
+    border-radius: ${radius}% !important;
+    --BorderRadius: ${radius}% !important;
+}
+`);
+
+        css.push(`
+${PLAYER.map(p => `${p} .Timeline .SliderBar`).join(',\n')} {
+    height: ${barH}cqh !important;
+}
+`);
+
+        if (config.playerHideShuffle) {
+            css.push(`${PLAYER.map(p => `${p} .PlaybackControls .ShuffleToggle`).join(',\n')} {\n    display: none !important;\n}`);
+        }
+        if (config.playerHideRepeat) {
+            css.push(`${PLAYER.map(p => `${p} .PlaybackControls .LoopToggle`).join(',\n')} {\n    display: none !important;\n}`);
+        }
+        if (config.playerHideLike) {
+            css.push(`${PLAYER.map(p => `${p} .NowBar .Heart`).join(',\n')} {\n    display: none !important;\n}`);
+        }
+
+        if (config.playerControlsAnimation) {
+            css.push(`
+${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl`).join(',\n')} {
+    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.175s ease-out, opacity 0.175s cubic-bezier(0.37, 0, 0.63, 1) !important;
+}
+${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl:hover`).join(',\n')} {
+    transform: scale(1.18) !important;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.55)) !important;
+}
+${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')} {
+    transform: scale(0.86) !important;
+}
+`);
+        }
+    }
+
+    if (config.videoBgEnabled && config.videoBgUrl.trim()) {
+        const blur = Math.min(Math.max(config.videoBgBlur, 0), 30);
+        const dim = Math.min(Math.max(config.videoBgDim, 0), 1);
+
+        css.push(`
+${PLAYER.map(p => `${p} #${VIDEO_BG_ID}`).join(',\n')} {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: -1 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+}
+${PLAYER.map(p => `${p} #${VIDEO_BG_ID} video`).join(',\n')} {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    display: block !important;
+    ${blur > 0 ? `filter: blur(${blur}px) !important;\n    transform: scale(1.1) !important;` : ''}
+}
+${PLAYER.map(p => `${p} #${VIDEO_BG_ID}::after`).join(',\n')} {
+    content: '' !important;
+    position: absolute !important;
+    inset: 0 !important;
+    background: rgba(0, 0, 0, ${dim}) !important;
+    pointer-events: none !important;
+}
+`);
+    }
+
     return css.join('\n');
 }
 
@@ -585,6 +675,61 @@ function injectIntoPIPDocument(css: string): void {
     style.textContent = css;
 }
 
+function updateVideoBackgroundIn(doc: Document): void {
+    const config = themeState.activeTheme;
+    const enabled = themeState.isEnabled && config.videoBgEnabled && !!config.videoBgUrl.trim();
+
+    let wrap = doc.getElementById(VIDEO_BG_ID) as HTMLElement | null;
+
+    if (!enabled) {
+        if (wrap) wrap.remove();
+        return;
+    }
+
+    const parent = doc.querySelector('#SpicyLyricsPage') as HTMLElement | null;
+    if (!parent) {
+        if (wrap) wrap.remove();
+        return;
+    }
+
+    if (!wrap) {
+        wrap = doc.createElement('div');
+        wrap.id = VIDEO_BG_ID;
+        const video = doc.createElement('video');
+        video.autoplay = true;
+        video.muted = true;
+        video.loop = true;
+        video.setAttribute('playsinline', '');
+        (video as HTMLVideoElement).playsInline = true;
+        wrap.appendChild(video);
+    }
+
+    if (wrap.parentElement !== parent) {
+        parent.appendChild(wrap);
+    }
+
+    const video = wrap.querySelector('video') as HTMLVideoElement;
+    const url = config.videoBgUrl.trim();
+    if (video.getAttribute('src') !== url) {
+        video.src = url;
+        video.play?.().catch(() => {});
+    }
+}
+
+export function updateVideoBackground(): void {
+    try {
+        updateVideoBackgroundIn(document);
+        const pipWindow = getPIPWindow();
+        if (pipWindow) updateVideoBackgroundIn(pipWindow.document);
+    } catch (e) {}
+}
+
+function removeVideoBackground(): void {
+    document.getElementById(VIDEO_BG_ID)?.remove();
+    const pipWindow = getPIPWindow();
+    if (pipWindow) pipWindow.document.getElementById(VIDEO_BG_ID)?.remove();
+}
+
 export function injectThemeStyles(): void {
     if (!themeState.isEnabled) {
         removeThemeStyles();
@@ -603,6 +748,8 @@ export function injectThemeStyles(): void {
 
     injectIntoPIPDocument(css);
 
+    updateVideoBackground();
+
 }
 
 export function removeThemeStyles(): void {
@@ -616,6 +763,8 @@ export function removeThemeStyles(): void {
         const pipStyle = pipWindow.document.getElementById(STYLE_ID);
         if (pipStyle) pipStyle.remove();
     }
+
+    removeVideoBackground();
 }
 
 export function injectBaseStyles(): void {

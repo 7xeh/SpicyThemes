@@ -1,5 +1,5 @@
 import { themeState, saveThemeState, getAllPresets, applyPreset as applyPresetFn } from './state';
-import { injectThemeStyles, injectBaseStyles, removeThemeStyles } from './themeEngine';
+import { injectThemeStyles, injectBaseStyles, removeThemeStyles, updateVideoBackground } from './themeEngine';
 import { registerSettings } from './settings';
 import { isSpicyLyricsOpen, onSpicyLyricsOpen, onSpicyLyricsClose, createThemeButton, injectIntoPiP } from './core';
 import { startUpdateChecker, checkForUpdates, getUpdateInfo, VERSION, showPostUpdateChangelog } from './updater';
@@ -75,6 +75,10 @@ export async function initialize(): Promise<void> {
 
             if (isOpen && !document.getElementById('ThemeToggle')) {
                 createThemeButton();
+            }
+
+            if (isOpen && themeState.isEnabled) {
+                updateVideoBackground();
             }
         }, 50);
     });

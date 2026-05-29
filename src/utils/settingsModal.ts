@@ -27,6 +27,7 @@ export interface FieldDef<K extends keyof ThemeConfig = keyof ThemeConfig> {
     max?: number;
     step?: number;
     unit?: string;
+    placeholder?: string;
     options?: { value: string; text: string }[];
     when?: (t: ThemeConfig) => boolean;
 }
@@ -111,6 +112,17 @@ export const SCHEMA: FieldDef[] = [
     { id: 'pageBgOverlay', label: 'Page background overlay', type: 'toggle', section: 'Background' },
     { id: 'pageBgColor', label: 'Overlay color', type: 'color', section: 'Background', when: (t) => t.pageBgOverlay },
     { id: 'pageBgOpacity', label: 'Overlay opacity', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, when: (t) => t.pageBgOverlay },
+    { id: 'playerStylingEnabled', label: 'Customize player', type: 'toggle', section: 'Player' },
+    { id: 'playerArtRadius', label: 'Album art roundness', type: 'slider', section: 'Player', min: 0, max: 50, step: 1, unit: '%', when: (t) => t.playerStylingEnabled },
+    { id: 'playerProgressThickness', label: 'Progress bar thickness', type: 'slider', section: 'Player', min: 0.5, max: 5, step: 0.5, unit: 'x', when: (t) => t.playerStylingEnabled },
+    { id: 'playerControlsAnimation', label: 'Animate control buttons', type: 'toggle', section: 'Player', when: (t) => t.playerStylingEnabled },
+    { id: 'playerHideShuffle', label: 'Hide shuffle button', type: 'toggle', section: 'Player', when: (t) => t.playerStylingEnabled },
+    { id: 'playerHideRepeat', label: 'Hide repeat button', type: 'toggle', section: 'Player', when: (t) => t.playerStylingEnabled },
+    { id: 'playerHideLike', label: 'Hide like (heart) button', type: 'toggle', section: 'Player', when: (t) => t.playerStylingEnabled },
+    { id: 'videoBgEnabled', label: 'Video background', type: 'toggle', section: 'Video Background' },
+    { id: 'videoBgUrl', label: 'Video URL', type: 'text', section: 'Video Background', placeholder: 'https://... .mp4 / .webm', when: (t) => t.videoBgEnabled },
+    { id: 'videoBgBlur', label: 'Video blur', type: 'slider', section: 'Video Background', min: 0, max: 30, step: 1, unit: 'px', when: (t) => t.videoBgEnabled },
+    { id: 'videoBgDim', label: 'Video dim', type: 'slider', section: 'Video Background', min: 0, max: 1, step: 0.05, when: (t) => t.videoBgEnabled },
     { id: 'sltStylingEnabled', label: 'Translation styling (SLT)', type: 'toggle', section: 'Translation' },
     { id: 'sltTranslationOpacity', label: 'Translation opacity', type: 'slider', section: 'Translation', min: 0.1, max: 1.0, step: 0.05, when: (t) => t.sltStylingEnabled },
     { id: 'sltTranslationFontSize', label: 'Translation font size', type: 'slider', section: 'Translation', min: 0.5, max: 2.0, step: 0.05, unit: 'x', when: (t) => t.sltStylingEnabled },
@@ -382,7 +394,7 @@ function buildField(def: FieldDef, index: number): HTMLElement {
             input.type = 'text';
             input.className = 'st-m-text';
             input.value = String(cur || '');
-            input.placeholder = 'Enter font name';
+            input.placeholder = def.placeholder || 'Enter font name';
             input.addEventListener('change', () => liveUpdate(def.id, input.value as any));
             control.appendChild(input);
             break;
