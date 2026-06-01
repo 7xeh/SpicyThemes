@@ -108,6 +108,12 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const glowNormal = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`;
     const glowSidebar = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedSidebarGlow}px ${config.activeGlowColor}) !important;`;
     const scaleEffect = config.scaleActive !== 1.0 && `transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1) !important; transform-origin: left center !important;`;
+    const bgGlowRgb = hexToRgb(config.bgGlowColor);
+    const clampedBgGlow = Math.min(config.bgGlowIntensity, 30);
+    const bgGlowDecl = config.bgGlowEnabled
+        ? `text-shadow: 0 0 ${clampedBgGlow}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1)) !important;`
+        : '';
+    const karaokeGlowDecl = `text-shadow: 0 0 7px ${hexToRgba(config.activeLineColor, 0.5)} !important;`;
     const lyricTransitionMs = Math.max(8.333, 110 / config.animationSpeed).toFixed(3);
     const lyricSnapMs = Math.max(8.333, 56 / config.animationSpeed).toFixed(3);
 
@@ -174,7 +180,7 @@ ${ALL.flatMap(b => [
 ]).join(',\n')} {
     font-weight: ${config.fontWeight} !important;
     ${config.fontFamily ? `font-family: ${config.fontFamily}, system-ui, sans-serif !important;` : ''}
-    transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
+    transition-property: color, -webkit-text-fill-color !important;
     transition-duration: var(--st-lyric-snap) !important;
     transition-timing-function: linear !important;
     backface-visibility: hidden !important;
@@ -242,6 +248,8 @@ ${blurTargets} {
         const unblurTargets = ALL.flatMap(b => [
             `${b} .line.Active + .line`,
             `${b} .line.Active + :not(.line) + .line`,
+            `${b} [data-index]:has(> .line.Active) + [data-index] > .line`,
+            `${b} [data-index]:has(> .line.Active) + [data-index] + [data-index] > .line`,
         ]).join(',\n');
         css.push(`
 ${unblurTargets} {
@@ -251,8 +259,6 @@ ${unblurTargets} {
     }
 
     if (config.bgGlowEnabled) {
-        const bgGlowRgb = hexToRgb(config.bgGlowColor);
-        const clampedBgGlow = Math.min(config.bgGlowIntensity, 30);
         const bgGlowTargets = ALL.flatMap(b => [
             `${b} .line.Active`,
             `${b} .line.Active .word`,
@@ -261,7 +267,7 @@ ${unblurTargets} {
         ]).join(',\n');
         css.push(`
 ${bgGlowTargets} {
-    text-shadow: 0 0 ${clampedBgGlow}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1)) !important;
+    ${bgGlowDecl}
 }
 `);
     }
@@ -359,7 +365,9 @@ ${sltHighlightTargets} {
 
 .slt-replace-word {
     ${notSungGrad}
-    transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
+    display: inline-block !important;
+    white-space: pre-wrap !important;
+    transition-property: color, -webkit-text-fill-color, transform, text-shadow !important;
     transition-duration: ${lyricSnapMs}ms !important;
     transition-timing-function: linear !important;
     backface-visibility: hidden !important;
@@ -399,7 +407,9 @@ ${sltHighlightTargets} {
 
 .slt-sync-word {
     ${notSungGrad}
-    transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
+    display: inline-block !important;
+    white-space: pre-wrap !important;
+    transition-property: color, -webkit-text-fill-color, transform, text-shadow !important;
     transition-duration: ${lyricSnapMs}ms !important;
     transition-timing-function: linear !important;
     backface-visibility: hidden !important;
@@ -413,7 +423,7 @@ ${sltHighlightTargets} {
 
 .slt-replace-line.active .slt-replace-word.word-active,
 .slt-replace-line.Active .slt-replace-word.word-active {
-    ${activeGrad}
+    ${buildProps(activeGrad, scaleEffect, bgGlowDecl || karaokeGlowDecl)}
 }
 
 .line.Active + .slt-interleaved-translation:not(.slt-sync-translation),
@@ -440,7 +450,7 @@ ${sltHighlightTargets} {
 }
 
 .slt-sync-word.slt-word-active {
-    ${activeGrad}
+    ${buildProps(activeGrad, scaleEffect, bgGlowDecl || karaokeGlowDecl)}
 }
 
 .slt-replace-line.Sung,
@@ -511,10 +521,14 @@ ${sltHighlightTargets} {
     }
 
     if (config.popEffect) {
-        const popActiveTargets = ALL.flatMap(b => [
-            `${b} .line.Active .word`,
-            `${b} .line.Active .letterGroup`,
-        ]).join(',\n');
+        const popActiveTargets = [
+            ...ALL.flatMap(b => [
+                `${b} .line.Active .word`,
+                `${b} .line.Active .letterGroup`,
+            ]),
+            '.slt-sync-word.slt-word-active',
+            '.slt-replace-word.word-active',
+        ].join(',\n');
         css.push(`
 @keyframes st-word-pop {
     0% { transform: scale3d(1, 1, 1); }
@@ -531,10 +545,14 @@ ${popActiveTargets} {
     }
 
     if (config.waveEffect) {
-        const waveTargets = ALL.flatMap(b => [
-            `${b} .line.Active .word`,
-            `${b} .line.Active .letterGroup`,
-        ]).join(',\n');
+        const waveTargets = [
+            ...ALL.flatMap(b => [
+                `${b} .line.Active .word`,
+                `${b} .line.Active .letterGroup`,
+            ]),
+            '.slt-interleaved-translation.Active .slt-sync-word',
+            '.slt-replace-line.Active .slt-replace-word',
+        ].join(',\n');
         css.push(`
 @keyframes st-word-wave {
     0%, 100% { transform: translate3d(0, 0, 0); }
@@ -548,10 +566,14 @@ ${waveTargets} {
 }
 `);
         for (let i = 0; i < 20; i++) {
-            const nthTargets = ALL.flatMap(b => [
-                `${b} .line.Active .word:nth-child(${i + 1})`,
-                `${b} .line.Active .letterGroup:nth-child(${i + 1})`,
-            ]).join(',\n');
+            const nthTargets = [
+                ...ALL.flatMap(b => [
+                    `${b} .line.Active .word:nth-child(${i + 1})`,
+                    `${b} .line.Active .letterGroup:nth-child(${i + 1})`,
+                ]),
+                `.slt-interleaved-translation.Active .slt-sync-word:nth-child(${i + 1})`,
+                `.slt-replace-line.Active .slt-replace-word:nth-child(${i + 1})`,
+            ].join(',\n');
             css.push(`
 ${nthTargets} {
     animation-delay: ${(i * 0.08).toFixed(2)}s !important;
