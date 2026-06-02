@@ -100,6 +100,7 @@ export const SCHEMA: FieldDef[] = [
     { id: 'bgGlowIntensity', label: 'BG glow intensity', type: 'slider', section: 'Glow', min: 0, max: 30, step: 1, unit: 'px', when: (t) => t.bgGlowEnabled },
     { id: 'blurUnsung', label: 'Blur unsung lines', type: 'toggle', section: 'Effects' },
     { id: 'blurAmount', label: 'Blur amount', type: 'slider', section: 'Effects', min: 0, max: 8, step: 0.5, unit: 'px', when: (t) => t.blurUnsung },
+    { id: 'blurPreviewLines', label: 'Preview lines', type: 'slider', section: 'Effects', min: 0, max: 5, step: 1, unit: ' lines', when: (t) => t.blurUnsung },
     { id: 'disableHighlight', label: 'Custom word highlight', type: 'toggle', section: 'Effects' },
     { id: 'highlightColor', label: 'Highlight color', type: 'color', section: 'Effects', when: (t) => t.disableHighlight },
     { id: 'popEffect', label: 'Word pop', type: 'toggle', section: 'Effects' },
@@ -240,7 +241,7 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
         } else {
             unsung.style.color = t.notSungLineColor;
         }
-        if (t.blurUnsung) {
+        if (t.blurUnsung && t.blurPreviewLines === 0) {
             unsung.style.filter = `blur(${t.blurAmount}px)`;
         }
         if (t.glowEnabled) {

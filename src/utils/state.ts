@@ -27,6 +27,7 @@ export interface ThemeConfig {
 
     blurUnsung: boolean;
     blurAmount: number;
+    blurPreviewLines: number;
     scaleActive: number;
     animationSpeed: number;
 
@@ -93,6 +94,7 @@ export const DEFAULT_THEME: ThemeConfig = {
 
     blurUnsung: true,
     blurAmount: 2.0,
+    blurPreviewLines: 2,
     scaleActive: 1.02,
     animationSpeed: 1.0,
 
@@ -354,6 +356,7 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         pageBgOpacity: [0, 1],
         sltTranslationOpacity: [0, 1],
         blurAmount: [0, 8],
+        blurPreviewLines: [0, 5],
         glowIntensity: [0, 15],
         activeGlowIntensity: [0, 15],
         bgGlowIntensity: [0, 30],
@@ -467,6 +470,7 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
             pageBgOpacity: [0, 1],
             sltTranslationOpacity: [0, 1],
             blurAmount: [0, 8],
+            blurPreviewLines: [0, 5],
             glowIntensity: [0, 15],
             activeGlowIntensity: [0, 15],
             bgGlowIntensity: [0, 30],

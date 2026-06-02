@@ -231,7 +231,15 @@ ${ALL.map(b => `${b} .line.NotSung`).join(',\n')} {
     }
 
     if (config.blurUnsung) {
-        const blurTargets = ALL.flatMap(b => [`${b} .line.Sung`, `${b} .line.NotSung`]).join(',\n');
+        const blurTargets = [
+            ...ALL.flatMap(b => [`${b} .line.Sung`, `${b} .line.NotSung`]),
+            '.slt-replace-line.Sung',
+            '.slt-replace-line.NotSung',
+            '.line.Sung + .slt-replace-line',
+            '.line.NotSung + .slt-replace-line',
+            '.line.Sung + .slt-interleaved-translation',
+            '.line.NotSung + .slt-interleaved-translation',
+        ].join(',\n');
         const blurFilter = config.glowEnabled
             ? `filter: blur(${config.blurAmount}px) drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`
             : `filter: blur(${config.blurAmount}px) !important;`;
@@ -245,14 +253,32 @@ ${blurTargets} {
         const unblurFilter = config.glowEnabled
             ? `filter: drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`
             : `filter: none !important;`;
-        const unblurTargets = ALL.flatMap(b => [
-            `${b} .line.Active + .line`,
-            `${b} .line.Active + :not(.line) + .line`,
-            `${b} [data-index]:has(> .line.Active) + [data-index] > .line`,
-            `${b} [data-index]:has(> .line.Active) + [data-index] + [data-index] > .line`,
-        ]).join(',\n');
+        const previewCount = Math.max(0, Math.round(config.blurPreviewLines));
+        const unblurTargets = [
+            '.slt-replace-line.Active',
+            '.slt-replace-line.active',
+            '.line.Active + .slt-replace-line',
+            '.slt-interleaved-translation.Active',
+            '.slt-interleaved-translation.active',
+            '.line.Active + .slt-interleaved-translation',
+        ];
+        for (let k = 1; k <= previewCount; k++) {
+            const wrapperChain = Array(k).fill('+ [data-index]').join(' ');
+            unblurTargets.push(
+                ...ALL.map(b => `${b} [data-index]:has(> .line.Active) ${wrapperChain} > .line`),
+                `[data-index]:has(> .line.Active) ${wrapperChain} .slt-interleaved-translation`,
+            );
+            if (k === 1) {
+                unblurTargets.push(
+                    ...ALL.flatMap(b => [
+                        `${b} .line.Active + .line`,
+                        `${b} .line.Active + :not(.line) + .line`,
+                    ]),
+                );
+            }
+        }
         css.push(`
-${unblurTargets} {
+${unblurTargets.join(',\n')} {
     ${unblurFilter}
 }
 `);
