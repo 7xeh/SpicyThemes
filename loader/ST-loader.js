@@ -182,7 +182,11 @@
             LoadedAt: Date.now(),
             IsLoader: true,
             ContentHash: contentHash,
-            IsHotfix: isHotfix
+            IsHotfix: isHotfix,
+            utils: {
+                runHotfixCheck: (force) => runHotfixCheck(force),
+                log
+            }
         };
 
         const script = document.createElement('script');
@@ -207,10 +211,10 @@
         hotfixTimer = setTimeout(runHotfixCheck, delayMs + jitter);
     };
 
-    const runHotfixCheck = async () => {
-        if (document.hidden) {
+    const runHotfixCheck = async (force = false) => {
+        if (!force && document.hidden) {
             scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-            return;
+            return false;
         }
 
         try {
@@ -219,45 +223,45 @@
             const currentHash = storageGet('content-hash');
 
             if (!currentVersion || !currentHash) {
-                scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-                return;
+                if (!force) scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
+                return false;
             }
 
             if (info.version !== currentVersion) {
                 log.debug(`Version change detected: ${currentVersion} → ${info.version}, deferring to updater`);
-                scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-                return;
+                if (!force) scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
+                return false;
             }
 
-            if (info.hash) {
+            if (!force && info.hash) {
                 if (info.hash === currentHash) {
                     log.debug('No hotfix (API hash match)');
                     scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-                    return;
+                    return false;
                 }
 
                 log.info(`Hotfix detected via API for v${info.version}! Reloading...`);
                 storageSet('hotfix-detected', 'true');
                 window.location.reload();
-                return;
+                return true;
             }
 
             const now = Date.now();
-            if (now - lastFullCheckTime < HOTFIX_FULL_CHECK_INTERVAL_MS) {
+            if (!force && now - lastFullCheckTime < HOTFIX_FULL_CHECK_INTERVAL_MS) {
                 log.debug('Skipping full hotfix check (too recent)');
                 scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-                return;
+                return false;
             }
 
             lastFullCheckTime = now;
-            log.debug(`Running full hotfix check for v${info.version}...`);
+            log.debug(`Running ${force ? 'forced ' : ''}full hotfix check for v${info.version}...`);
 
             const hotfixUrlBase = info.downloadUrl || `${EXTENSION_BASE_URL}/versions/v${info.version}/spicy-themes.js`;
             const url = `${hotfixUrlBase}${hotfixUrlBase.includes('?') ? '&' : '?'}_=${now}`;
-            const resp = await fetch(url);
+            const resp = await fetch(url, { cache: 'no-store' });
             if (!resp.ok) {
-                scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-                return;
+                if (!force) scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
+                return false;
             }
 
             const code = await resp.text();
@@ -268,7 +272,7 @@
                 storageSet('content-hash', newHash);
                 storageSet('hotfix-detected', 'true');
                 window.location.reload();
-                return;
+                return true;
             }
 
             log.debug('No hotfix (content hash match)');
@@ -276,7 +280,8 @@
             log.debug('Hotfix check failed:', e);
         }
 
-        scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
+        if (!force) scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
+        return false;
     };
 
     const startHotfixChecker = () => {

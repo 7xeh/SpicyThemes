@@ -109,6 +109,9 @@ export const SCHEMA: FieldDef[] = [
     { id: 'waveEffect', label: 'Word wave', type: 'toggle', section: 'Effects' },
     { id: 'waveIntensity', label: 'Wave intensity', type: 'slider', section: 'Effects', min: 1, max: 10, step: 1, unit: 'px', when: (t) => t.waveEffect },
     { id: 'waveSpeed', label: 'Wave speed', type: 'slider', section: 'Effects', min: 0.3, max: 2.0, step: 0.1, unit: 's', when: (t) => t.waveEffect },
+    { id: 'scaleInEffect', label: 'Active line scale-in', type: 'toggle', section: 'Effects' },
+    { id: 'scaleInFrom', label: 'Scale-in start', type: 'slider', section: 'Effects', min: 0.85, max: 1.05, step: 0.01, unit: 'x', when: (t) => t.scaleInEffect },
+    { id: 'scaleInDuration', label: 'Scale-in duration', type: 'slider', section: 'Effects', min: 0.1, max: 1.0, step: 0.05, unit: 's', when: (t) => t.scaleInEffect },
     { id: 'animationSpeed', label: 'Animation speed', type: 'slider', section: 'Effects', min: 0.3, max: 3.0, step: 0.1, unit: 'x' },
     { id: 'pageBgOverlay', label: 'Page background overlay', type: 'toggle', section: 'Background' },
     { id: 'pageBgColor', label: 'Overlay color', type: 'color', section: 'Background', when: (t) => t.pageBgOverlay },
@@ -799,7 +802,18 @@ function buildAboutTab(): HTMLElement {
                 notify(`Update available: v${info.latestVersion}! Updating...`);
                 await checkForUpdates(true);
             } else {
-                notify("You're on the latest version");
+                let hotfix = false;
+                try {
+                    const metadata = (window as any)._spicy_themes_metadata;
+                    if (metadata?.utils?.runHotfixCheck) {
+                        hotfix = await metadata.utils.runHotfixCheck(true);
+                    }
+                } catch (_) {}
+                if (hotfix) {
+                    notify('Hotfix found! Reloading...');
+                } else {
+                    notify("You're on the latest version");
+                }
             }
         } catch {
             notify('Failed to check for updates', true);

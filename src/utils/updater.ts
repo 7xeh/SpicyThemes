@@ -1,5 +1,6 @@
 import { storage } from './storage';
 import { warn, error as logError } from './debug';
+import { displayModal, hideModal } from './modal';
 
 declare const __VERSION__: string;
 
@@ -143,6 +144,20 @@ function compareVersions(v1: VersionInfo, v2: VersionInfo): number {
 
 export function getCurrentVersion(): VersionInfo {
     return parseVersion(CURRENT_VERSION) || { major: 1, minor: 0, patch: 0, text: CURRENT_VERSION };
+}
+
+export function getContentHash(): string {
+    try {
+        const metadata = (window as any)._spicy_themes_metadata;
+        const hash = metadata?.ContentHash;
+        if (typeof hash === 'string' && hash.length > 0) return hash;
+    } catch {}
+    return '';
+}
+
+export function getContentHashShort(length: number = 8): string {
+    const hash = getContentHash();
+    return hash ? hash.substring(0, length) : '';
 }
 
 export async function getLatestVersion(): Promise<{ version: VersionInfo; release: GitHubRelease; downloadUrl: string } | null> {
@@ -304,7 +319,7 @@ function formatReleaseNotes(body: string): string {
         if (ul) {
             if (inOl) { output.push('</ol>'); inOl = false; }
             if (!inUl) { output.push('<ul style="margin: 4px 0; padding-left: 0; list-style: none;">'); inUl = true; }
-            output.push(`<li style="display: flex; gap: 8px; margin: 4px 0;"><span style="color: #1db954;">\u2022</span><span>${processInlineMarkdown(ul[1])}</span></li>`);
+            output.push(`<li style="display: flex; gap: 8px; margin: 4px 0;"><span style="color: var(--st-cl-accent, #1db954);">\u2022</span><span>${processInlineMarkdown(ul[1])}</span></li>`);
             continue;
         }
         const ol = line.match(/^\s*(\d+)\.\s+(.*)/);
@@ -416,39 +431,199 @@ export async function getUpdateInfo(): Promise<{
     }
 }
 
-function showChangelogModal(version: string, changelog: string): void {
+interface ChangelogModalOptions {
+    isHotfix?: boolean;
+    hashShort?: string;
+}
+
+function showChangelogModal(version: string, changelog: string, options: ChangelogModalOptions = {}): void {
+    const { isHotfix = false, hashShort = '' } = options;
+    const heroIcon = isHotfix ? '🔧' : '✨';
+    const heroTitle = isHotfix ? 'Hotfix Applied' : 'Updated Successfully';
+    const heroSubtitle = isHotfix
+        ? "Here's what's new in the hotfix"
+        : "Here's what's new in this release";
+    const accentVar = isHotfix
+        ? '--st-cl-accent: #ffb74d; --st-cl-accent-rgb: 255, 183, 77; --st-cl-accent-alt: #ff9800;'
+        : '--st-cl-accent: #1ed760; --st-cl-accent-rgb: 30, 215, 96; --st-cl-accent-alt: #1db954;';
     const content = document.createElement('div');
-    content.className = 'st-changelog-modal';
+    content.className = 'st-changelog-modal' + (isHotfix ? ' st-changelog-hotfix' : '');
+    content.setAttribute('style', accentVar);
     content.innerHTML = `
         <style>
-            .st-changelog-modal { padding: 16px; color: var(--spice-text); }
-            .st-changelog-modal .changelog-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-            .st-changelog-modal .changelog-badge { background: #1db954; color: #000; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 700; }
-            .st-changelog-modal .changelog-subtitle { color: var(--spice-subtext); font-size: 13px; }
+            @keyframes st-cl-fadeIn {
+                from { opacity: 0; transform: translateY(8px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .st-changelog-modal {
+                padding: 2px;
+                color: var(--spice-text);
+                animation: st-cl-fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+            }
+            .st-changelog-modal .changelog-hero {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                margin-bottom: 20px;
+                padding: 16px 18px;
+                border-radius: 12px;
+                background: linear-gradient(135deg, rgba(var(--st-cl-accent-rgb, 29, 185, 84), 0.12) 0%, rgba(99, 102, 241, 0.08) 100%);
+                border: 1px solid rgba(var(--st-cl-accent-rgb, 29, 185, 84), 0.18);
+                position: relative;
+                overflow: hidden;
+            }
+            .st-changelog-modal .changelog-hero::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 1px;
+                background: linear-gradient(90deg, transparent, rgba(var(--st-cl-accent-rgb, 29, 185, 84), 0.4), transparent);
+            }
+            .st-changelog-modal .changelog-hero-icon {
+                width: 44px;
+                height: 44px;
+                border-radius: 12px;
+                background: linear-gradient(135deg, var(--st-cl-accent-alt, #1db954), var(--st-cl-accent, #1ed760));
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 22px;
+                flex-shrink: 0;
+                box-shadow: 0 4px 12px rgba(var(--st-cl-accent-rgb, 29, 185, 84), 0.25);
+            }
+            .st-changelog-modal .changelog-hero-text {
+                flex: 1;
+            }
+            .st-changelog-modal .changelog-hero-title {
+                font-size: 16px;
+                font-weight: 700;
+                color: var(--spice-text);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .st-changelog-modal .changelog-badge {
+                background: linear-gradient(135deg, var(--st-cl-accent-alt, #1db954), var(--st-cl-accent, #1ed760));
+                color: #000;
+                padding: 3px 10px;
+                border-radius: 8px;
+                font-size: 11px;
+                font-weight: 800;
+                font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+                letter-spacing: 0.3px;
+                box-shadow: 0 2px 8px rgba(var(--st-cl-accent-rgb, 29, 185, 84), 0.2);
+            }
+            .st-changelog-modal .changelog-hash {
+                background: rgba(255, 255, 255, 0.06);
+                color: var(--spice-subtext);
+                padding: 3px 8px;
+                border-radius: 6px;
+                font-size: 10px;
+                font-weight: 600;
+                font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+                letter-spacing: 0.3px;
+                margin-left: 6px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .st-changelog-modal .changelog-hero-subtitle {
+                font-size: 12px;
+                color: var(--spice-subtext);
+                margin-top: 3px;
+            }
             .st-changelog-modal .changelog-content {
-                background: var(--spice-card); padding: 16px; border-radius: 8px; margin-bottom: 16px;
-                max-height: 400px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);
-                font-size: 13px; line-height: 1.6; color: var(--spice-subtext);
+                background: rgba(255, 255, 255, 0.03);
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
+                padding: 16px 18px;
+                border-radius: 10px;
+                margin-bottom: 18px;
+                max-height: 400px;
+                overflow-y: auto;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                font-size: 13px;
+                line-height: 1.65;
+                color: var(--spice-subtext);
             }
-            .st-changelog-modal .changelog-content::-webkit-scrollbar { width: 6px; }
+            .st-changelog-modal .changelog-content::-webkit-scrollbar { width: 5px; }
             .st-changelog-modal .changelog-content::-webkit-scrollbar-track { background: transparent; }
-            .st-changelog-modal .changelog-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
-            .st-changelog-modal .changelog-content a { color: #1db954; text-decoration: none; }
-            .st-changelog-modal .changelog-content a:hover { text-decoration: underline; }
-            .st-changelog-modal .changelog-content strong { color: var(--spice-text); }
-            .st-changelog-modal .changelog-buttons { display: flex; gap: 12px; justify-content: flex-end; }
-            .st-changelog-modal .changelog-btn {
-                padding: 10px 24px; border-radius: 20px; border: none; cursor: pointer;
-                font-size: 14px; font-weight: 600; transition: all 0.2s;
+            .st-changelog-modal .changelog-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+            .st-changelog-modal .changelog-content::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+            .st-changelog-modal .changelog-content a {
+                color: var(--st-cl-accent, #1ed760);
+                text-decoration: none;
+                border-bottom: 1px solid rgba(var(--st-cl-accent-rgb, 30, 215, 96), 0.3);
+                transition: border-color 0.2s;
             }
-            .st-changelog-modal .changelog-btn.primary { background: #1db954; color: #000; }
-            .st-changelog-modal .changelog-btn.primary:hover { background: #1ed760; transform: scale(1.02); }
-            .st-changelog-modal .changelog-btn.secondary { background: var(--spice-card); color: var(--spice-text); }
-            .st-changelog-modal .changelog-btn.secondary:hover { background: var(--spice-button); }
+            .st-changelog-modal .changelog-content a:hover { border-color: var(--st-cl-accent, #1ed760); }
+            .st-changelog-modal .changelog-content img {
+                max-width: 100%;
+                border-radius: 8px;
+                margin: 8px 0;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+            }
+            .st-changelog-modal .changelog-content strong { color: var(--spice-text); }
+            .st-changelog-modal .changelog-content del { opacity: 0.5; }
+            .st-changelog-modal .changelog-buttons {
+                display: flex;
+                gap: 10px;
+                justify-content: flex-end;
+            }
+            .st-changelog-modal .changelog-btn {
+                padding: 10px 24px;
+                border-radius: 24px;
+                border: none;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 700;
+                letter-spacing: 0.2px;
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                position: relative;
+                overflow: hidden;
+            }
+            .st-changelog-modal .changelog-btn::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                opacity: 0;
+                background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%);
+                transition: opacity 0.3s;
+            }
+            .st-changelog-modal .changelog-btn:hover::after { opacity: 1; }
+            .st-changelog-modal .changelog-btn.primary {
+                background: linear-gradient(135deg, var(--st-cl-accent-alt, #1db954), var(--st-cl-accent, #1ed760));
+                color: #000;
+                box-shadow: 0 2px 12px rgba(var(--st-cl-accent-rgb, 29, 185, 84), 0.25);
+            }
+            .st-changelog-modal .changelog-btn.primary:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 20px rgba(var(--st-cl-accent-rgb, 29, 185, 84), 0.35);
+            }
+            .st-changelog-modal .changelog-btn.primary:active {
+                transform: translateY(0);
+                box-shadow: 0 1px 6px rgba(var(--st-cl-accent-rgb, 29, 185, 84), 0.2);
+            }
+            .st-changelog-modal .changelog-btn.secondary {
+                background: rgba(255, 255, 255, 0.06);
+                color: var(--spice-text);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .st-changelog-modal .changelog-btn.secondary:hover {
+                background: rgba(255, 255, 255, 0.1);
+                border-color: rgba(255, 255, 255, 0.14);
+            }
         </style>
-        <div class="changelog-header">
-            <span class="changelog-badge">v${version}</span>
-            <span class="changelog-subtitle">Here's what's new in this update</span>
+        <div class="changelog-hero">
+            <div class="changelog-hero-icon">${heroIcon}</div>
+            <div class="changelog-hero-text">
+                <div class="changelog-hero-title">
+                    ${heroTitle}
+                    <span class="changelog-badge">v${version}</span>
+                    ${hashShort ? `<span class="changelog-hash">${hashShort}</span>` : ''}
+                </div>
+                <div class="changelog-hero-subtitle">${heroSubtitle}</div>
+            </div>
         </div>
         <div class="changelog-content">${formatReleaseNotes(changelog)}</div>
         <div class="changelog-buttons">
@@ -459,19 +634,17 @@ function showChangelogModal(version: string, changelog: string): void {
         </div>
     `;
 
-    if (Spicetify.PopupModal) {
-        Spicetify.PopupModal.display({
-            title: '\u{1F389} Spicy Themes Updated!',
-            content: content,
-            isLarge: true
-        });
-        setTimeout(() => {
-            const dismissBtn = document.getElementById('st-changelog-dismiss');
-            if (dismissBtn) {
-                dismissBtn.addEventListener('click', () => Spicetify.PopupModal.hide());
-            }
-        }, 100);
-    }
+    displayModal({
+        title: 'Spicy Themes',
+        content: content,
+        isLarge: true
+    });
+    setTimeout(() => {
+        const dismissBtn = document.getElementById('st-changelog-dismiss');
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', () => hideModal());
+        }
+    }, 100);
 }
 
 async function fetchChangelogForVersion(version: string): Promise<string> {
@@ -501,182 +674,30 @@ async function fetchChangelogForVersion(version: string): Promise<string> {
     return '';
 }
 
-function showHotfixModal(version: string, hashShort: string): void {
-    const content = document.createElement('div');
-    content.className = 'st-hotfix-modal';
-    content.innerHTML = `
-        <style>
-            @keyframes st-hf-fadeIn {
-                from { opacity: 0; transform: translateY(8px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
-            .st-hotfix-modal {
-                padding: 20px;
-                color: var(--spice-text);
-                animation: st-hf-fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-            }
-            .st-hotfix-modal .hotfix-hero {
-                display: flex;
-                align-items: center;
-                gap: 14px;
-                margin-bottom: 20px;
-                padding: 16px 18px;
-                border-radius: 12px;
-                background: linear-gradient(135deg, rgba(255, 170, 51, 0.12) 0%, rgba(255, 136, 0, 0.06) 100%);
-                border: 1px solid rgba(255, 170, 51, 0.18);
-                position: relative;
-                overflow: hidden;
-            }
-            .st-hotfix-modal .hotfix-hero::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 1px;
-                background: linear-gradient(90deg, transparent, rgba(255, 170, 51, 0.4), transparent);
-            }
-            .st-hotfix-modal .hotfix-hero-icon {
-                width: 44px;
-                height: 44px;
-                border-radius: 12px;
-                background: linear-gradient(135deg, #ff9800, #ffb74d);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 22px;
-                flex-shrink: 0;
-                box-shadow: 0 4px 12px rgba(255, 152, 0, 0.25);
-            }
-            .st-hotfix-modal .hotfix-hero-text {
-                flex: 1;
-            }
-            .st-hotfix-modal .hotfix-hero-title {
-                font-size: 16px;
-                font-weight: 700;
-                color: var(--spice-text);
-            }
-            .st-hotfix-modal .hotfix-hero-subtitle {
-                font-size: 12px;
-                color: var(--spice-subtext);
-                margin-top: 3px;
-            }
-            .st-hotfix-modal .hotfix-info {
-                background: rgba(255, 255, 255, 0.04);
-                backdrop-filter: blur(8px);
-                -webkit-backdrop-filter: blur(8px);
-                padding: 14px 18px;
-                border-radius: 10px;
-                margin-bottom: 18px;
-                border: 1px solid rgba(255, 255, 255, 0.07);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 12px;
-            }
-            .st-hotfix-modal .hotfix-badge {
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                padding: 5px 12px;
-                border-radius: 8px;
-                font-size: 13px;
-                font-weight: 600;
-                font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-            }
-            .st-hotfix-modal .hotfix-badge.version {
-                background: linear-gradient(135deg, rgba(255, 152, 0, 0.2), rgba(255, 183, 77, 0.12));
-                color: #ffb74d;
-                border: 1px solid rgba(255, 152, 0, 0.25);
-            }
-            .st-hotfix-modal .hotfix-badge.hash {
-                background: rgba(255, 255, 255, 0.06);
-                color: var(--spice-subtext);
-                font-size: 11px;
-            }
-            .st-hotfix-modal .hotfix-buttons {
-                display: flex;
-                gap: 10px;
-                justify-content: flex-end;
-            }
-            .st-hotfix-modal .hotfix-btn {
-                padding: 10px 24px;
-                border-radius: 24px;
-                border: none;
-                cursor: pointer;
-                font-size: 13px;
-                font-weight: 700;
-                letter-spacing: 0.2px;
-                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-                position: relative;
-                overflow: hidden;
-                background: linear-gradient(135deg, #ff9800, #ffb74d);
-                color: #000;
-                box-shadow: 0 2px 12px rgba(255, 152, 0, 0.25);
-            }
-            .st-hotfix-modal .hotfix-btn::after {
-                content: '';
-                position: absolute;
-                inset: 0;
-                opacity: 0;
-                background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%);
-                transition: opacity 0.3s;
-            }
-            .st-hotfix-modal .hotfix-btn:hover::after {
-                opacity: 1;
-            }
-            .st-hotfix-modal .hotfix-btn:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 4px 20px rgba(255, 152, 0, 0.35);
-            }
-            .st-hotfix-modal .hotfix-btn:active {
-                transform: translateY(0);
-                box-shadow: 0 1px 6px rgba(255, 152, 0, 0.2);
-            }
-        </style>
-        <div class="hotfix-hero">
-            <div class="hotfix-hero-icon">🔧</div>
-            <div class="hotfix-hero-text">
-                <div class="hotfix-hero-title">Hotfix Applied</div>
-                <div class="hotfix-hero-subtitle">A quick fix has been automatically applied to Spicy Themes.</div>
-            </div>
-        </div>
-        <div class="hotfix-info">
-            <span class="hotfix-badge version">v${version}</span>
-            ${hashShort ? `<span class="hotfix-badge hash">${hashShort}</span>` : ''}
-        </div>
-        <div class="hotfix-buttons">
-            <button class="hotfix-btn" id="st-hotfix-dismiss">Got it</button>
-        </div>
-    `;
-
-    if (Spicetify.PopupModal) {
-        Spicetify.PopupModal.display({
-            title: 'Spicy Themes',
-            content: content,
-            isLarge: false
-        });
-        setTimeout(() => {
-            const dismissBtn = document.getElementById('st-hotfix-dismiss');
-            if (dismissBtn) {
-                dismissBtn.addEventListener('click', () => Spicetify.PopupModal.hide());
-            }
-        }, 100);
-    }
-}
-
 export async function showPostUpdateChangelog(): Promise<void> {
     const currentVersion = CURRENT_VERSION;
+    const currentHash = getContentHash();
     let targetVersion: string | null = null;
     let changelog: string | null = null;
+
+    const persistKnown = (): void => {
+        storage.set('last-known-version', currentVersion);
+        if (currentHash) storage.set('last-known-hash', currentHash);
+    };
+
+    const showHotfix = async (): Promise<void> => {
+        persistKnown();
+        await new Promise(r => setTimeout(r, 2000));
+        const hashShort = getContentHashShort();
+        const hotfixChangelog = await fetchChangelogForVersion(currentVersion);
+        showChangelogModal(currentVersion, hotfixChangelog || '', { isHotfix: true, hashShort });
+    };
 
     const hotfixDetected = storage.get('hotfix-detected');
     if (hotfixDetected) {
         storage.remove('hotfix-detected');
-        await new Promise(r => setTimeout(r, 2000));
-        const metadata = (window as any)._spicy_themes_metadata;
-        const hashShort = metadata?.ContentHash ? metadata.ContentHash.substring(0, 8) : '';
-        showHotfixModal(currentVersion, hashShort);
+        await showHotfix();
+        return;
     }
 
     const pendingVersion = storage.get('pending-update-version');
@@ -689,7 +710,7 @@ export async function showPostUpdateChangelog(): Promise<void> {
             const elapsed = Date.now() - parseInt(pendingTimestamp, 10);
             if (elapsed > 60 * 60 * 1000) {
                 storage.remove('pending-update-changelog');
-                storage.set('last-known-version', currentVersion);
+                persistKnown();
                 return;
             }
         }
@@ -699,19 +720,26 @@ export async function showPostUpdateChangelog(): Promise<void> {
         targetVersion = pendingVersion;
     } else {
         const lastKnownVersion = storage.get('last-known-version');
-        if (lastKnownVersion && lastKnownVersion !== currentVersion) {
+        const lastKnownHash = storage.get('last-known-hash');
+
+        if (!lastKnownVersion) {
+            persistKnown();
+            return;
+        }
+
+        if (lastKnownVersion !== currentVersion) {
             const lastParsed = parseVersion(lastKnownVersion);
             const currentParsed = parseVersion(currentVersion);
             if (lastParsed && currentParsed && compareVersions(currentParsed, lastParsed) > 0) {
                 targetVersion = currentVersion;
             }
-        } else if (!lastKnownVersion) {
-            storage.set('last-known-version', currentVersion);
+        } else if (currentHash && lastKnownHash && lastKnownHash !== currentHash) {
+            await showHotfix();
             return;
         }
     }
 
-    storage.set('last-known-version', currentVersion);
+    persistKnown();
     if (!targetVersion) return;
 
     if (!changelog) {
@@ -724,7 +752,8 @@ export async function showPostUpdateChangelog(): Promise<void> {
 
 export async function showCurrentChangelog(): Promise<void> {
     const changelog = await fetchChangelogForVersion(CURRENT_VERSION);
-    showChangelogModal(CURRENT_VERSION, changelog);
+    const hashShort = getContentHashShort();
+    showChangelogModal(CURRENT_VERSION, changelog, { hashShort });
 }
 
 export const VERSION = CURRENT_VERSION;

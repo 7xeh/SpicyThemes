@@ -29,6 +29,9 @@ export interface ThemeConfig {
     blurAmount: number;
     blurPreviewLines: number;
     scaleActive: number;
+    scaleInEffect: boolean;
+    scaleInFrom: number;
+    scaleInDuration: number;
     animationSpeed: number;
 
     pageBgOverlay: boolean;
@@ -96,6 +99,9 @@ export const DEFAULT_THEME: ThemeConfig = {
     blurAmount: 2.0,
     blurPreviewLines: 2,
     scaleActive: 1.02,
+    scaleInEffect: false,
+    scaleInFrom: 0.96,
+    scaleInDuration: 0.35,
     animationSpeed: 1.0,
 
     pageBgOverlay: true,
@@ -362,6 +368,8 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         bgGlowIntensity: [0, 30],
         sltTranslationFontSize: [0.5, 2.0],
         scaleActive: [0.95, 1.12],
+        scaleInFrom: [0.85, 1.05],
+        scaleInDuration: [0.1, 1.0],
         animationSpeed: [0.3, 3.0],
         gradientAngle: [0, 360],
         popScale: [1.0, 1.3],
@@ -476,6 +484,8 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
             bgGlowIntensity: [0, 30],
             sltTranslationFontSize: [0.5, 2.0],
             scaleActive: [0.95, 1.12],
+            scaleInFrom: [0.85, 1.05],
+            scaleInDuration: [0.1, 1.0],
             animationSpeed: [0.3, 3.0],
             gradientAngle: [0, 360],
             popScale: [1.0, 1.3],

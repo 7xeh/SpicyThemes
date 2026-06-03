@@ -107,7 +107,7 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const glowActive = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedActiveGlow}px ${config.activeGlowColor}) !important;`;
     const glowNormal = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`;
     const glowSidebar = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedSidebarGlow}px ${config.activeGlowColor}) !important;`;
-    const scaleEffect = config.scaleActive !== 1.0 && `transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1) !important; transform-origin: left center !important;`;
+    const scaleEffect = !config.scaleInEffect && config.scaleActive !== 1.0 && `transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1) !important; transform-origin: left center !important;`;
     const bgGlowRgb = hexToRgb(config.bgGlowColor);
     const clampedBgGlow = Math.min(config.bgGlowIntensity, 30);
     const bgGlowDecl = config.bgGlowEnabled
@@ -606,6 +606,29 @@ ${nthTargets} {
 }
 `);
         }
+    }
+
+    if (config.scaleInEffect) {
+        const scaleInTargets = [
+            ...ALL.map(b => `${b} .line.Active`),
+            '.slt-replace-line.Active',
+            '.slt-replace-line.active',
+            '.line.Active + .slt-replace-line',
+            '.slt-interleaved-translation.Active',
+            '.slt-interleaved-translation.active',
+            '.line.Active + .slt-interleaved-translation',
+        ].join(',\n');
+        css.push(`
+@keyframes st-line-scale-in {
+    from { transform: scale3d(${config.scaleInFrom}, ${config.scaleInFrom}, 1); }
+    to { transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1); }
+}
+${scaleInTargets} {
+    transform-origin: left center !important;
+    animation: st-line-scale-in ${config.scaleInDuration}s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+    will-change: transform !important;
+}
+`);
     }
 
     css.push(`

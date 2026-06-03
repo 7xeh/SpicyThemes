@@ -3,6 +3,7 @@ import { themeState, saveThemeState, applyPreset, getAllPresets, saveCustomPrese
 import { injectThemeStyles } from './themeEngine';
 import { checkForUpdates, getCurrentVersion, getUpdateInfo, isDevChannel } from './updater';
 import { createSettingsModal, SCHEMA, FONT_OPTIONS, FieldDef } from './settingsModal';
+import { displayModal } from './modal';
 import { ThemeConfig } from './state';
 
 const SETTINGS_ID = 'spicy-themes-settings';
@@ -25,8 +26,17 @@ async function handleManualUpdateCheck(button: HTMLButtonElement, idleText: stri
                 Spicetify.showNotification(`Update available: v${info.latestVersion}! Updating...`);
             }
             await checkForUpdates(true);
-        } else if (Spicetify.showNotification) {
-            Spicetify.showNotification('You\'re on the latest version!');
+        } else {
+            let hotfix = false;
+            try {
+                const metadata = (window as any)._spicy_themes_metadata;
+                if (metadata?.utils?.runHotfixCheck) {
+                    hotfix = await metadata.utils.runHotfixCheck(true);
+                }
+            } catch (_) {}
+            if (Spicetify.showNotification) {
+                Spicetify.showNotification(hotfix ? 'Hotfix found! Reloading...' : 'You\'re on the latest version!');
+            }
         }
     } catch (e) {
         if (Spicetify.showNotification) {
@@ -616,13 +626,11 @@ function watchForSettingsPage(): void {
 
 
 export function openSettingsModal(): void {
-    if (Spicetify.PopupModal) {
-        Spicetify.PopupModal.display({
-            title: 'Spicy Themes',
-            content: createSettingsModal(),
-            isLarge: true
-        });
-    }
+    displayModal({
+        title: 'Spicy Themes',
+        content: createSettingsModal(),
+        isLarge: true
+    });
 }
 
 export async function registerSettings(): Promise<void> {
