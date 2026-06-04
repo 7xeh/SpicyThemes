@@ -136,15 +136,59 @@ function findSLTIndicator(): HTMLElement | null {
     return document.querySelector('.SLT_ConnectionIndicator');
 }
 
+function getSLTButton(): HTMLElement | null {
+    return findSLTIndicator()?.querySelector('.slt-ci-button') as HTMLElement | null;
+}
+
+function stripNativeTitles(container: HTMLElement): void {
+    if (container.hasAttribute('title')) container.removeAttribute('title');
+    container.querySelectorAll('[title]').forEach(el => el.removeAttribute('title'));
+}
+
+const GLASS_STYLE_ID = 'st-connectivity-glass';
+
+function injectGlassStyles(): void {
+    if (document.getElementById(GLASS_STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = GLASS_STYLE_ID;
+    style.textContent = `
+.tippy-box[data-theme~='st-glass'] {
+    background: rgba(16, 16, 20, 0.72);
+    -webkit-backdrop-filter: blur(22px) saturate(1.5);
+    backdrop-filter: blur(22px) saturate(1.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        0 18px 44px -14px rgba(0, 0, 0, 0.66);
+    color: hsla(0, 0%, 100%, 0.92);
+    -webkit-font-smoothing: antialiased;
+}
+.tippy-box[data-theme~='st-glass'] .tippy-content {
+    padding: 0;
+}
+.tippy-box[data-theme~='st-glass'] > .tippy-arrow::before,
+.tippy-box[data-theme~='st-glass'] > .tippy-svg-arrow {
+    color: rgba(16, 16, 20, 0.72);
+    fill: rgba(16, 16, 20, 0.72);
+}
+`;
+    (document.head || document.documentElement).appendChild(style);
+}
+
 function attachSTTippy(): boolean {
-    const sltIndicator = findSLTIndicator();
-    const button = sltIndicator?.querySelector('.slt-ci-button') as HTMLElement | null;
-    if (!button) return false;
+    const container = findSLTIndicator();
+    const button = container?.querySelector('.slt-ci-button') as HTMLElement | null;
+    if (!container || !button) return false;
 
     if (typeof Spicetify === 'undefined' || !Spicetify.Tippy) return false;
 
-    if ((button as any)._tippy) {
-        (button as any)._tippy.setContent(getCombinedTooltipContent(button));
+    injectGlassStyles();
+    stripNativeTitles(container);
+
+    if ((container as any)._tippy) {
+        (container as any)._tippy.setContent(getCombinedTooltipContent(button));
         tippyAttached = true;
         return true;
     }
@@ -152,15 +196,17 @@ function attachSTTippy(): boolean {
     if (tippyAttached) return true;
 
     try {
-        Spicetify.Tippy(button, {
+        Spicetify.Tippy(container, {
             ...Spicetify.TippyProps,
+            theme: 'st-glass',
             interactive: false,
             appendTo: document.body,
             allowHTML: true,
             delay: [200, 100],
             content: getCombinedTooltipContent(button),
             onShow: (instance: any) => {
-                instance.setContent(getCombinedTooltipContent(button));
+                stripNativeTitles(container);
+                instance.setContent(getCombinedTooltipContent(getSLTButton()));
             }
         });
         tippyAttached = true;
