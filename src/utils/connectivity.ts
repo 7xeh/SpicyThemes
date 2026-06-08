@@ -216,12 +216,12 @@ function attachSTTippy(): boolean {
     }
 }
 
-function getCombinedTooltipContent(button: HTMLElement): string {
-    const sltAriaLabel = button.getAttribute('aria-label') || '';
+function getCombinedTooltipContent(button: HTMLElement | null): string {
+    const sltAriaLabel = button?.getAttribute('aria-label') || '';
     const sltSection = sltAriaLabel
-        ? `<div style="font-size:11px;color:rgba(255,255,255,0.65);padding:2px 0 6px;">${escapeHtml(sltAriaLabel)}</div>`
+        ? `<div style="font-size:11px;color:hsla(0,0%,100%,0.58);padding-bottom:9px;margin-bottom:11px;border-bottom:1px solid rgba(255,255,255,0.07);">${escapeHtml(sltAriaLabel)}</div>`
         : '';
-    return `${sltSection}${getSTTooltipSection()}`;
+    return `<div style="padding:13px 14px;min-width:182px;font-family:'SpotifyMixUI','CircularSp','Helvetica Neue',sans-serif;">${sltSection}${getSTTooltipSection()}</div>`;
 }
 
 function escapeHtml(value: string): string {
@@ -235,34 +235,30 @@ function escapeHtml(value: string): string {
 
 function updateDisplay(): void {
     if (!tippyAttached) return;
-    const button = findSLTIndicator()?.querySelector('.slt-ci-button');
-    const tippy = button && (button as any)._tippy;
+    const container = findSLTIndicator();
+    const tippy = container && (container as any)._tippy;
     if (tippy) {
-        tippy.setContent(getCombinedTooltipContent(button as HTMLElement));
+        tippy.setContent(getCombinedTooltipContent(getSLTButton()));
     }
 }
 
 function getSTTooltipSection(): string {
-    const dotColor = state.connected ? '#1db954' : '#555';
-    const dotShadow = state.connected ? '0 0 6px rgba(29,185,84,0.4)' : 'none';
+    const dotColor = state.connected ? '#1ed760' : '#5b5b5b';
+    const dotShadow = state.connected ? '0 0 7px -1px #1ed760' : 'none';
     const statusText = state.connected ? 'Connected' : 'Offline';
 
     return `
-        <div style="border-top:1px solid rgba(255,255,255,0.08);margin-top:8px;padding-top:8px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;cursor:default;">
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <span style="width:7px;height:7px;border-radius:50%;background:${dotColor};box-shadow:${dotShadow};flex-shrink:0;"></span>
-                    <span style="font-weight:700;font-size:12px;letter-spacing:0.02em;">ST Server</span>
-                </div>
-                <span style="font-size:9px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.45;font-weight:600;">${statusText}</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;cursor:default;">
+            <div style="display:flex;align-items:center;gap:7px;">
+                <span style="width:7px;height:7px;border-radius:50%;background:${dotColor};box-shadow:${dotShadow};flex-shrink:0;"></span>
+                <span style="font-weight:700;font-size:12px;letter-spacing:0.01em;color:hsla(0,0%,100%,0.92);">ST Server</span>
             </div>
-            <div style="display:flex;align-items:stretch;gap:1px;border-radius:8px;overflow:hidden;background:rgba(255,255,255,0.04);">
-                <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;padding:8px 12px;cursor:default;" title="Total Spicy Themes users">
-                    <span style="font-size:9px;text-transform:uppercase;letter-spacing:0.06em;opacity:0.4;font-weight:600;">USERS</span>
-                    <span style="font-weight:800;font-size:14px;color:#fff;">${state.totalUsers}</span>
-                    <span style="font-size:8px;opacity:0.35;">installed</span>
-                </div>
-            </div>
+            <span style="font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:hsla(0,0%,100%,0.4);font-weight:600;">${statusText}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 12px;border-radius:11px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);box-shadow:inset 0 1px 0 rgba(255,255,255,0.08),inset 0 0 0 1px rgba(255,255,255,0.04);cursor:default;">
+            <span style="font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:hsla(0,0%,100%,0.4);font-weight:600;">Users</span>
+            <span style="font-weight:800;font-size:18px;line-height:1.1;color:hsla(0,0%,100%,0.95);font-variant-numeric:tabular-nums;">${state.totalUsers.toLocaleString()}</span>
+            <span style="font-size:8px;color:hsla(0,0%,100%,0.35);letter-spacing:0.04em;">installed</span>
         </div>
     `;
 }
