@@ -30,6 +30,7 @@ export interface FieldDef<K extends keyof ThemeConfig = keyof ThemeConfig> {
     placeholder?: string;
     options?: { value: string; text: string }[];
     when?: (t: ThemeConfig) => boolean;
+    comingSoon?: boolean;
 }
 
 export const FONT_OPTIONS = [
@@ -63,6 +64,11 @@ export const FONT_OPTIONS = [
     { value: 'Impact', text: 'Impact' },
 ];
 
+export const TRANSLATION_FONT_OPTIONS = [
+    { value: '', text: 'Match lyrics font' },
+    ...FONT_OPTIONS.filter(o => o.value !== ''),
+];
+
 export const WEIGHT_OPTIONS = [
     { value: '300', text: 'Light (300)' },
     { value: '400', text: 'Regular (400)' },
@@ -85,11 +91,12 @@ export const SCHEMA: FieldDef[] = [
     { id: 'fontWeight', label: 'Font weight', type: 'dropdown', section: 'Typography', options: WEIGHT_OPTIONS },
     { id: 'letterSpacing', label: 'Letter spacing', type: 'slider', section: 'Typography', min: -0.1, max: 0.3, step: 0.01, unit: 'em' },
     { id: 'lineHeight', label: 'Line height', type: 'slider', section: 'Typography', min: 1.0, max: 2.5, step: 0.01 },
+    { id: 'lyricsScale', label: 'Lyrics scale', type: 'slider', section: 'Typography', min: 0.5, max: 2.0, step: 0.05, unit: 'x' },
     { id: 'scaleActive', label: 'Active line scale', type: 'slider', section: 'Typography', min: 0.95, max: 1.12, step: 0.01, unit: 'x' },
     { id: 'gradientEnabled', label: 'Gradient text', type: 'toggle', section: 'Gradient' },
     { id: 'gradientStartColor', label: 'Gradient start', type: 'color', section: 'Gradient', when: (t) => t.gradientEnabled },
     { id: 'gradientEndColor', label: 'Gradient end', type: 'color', section: 'Gradient', when: (t) => t.gradientEnabled },
-    { id: 'gradientAngle', label: 'Gradient angle', type: 'slider', section: 'Gradient', min: 0, max: 360, step: 5, unit: 'deg', when: (t) => t.gradientEnabled },
+    { id: 'gradientAngle', label: 'Gradient angle', type: 'slider', section: 'Gradient', min: 0, max: 360, step: 5, unit: 'deg', when: (t) => t.gradientEnabled, comingSoon: true },
     { id: 'glowEnabled', label: 'Glow', type: 'toggle', section: 'Glow' },
     { id: 'glowColor', label: 'Glow color', type: 'color', section: 'Glow', when: (t) => t.glowEnabled },
     { id: 'glowIntensity', label: 'Glow intensity', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', when: (t) => t.glowEnabled },
@@ -100,7 +107,6 @@ export const SCHEMA: FieldDef[] = [
     { id: 'bgGlowIntensity', label: 'BG glow intensity', type: 'slider', section: 'Glow', min: 0, max: 30, step: 1, unit: 'px', when: (t) => t.bgGlowEnabled },
     { id: 'blurUnsung', label: 'Blur unsung lines', type: 'toggle', section: 'Effects' },
     { id: 'blurAmount', label: 'Blur amount', type: 'slider', section: 'Effects', min: 0, max: 8, step: 0.5, unit: 'px', when: (t) => t.blurUnsung },
-    { id: 'blurPreviewLines', label: 'Preview lines', type: 'slider', section: 'Effects', min: 0, max: 5, step: 1, unit: ' lines', when: (t) => t.blurUnsung },
     { id: 'disableHighlight', label: 'Custom word highlight', type: 'toggle', section: 'Effects' },
     { id: 'highlightColor', label: 'Highlight color', type: 'color', section: 'Effects', when: (t) => t.disableHighlight },
     { id: 'popEffect', label: 'Word pop', type: 'toggle', section: 'Effects' },
@@ -113,6 +119,9 @@ export const SCHEMA: FieldDef[] = [
     { id: 'scaleInFrom', label: 'Scale-in start', type: 'slider', section: 'Effects', min: 0.85, max: 1.05, step: 0.01, unit: 'x', when: (t) => t.scaleInEffect },
     { id: 'scaleInDuration', label: 'Scale-in duration', type: 'slider', section: 'Effects', min: 0.1, max: 1.0, step: 0.05, unit: 's', when: (t) => t.scaleInEffect },
     { id: 'animationSpeed', label: 'Animation speed', type: 'slider', section: 'Effects', min: 0.3, max: 3.0, step: 0.1, unit: 'x' },
+    { id: 'lineWindowEnabled', label: 'Limit visible lines', type: 'toggle', section: 'Lyrics Window' },
+    { id: 'lineWindowSungLines', label: 'Sung lines shown', type: 'slider', section: 'Lyrics Window', min: 0, max: 10, step: 1, unit: ' lines', when: (t) => t.lineWindowEnabled },
+    { id: 'lineWindowUnsungLines', label: 'Upcoming lines shown', type: 'slider', section: 'Lyrics Window', min: 0, max: 10, step: 1, unit: ' lines', when: (t) => t.lineWindowEnabled },
     { id: 'pageBgOverlay', label: 'Page background overlay', type: 'toggle', section: 'Background' },
     { id: 'pageBgColor', label: 'Overlay color', type: 'color', section: 'Background', when: (t) => t.pageBgOverlay },
     { id: 'pageBgOpacity', label: 'Overlay opacity', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, when: (t) => t.pageBgOverlay },
@@ -130,9 +139,16 @@ export const SCHEMA: FieldDef[] = [
     { id: 'sltStylingEnabled', label: 'Translation styling (SLT)', type: 'toggle', section: 'Translation' },
     { id: 'sltTranslationOpacity', label: 'Translation opacity', type: 'slider', section: 'Translation', min: 0.1, max: 1.0, step: 0.05, when: (t) => t.sltStylingEnabled },
     { id: 'sltTranslationFontSize', label: 'Translation font size', type: 'slider', section: 'Translation', min: 0.5, max: 2.0, step: 0.05, unit: 'x', when: (t) => t.sltStylingEnabled },
+    { id: 'sltTranslationFont', label: 'Translation font', type: 'dropdown', section: 'Translation', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom...' }], when: (t) => t.sltStylingEnabled },
+    { id: 'sltTranslationFont', label: 'Custom translation font', type: 'text', section: 'Translation', placeholder: "e.g. 'Inter', sans-serif", when: (t) => t.sltStylingEnabled && t.sltTranslationFont !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltTranslationFont) },
+    { id: 'sltTranslationColorEnabled', label: 'Custom translation color', type: 'toggle', section: 'Translation', when: (t) => t.sltStylingEnabled },
+    { id: 'sltTranslationColor', label: 'Translation color', type: 'color', section: 'Translation', when: (t) => t.sltStylingEnabled && t.sltTranslationColorEnabled },
+    { id: 'sltHighlightStartColor', label: 'Translation highlight start', type: 'color', section: 'Translation', when: (t) => t.sltStylingEnabled },
+    { id: 'sltHighlightEndColor', label: 'Translation highlight end', type: 'color', section: 'Translation', when: (t) => t.sltStylingEnabled },
 ];
 
 let liveContainer: HTMLElement | null = null;
+let czVisibilityFields: { row: HTMLElement; def: FieldDef }[] = [];
 
 export function escapeHtml(value: string): string {
     return value
@@ -165,13 +181,14 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 
 function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
     const t = { ...DEFAULT_THEME, ...theme } as ThemeConfig;
+    host.style.setProperty('--st-prv-scale', String(t.lyricsScale ?? 1));
     host.innerHTML = `
         <div class="st-prv-line st-prv-sung">Waiting for this moment</div>
         <div class="st-prv-line st-prv-active">Feel the rhythm in my heartbeat</div>
         <div class="st-prv-line st-prv-unsung">Dancing underneath the starlight</div>
     `;
 
-    const fontFamily = t.fontFamily || 'inherit';
+    const fontFamily = (t.fontFamily && t.fontFamily !== 'Custom Font') ? t.fontFamily : 'inherit';
     const fontWeight = String(t.fontWeight || 700);
     const letterSpacing = `${t.letterSpacing}em`;
     const lineHeight = String(t.lineHeight);
@@ -272,16 +289,30 @@ function liveUpdate<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]):
     updateThemeProperty(key, value);
     injectThemeStyles();
     refreshPreview();
-    refreshCustomizeVisibility();
+    applyCustomizeFilter();
 }
 
-function refreshCustomizeVisibility(): void {
-    const fields = liveContainer?.querySelectorAll<HTMLElement>('[data-st-when]');
-    fields?.forEach(el => {
-        const idx = parseInt(el.dataset.stWhen || '-1', 10);
-        const def = SCHEMA[idx];
-        if (!def?.when) return;
-        el.style.display = def.when(themeState.activeTheme) ? '' : 'none';
+function applyCustomizeFilter(): void {
+    const searchEl = liveContainer?.querySelector<HTMLInputElement>('.st-m-cz-search');
+    const q = (searchEl?.value || '').trim().toLowerCase();
+
+    czVisibilityFields.forEach(({ row, def }) => {
+        const whenOk = !def.when || def.when(themeState.activeTheme);
+        const searchOk = !q || def.label.toLowerCase().includes(q) || def.section.toLowerCase().includes(q);
+        row.style.display = whenOk && searchOk ? '' : 'none';
+    });
+
+    if (!liveContainer) return;
+    liveContainer.querySelectorAll<HTMLElement>('.st-m-cz-sections .st-m-section').forEach(sec => {
+        const anyVisible = Array.from(sec.querySelectorAll<HTMLElement>('.st-m-field')).some(f => f.style.display !== 'none');
+        sec.style.display = anyVisible ? '' : 'none';
+    });
+
+    liveContainer.querySelectorAll<HTMLElement>('.st-m-cz-category').forEach(cat => {
+        const anyVisible = Array.from(cat.querySelectorAll<HTMLElement>('.st-m-section')).some(s => s.style.display !== 'none');
+        cat.style.display = anyVisible ? '' : 'none';
+        const navItem = liveContainer!.querySelector<HTMLElement>(`.st-m-cz-nav-item[data-target="${cat.id}"]`);
+        if (navItem) navItem.style.display = anyVisible ? '' : 'none';
     });
 }
 
@@ -296,6 +327,7 @@ function formatFieldValue(value: unknown, unit = ''): string {
 function buildField(def: FieldDef, index: number): HTMLElement {
     const row = document.createElement('div');
     row.className = `st-m-field st-m-field-${def.type}`;
+    row.dataset.stIdx = String(index);
     if (def.when) {
         row.dataset.stWhen = String(index);
         row.style.display = def.when(themeState.activeTheme) ? '' : 'none';
@@ -311,6 +343,15 @@ function buildField(def: FieldDef, index: number): HTMLElement {
     row.appendChild(control);
 
     const cur = themeState.activeTheme[def.id];
+
+    if (def.comingSoon) {
+        row.className = 'st-m-field st-m-field-coming-soon';
+        const badge = document.createElement('span');
+        badge.className = 'st-m-coming-soon';
+        badge.textContent = 'Coming soon';
+        control.appendChild(badge);
+        return row;
+    }
 
     switch (def.type) {
         case 'toggle': {
@@ -360,8 +401,9 @@ function buildField(def: FieldDef, index: number): HTMLElement {
             select.className = 'st-m-select';
             const opts = def.options || [];
 
-            if (def.id === 'fontFamily' && def.options?.some(o => o.value === '__custom__')) {
-                const isCustom = !FONT_OPTIONS.some(o => o.value === cur);
+            if (def.options?.some(o => o.value === '__custom__')) {
+                const namedOptions = def.options.filter(o => o.value !== '__custom__');
+                const isCustom = !namedOptions.some(o => o.value === cur);
                 const currentVal = isCustom && cur !== '' ? '__custom__' : (cur as string);
                 opts.forEach(o => {
                     const opt = document.createElement('option');
@@ -397,7 +439,8 @@ function buildField(def: FieldDef, index: number): HTMLElement {
             const input = document.createElement('input');
             input.type = 'text';
             input.className = 'st-m-text';
-            input.value = String(cur || '');
+            const curText = String(cur || '');
+            input.value = curText === 'Custom Font' ? '' : curText;
             input.placeholder = def.placeholder || 'Enter font name';
             input.addEventListener('change', () => liveUpdate(def.id, input.value as any));
             control.appendChild(input);
@@ -408,25 +451,99 @@ function buildField(def: FieldDef, index: number): HTMLElement {
     return row;
 }
 
+const CZ_CATEGORIES: { id: string; label: string; sections: string[] }[] = [
+    { id: 'cz-text', label: 'Text & Color', sections: ['Colors', 'Opacity', 'Typography', 'Gradient'] },
+    { id: 'cz-effects', label: 'Glow & Effects', sections: ['Glow', 'Effects'] },
+    { id: 'cz-layout', label: 'Layout', sections: ['Lyrics Window', 'Background'] },
+    { id: 'cz-translation', label: 'Translation', sections: ['Translation'] },
+    { id: 'cz-player', label: 'Player & Media', sections: ['Player', 'Video Background'] },
+];
+
 function buildCustomizeTab(): HTMLElement {
     const tab = document.createElement('div');
-    tab.className = 'st-m-tab-content st-m-customize-grid';
+    tab.className = 'st-m-tab-content st-m-cz';
 
-    const sections = new Map<string, HTMLElement>();
+    const toolbar = document.createElement('div');
+    toolbar.className = 'st-m-cz-toolbar';
+    toolbar.innerHTML = `
+        <span class="st-m-cz-search-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.6" y1="10.6" x2="14" y2="14"></line></svg></span>
+        <input type="text" class="st-m-text st-m-cz-search" placeholder="Search settings…" spellcheck="false">
+    `;
+    const search = toolbar.querySelector('input') as HTMLInputElement;
+    search.addEventListener('input', applyCustomizeFilter);
+
+    const body = document.createElement('div');
+    body.className = 'st-m-cz-body';
+
+    const rail = document.createElement('div');
+    rail.className = 'st-m-cz-rail';
+
+    const nav = document.createElement('nav');
+    nav.className = 'st-m-cz-nav';
+
+    const sectionsCol = document.createElement('div');
+    sectionsCol.className = 'st-m-cz-sections';
+
+    czVisibilityFields = [];
+    const sectionEls = new Map<string, HTMLElement>();
     SCHEMA.forEach((def, i) => {
-        let section = sections.get(def.section);
+        let section = sectionEls.get(def.section);
         if (!section) {
             section = document.createElement('div');
             section.className = 'st-m-section';
+            section.dataset.section = def.section;
             const header = document.createElement('div');
             header.className = 'st-m-section-title';
             header.textContent = def.section;
             section.appendChild(header);
-            tab.appendChild(section);
-            sections.set(def.section, section);
+            sectionEls.set(def.section, section);
         }
-        section.appendChild(buildField(def, i));
+        const row = buildField(def, i);
+        czVisibilityFields.push({ row, def });
+        section.appendChild(row);
     });
+
+    const setActiveNav = (id: string) => {
+        nav.querySelectorAll('.st-m-cz-nav-item').forEach(b => b.classList.toggle('active', (b as HTMLElement).dataset.target === id));
+    };
+
+    CZ_CATEGORIES.forEach((cat, ci) => {
+        const catEl = document.createElement('div');
+        catEl.className = 'st-m-cz-category';
+        catEl.id = cat.id;
+        const catTitle = document.createElement('div');
+        catTitle.className = 'st-m-cz-cat-title';
+        catTitle.textContent = cat.label;
+        catEl.appendChild(catTitle);
+        cat.sections.forEach(s => {
+            const el = sectionEls.get(s);
+            if (el) catEl.appendChild(el);
+        });
+        sectionsCol.appendChild(catEl);
+
+        const navBtn = document.createElement('button');
+        navBtn.className = `st-m-cz-nav-item${ci === 0 ? ' active' : ''}`;
+        navBtn.textContent = cat.label;
+        navBtn.dataset.target = cat.id;
+        navBtn.addEventListener('click', () => {
+            document.getElementById(cat.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setActiveNav(cat.id);
+        });
+        nav.appendChild(navBtn);
+    });
+
+    sectionEls.forEach((el, name) => {
+        if (!CZ_CATEGORIES.some(c => c.sections.includes(name))) sectionsCol.appendChild(el);
+    });
+
+    rail.appendChild(nav);
+    body.appendChild(rail);
+    body.appendChild(sectionsCol);
+    tab.appendChild(toolbar);
+    tab.appendChild(body);
+
+    applyCustomizeFilter();
+    requestAnimationFrame(() => applyCustomizeFilter());
 
     return tab;
 }
@@ -526,7 +643,10 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
 
     tab.innerHTML = `
         <div class="st-m-mp-toolbar">
-            <input type="text" class="st-m-text st-m-mp-search" placeholder="Search themes by name, author or description...">
+            <div class="st-m-mp-searchbar">
+                <span class="st-m-cz-search-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.6" y1="10.6" x2="14" y2="14"></line></svg></span>
+                <input type="text" class="st-m-mp-search" placeholder="Search themes, authors…" spellcheck="false">
+            </div>
             <div class="st-m-mp-sort">
                 <button class="st-m-chip active" data-sort="newest">Newest</button>
                 <button class="st-m-chip" data-sort="popular">Popular</button>
@@ -639,15 +759,31 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
         });
     }
 
-    async function load(): Promise<void> {
-        status.textContent = 'Loading themes...';
-        status.style.display = '';
+    function renderSkeleton(count = 6): void {
         grid.innerHTML = '';
+        for (let i = 0; i < count; i++) {
+            const card = document.createElement('div');
+            card.className = 'st-m-mp-card st-m-mp-skeleton';
+            card.innerHTML = `
+                <div class="st-m-mp-preview st-sk"></div>
+                <div class="st-m-mp-body">
+                    <div class="st-sk st-sk-line" style="width: 62%;"></div>
+                    <div class="st-sk st-sk-line" style="width: 40%;"></div>
+                    <div class="st-sk st-sk-line" style="width: 80%;"></div>
+                </div>`;
+            grid.appendChild(card);
+        }
+    }
+
+    async function load(): Promise<void> {
+        status.style.display = 'none';
+        renderSkeleton();
         pagination.style.display = 'none';
         try {
             const res = await Marketplace.listThemes({ page, sort, query });
             status.style.display = 'none';
             if (!res.themes || res.themes.length === 0) {
+                grid.innerHTML = '';
                 status.textContent = 'No themes found.';
                 status.style.display = '';
                 return;
@@ -661,7 +797,9 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
                 next.disabled = res.page >= res.totalPages;
             }
         } catch (e) {
+            grid.innerHTML = '';
             status.textContent = `Failed to load marketplace: ${e instanceof Error ? e.message : 'Unknown error'}. Make sure you're online.`;
+            status.style.display = '';
         }
     }
 
@@ -842,25 +980,6 @@ export function createSettingsModal(): HTMLElement {
     container.className = 'st-modal-root';
     liveContainer = container;
 
-    const enabledHeader = document.createElement('div');
-    enabledHeader.className = 'st-m-enabled-bar';
-    enabledHeader.innerHTML = `
-        <div class="st-m-enabled-text">
-            <span class="st-m-enabled-title">Theming</span>
-            <span class="st-m-enabled-sub">Toggle themes on or off without losing your settings.</span>
-        </div>
-        <label class="st-m-toggle">
-            <input type="checkbox" id="st-m-enabled-toggle" ${themeState.isEnabled ? 'checked' : ''}>
-            <span class="st-m-toggle-slider"></span>
-        </label>
-    `;
-    const enabledInput = enabledHeader.querySelector('#st-m-enabled-toggle') as HTMLInputElement;
-    enabledInput.addEventListener('change', () => {
-        themeState.isEnabled = enabledInput.checked;
-        saveThemeState();
-        injectThemeStyles();
-    });
-
     const tabBar = document.createElement('div');
     tabBar.className = 'st-m-tabbar';
 
@@ -894,7 +1013,6 @@ export function createSettingsModal(): HTMLElement {
         tabBar.appendChild(btn);
     });
 
-    container.appendChild(enabledHeader);
     container.appendChild(tabBar);
     container.appendChild(tabContent);
 

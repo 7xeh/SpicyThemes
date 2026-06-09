@@ -117,9 +117,14 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const lyricTransitionMs = Math.max(8.333, 110 / config.animationSpeed).toFixed(3);
     const lyricSnapMs = Math.max(8.333, 56 / config.animationSpeed).toFixed(3);
 
+    const fontFamily = config.fontFamily === 'Custom Font' ? '' : config.fontFamily;
+    const sltTranslationFont = config.sltTranslationFont === 'Custom Font' ? '' : config.sltTranslationFont;
+    const sltFont = sltTranslationFont || fontFamily;
+    const sltFontFamilyDecl = sltFont ? `font-family: ${sltFont}, system-ui, sans-serif !important;` : '';
+    const sltCombinedScale = Math.round(config.sltTranslationFontSize * config.lyricsScale * 10000) / 10000;
     const sltFontOverrides = buildProps(
-        config.sltTranslationFontSize !== 1.0 && `font-size: calc(1em * ${config.sltTranslationFontSize}) !important;`,
-        config.fontFamily && `font-family: ${config.fontFamily}, system-ui, sans-serif !important;`,
+        sltCombinedScale !== 1.0 && `font-size: calc(1em * ${sltCombinedScale}) !important;`,
+        sltFontFamilyDecl,
         `font-weight: ${config.fontWeight} !important;`,
     );
 
@@ -158,8 +163,9 @@ ${sel(ALL, '.line')} {
         `--gradient-degrees: ${config.gradientAngle}deg !important;`,
         `--st-lyric-transition: ${lyricTransitionMs}ms !important;`,
         `--st-lyric-snap: ${lyricSnapMs}ms !important;`,
-        config.fontFamily && `font-family: ${config.fontFamily}, system-ui, sans-serif !important;`,
+        fontFamily && `font-family: ${fontFamily}, system-ui, sans-serif !important;`,
         `font-weight: ${config.fontWeight} !important;`,
+        config.lyricsScale !== 1.0 && `font-size: calc(1em * ${config.lyricsScale}) !important;`,
         config.letterSpacing !== 0 && `letter-spacing: ${config.letterSpacing}em !important;`,
         config.lineHeight !== 1.1818181818 && `--lyrics-line-height: ${config.lineHeight} !important;`,
     )}
@@ -179,7 +185,7 @@ ${ALL.flatMap(b => [
     `${b} .line .letterGroup`,
 ]).join(',\n')} {
     font-weight: ${config.fontWeight} !important;
-    ${config.fontFamily ? `font-family: ${config.fontFamily}, system-ui, sans-serif !important;` : ''}
+    ${fontFamily ? `font-family: ${fontFamily}, system-ui, sans-serif !important;` : ''}
     transition-property: color, -webkit-text-fill-color !important;
     transition-duration: var(--st-lyric-snap) !important;
     transition-timing-function: linear !important;
@@ -188,14 +194,7 @@ ${ALL.flatMap(b => [
 `);
 
     css.push(`
-${ALL.flatMap(b => [
-    `${b} .line.Active`,
-    `${b} .line.Active .word`,
-    `${b} .line.Active .letter`,
-    `${b} .line.Active .letterGroup`,
-    `${b} .line.Sung`,
-    `${b} .line.NotSung`,
-]).join(',\n')} {
+${ALL.map(b => `${b} .line.Active`).join(',\n')} {
     will-change: opacity, filter, transform !important;
 }
 `);
@@ -253,8 +252,12 @@ ${blurTargets} {
         const unblurFilter = config.glowEnabled
             ? `filter: drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`
             : `filter: none !important;`;
-        const previewCount = Math.max(0, Math.round(config.blurPreviewLines));
         const unblurTargets = [
+            ...ALL.map(b => `${b} [data-index].st-preview-line > .line`),
+            ...ALL.map(b => `${b} [data-index].st-preview-line > .line.Sung`),
+            ...ALL.map(b => `${b} [data-index].st-preview-line > .line.NotSung`),
+            '[data-index].st-preview-line .slt-interleaved-translation',
+            '[data-index].st-preview-line .slt-replace-line',
             '.slt-replace-line.Active',
             '.slt-replace-line.active',
             '.line.Active + .slt-replace-line',
@@ -262,24 +265,43 @@ ${blurTargets} {
             '.slt-interleaved-translation.active',
             '.line.Active + .slt-interleaved-translation',
         ];
-        for (let k = 1; k <= previewCount; k++) {
-            const wrapperChain = Array(k).fill('+ [data-index]').join(' ');
-            unblurTargets.push(
-                ...ALL.map(b => `${b} [data-index]:has(> .line.Active) ${wrapperChain} > .line`),
-                `[data-index]:has(> .line.Active) ${wrapperChain} .slt-interleaved-translation`,
-            );
-            if (k === 1) {
-                unblurTargets.push(
-                    ...ALL.flatMap(b => [
-                        `${b} .line.Active + .line`,
-                        `${b} .line.Active + :not(.line) + .line`,
-                    ]),
-                );
-            }
-        }
         css.push(`
 ${unblurTargets.join(',\n')} {
     ${unblurFilter}
+}
+`);
+    }
+
+    if (config.lineWindowEnabled) {
+        const sungN = Math.min(Math.max(Math.round(config.lineWindowSungLines), 0), 10);
+        const unsungN = Math.min(Math.max(Math.round(config.lineWindowUnsungLines), 0), 10);
+
+        const hideTargets = ALL.flatMap(b => [
+            `${b} [data-index]:has(> .line.Sung)`,
+            `${b} [data-index]:has(> .line.NotSung)`,
+        ]).join(',\n');
+        css.push(`
+${hideTargets} {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+`);
+
+        const showTargets: string[] = [...ALL.map(b => `${b} [data-index]:has(> .line.Active)`)];
+        for (let k = 1; k <= unsungN; k++) {
+            const fwd = Array(k).fill('+ [data-index]').join(' ');
+            showTargets.push(...ALL.map(b => `${b} [data-index]:has(> .line.Active) ${fwd}`));
+        }
+        for (let k = 1; k <= sungN; k++) {
+            const parts = Array(k).fill('+ [data-index]');
+            parts[parts.length - 1] = '+ [data-index] > .line.Active';
+            const inner = parts.join(' ');
+            showTargets.push(...ALL.map(b => `${b} [data-index]:has(${inner})`));
+        }
+        css.push(`
+${showTargets.join(',\n')} {
+    visibility: visible !important;
+    pointer-events: auto !important;
 }
 `);
     }
@@ -310,19 +332,8 @@ ${bgGlowTargets} {
                 `${b} .line.${s} .syllableGroup`,
             ])
         ).join(',\n');
-        const sltHighlightTargets = [
-            '.slt-replace-line',
-            '.slt-replace-line .slt-replace-word',
-            '.slt-interleaved-translation',
-            '.slt-sync-translation.slt-interleaved-translation',
-            '.slt-sync-translation.slt-interleaved-translation .slt-sync-word',
-            '.slt-replace-line.Active',
-            '.slt-replace-line.Sung',
-            '.slt-replace-line.NotSung',
-        ].join(',\n');
         css.push(`
-${highlightTargets},
-${sltHighlightTargets} {
+${highlightTargets} {
     background-image: none !important;
     -webkit-background-clip: unset !important;
     background-clip: unset !important;
@@ -357,12 +368,6 @@ ${sltHighlightTargets} {
     position: relative;
     z-index: 1;
 }
-/* Compact mode: the now-bar header lives inside .ContentBox, which sits
-   above the .spicy-dynamic-bg background canvas. The canvas is a later
-   sibling with z-index auto, so a z-index:0 overlay paints behind it and
-   the header area stays undimmed. Lift the full-page overlay above the
-   canvas, put content above the overlay, and drop the per-container
-   overlay so the lyrics aren't dimmed twice. */
 #SpicyLyricsPage.CompactMode::before {
     z-index: 1;
 }
@@ -376,6 +381,14 @@ ${sltHighlightTargets} {
     }
 
     if (config.sltStylingEnabled) {
+    const useSltColor = config.sltTranslationColorEnabled && !!config.sltTranslationColor;
+    const sltBaseColor = useSltColor ? config.sltTranslationColor : config.notSungLineColor;
+    const sltHlStartRgb = hexToRgb(config.sltHighlightStartColor);
+    const sltHlEndRgb = hexToRgb(config.sltHighlightEndColor);
+    const sltHlGrad = gradientRule(sltHlStartRgb.r, sltHlStartRgb.g, sltHlStartRgb.b, sltHlEndRgb.r, sltHlEndRgb.g, sltHlEndRgb.b);
+    const activeGrad = sltHlGrad;
+    const sungGrad = sltHlGrad;
+    const notSungGrad = colorRule(sltBaseColor);
     css.push(`
 .slt-replace-line {
     ${buildProps(notSungGrad, `opacity: ${config.sltTranslationOpacity} !important;`, sltFontOverrides)}
@@ -391,6 +404,7 @@ ${sltHighlightTargets} {
 
 .slt-replace-word {
     ${notSungGrad}
+    ${sltFontFamilyDecl}
     display: inline-block !important;
     white-space: pre-wrap !important;
     transition-property: color, -webkit-text-fill-color, transform, text-shadow !important;
@@ -433,6 +447,7 @@ ${sltHighlightTargets} {
 
 .slt-sync-word {
     ${notSungGrad}
+    ${sltFontFamilyDecl}
     display: inline-block !important;
     white-space: pre-wrap !important;
     transition-property: color, -webkit-text-fill-color, transform, text-shadow !important;
@@ -801,6 +816,59 @@ function removeVideoBackground(): void {
     if (pipWindow) pipWindow.document.getElementById(VIDEO_BG_ID)?.remove();
 }
 
+let blurPreviewObserver: MutationObserver | null = null;
+let blurPreviewScheduled = false;
+
+export function refreshBlurPreview(): void {
+    blurPreviewScheduled = false;
+    document.querySelectorAll('#SpicyLyricsPage [data-index].st-preview-line')
+        .forEach(el => el.classList.remove('st-preview-line'));
+
+    if (!themeState.isEnabled || !themeState.activeTheme.blurUnsung) return;
+    const n = Math.max(0, Math.round(themeState.activeTheme.blurPreviewLines));
+    if (n <= 0) return;
+
+    const active = document.querySelector('#SpicyLyricsPage .line.Active');
+    const activeWrapper = active?.closest('[data-index]') as HTMLElement | null;
+    const container = activeWrapper?.parentElement;
+    if (!activeWrapper || !container) return;
+    const activeIdx = parseInt(activeWrapper.getAttribute('data-index') || '', 10);
+    if (Number.isNaN(activeIdx)) return;
+
+    for (let k = 1; k <= n; k++) {
+        const w = container.querySelector(`[data-index="${activeIdx + k}"]`) as HTMLElement | null;
+        if (w) w.classList.add('st-preview-line');
+    }
+}
+
+function scheduleBlurPreview(): void {
+    if (blurPreviewScheduled) return;
+    blurPreviewScheduled = true;
+    requestAnimationFrame(refreshBlurPreview);
+}
+
+export function startBlurPreviewObserver(): void {
+    if (blurPreviewObserver) return;
+    const target = document.querySelector('#SpicyLyricsPage');
+    if (!target) return;
+    blurPreviewObserver = new MutationObserver((muts) => {
+        for (const m of muts) {
+            const t = m.target as HTMLElement;
+            if (t.classList && t.classList.contains('line')) {
+                scheduleBlurPreview();
+                return;
+            }
+        }
+    });
+    blurPreviewObserver.observe(target, { attributes: true, attributeFilter: ['class'], subtree: true });
+    scheduleBlurPreview();
+}
+
+export function stopBlurPreviewObserver(): void {
+    blurPreviewObserver?.disconnect();
+    blurPreviewObserver = null;
+}
+
 export function injectThemeStyles(): void {
     if (!themeState.isEnabled) {
         removeThemeStyles();
@@ -820,7 +888,7 @@ export function injectThemeStyles(): void {
     injectIntoPIPDocument(css);
 
     updateVideoBackground();
-
+    scheduleBlurPreview();
 }
 
 export function removeThemeStyles(): void {
@@ -951,6 +1019,18 @@ const BASE_STYLES = `
     gap: 8px;
 }
 
+.spicy-themes-settings .st-coming-soon {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--spice-button-active, #1db954);
+    background: rgba(29, 185, 84, 0.12);
+    padding: 3px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
 #ThemeToggle.active svg {
     color: var(--spice-button-active, #1db954);
 }
@@ -1017,7 +1097,7 @@ const BASE_STYLES = `
     --st-text-dim: var(--spice-subtext, #b3b3b3);
     --st-radius: 8px;
     --st-radius-sm: 6px;
-    width: min(820px, calc(100vw - 56px));
+    width: min(980px, calc(100vw - 48px));
     max-width: 100%;
     max-height: min(78vh, 760px);
     overflow-y: auto;
@@ -1103,7 +1183,7 @@ const BASE_STYLES = `
 }
 
 .st-modal-root .st-prv-line {
-    font-size: 18px;
+    font-size: calc(18px * var(--st-prv-scale, 1));
     font-weight: 800;
     line-height: 1.4;
     transition: color 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), filter 0.28s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1159,6 +1239,120 @@ const BASE_STYLES = `
     align-items: start;
 }
 
+.st-modal-root .st-m-cz {
+    gap: 0;
+}
+.st-modal-root .st-m-cz-toolbar {
+    position: sticky;
+    top: -14px;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    border: 1px solid var(--st-border);
+    border-radius: var(--st-radius);
+    background: rgba(18, 18, 20, 0.82);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+}
+.st-modal-root .st-m-cz-search-icon {
+    display: flex;
+    align-items: center;
+    color: var(--st-text-dim);
+    flex-shrink: 0;
+    line-height: 0;
+}
+.st-modal-root .st-m-cz-search {
+    flex: 1;
+    border: none !important;
+    background: transparent !important;
+    padding: 2px 0 !important;
+    font-size: 13px;
+}
+.st-modal-root .st-m-cz-search:focus {
+    outline: none;
+}
+
+.st-modal-root .st-m-cz-body {
+    display: grid;
+    grid-template-columns: 158px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+.st-modal-root .st-m-cz-rail {
+    position: sticky;
+    top: 44px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-self: start;
+    min-width: 0;
+}
+.st-modal-root .st-m-cz-preview {
+    border: 1px solid var(--st-border);
+    border-radius: var(--st-radius);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 92px;
+    overflow: hidden;
+    background: linear-gradient(145deg, rgba(0, 0, 0, 0.55), rgba(8, 8, 10, 0.95));
+}
+.st-modal-root .st-m-cz-preview .st-prv-line {
+    font-size: calc(16px * var(--st-prv-scale, 1));
+    font-weight: 800;
+}
+.st-modal-root .st-m-cz-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.st-modal-root .st-m-cz-nav-item {
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: var(--st-text-dim);
+    padding: 8px 11px;
+    border-radius: var(--st-radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s cubic-bezier(0.16, 1, 0.3, 1), color 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.st-modal-root .st-m-cz-nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--st-text);
+}
+.st-modal-root .st-m-cz-nav-item.active {
+    background: var(--st-accent-soft);
+    color: var(--st-accent);
+}
+
+.st-modal-root .st-m-cz-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    min-width: 0;
+}
+.st-modal-root .st-m-cz-category {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scroll-margin-top: 64px;
+}
+.st-modal-root .st-m-cz-cat-title {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--st-text);
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--st-border);
+}
+
 .st-modal-root .st-m-section {
     background: var(--st-bg-elev);
     border: 1px solid var(--st-border);
@@ -1168,6 +1362,7 @@ const BASE_STYLES = `
     flex-direction: column;
     gap: 6px;
     min-width: 0;
+    container-type: inline-size;
     transition: border-color 0.24s cubic-bezier(0.16, 1, 0.3, 1), background 0.24s cubic-bezier(0.16, 1, 0.3, 1), transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .st-modal-root .st-m-section:hover {
@@ -1218,19 +1413,57 @@ const BASE_STYLES = `
     grid-template-columns: minmax(0, 1fr) max-content;
 }
 
+.st-modal-root .st-m-field-coming-soon {
+    grid-template-columns: minmax(0, 1fr) max-content;
+}
+.st-modal-root .st-m-field-coming-soon .st-m-field-label {
+    opacity: 0.5;
+}
+.st-modal-root .st-m-coming-soon {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--st-accent);
+    background: var(--st-accent-soft);
+    padding: 3px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
 .st-modal-root .st-m-field-slider {
-    grid-template-columns: minmax(160px, 0.75fr) minmax(240px, 1.25fr);
+    grid-template-columns: minmax(0, 1fr) minmax(170px, 300px);
 }
 
 .st-modal-root .st-m-field-dropdown,
 .st-modal-root .st-m-field-text {
-    grid-template-columns: minmax(160px, 0.75fr) minmax(240px, 1.25fr);
+    grid-template-columns: minmax(0, 1fr) minmax(170px, 300px);
 }
 
 .st-modal-root .st-m-field-text {
     grid-template-columns: 1fr;
     gap: 6px;
     align-items: stretch;
+}
+.st-modal-root .st-m-field-text .st-m-field-control {
+    max-width: 440px;
+}
+
+@container (max-width: 440px) {
+    .st-modal-root .st-m-field-slider,
+    .st-modal-root .st-m-field-dropdown,
+    .st-modal-root .st-m-field-text {
+        grid-template-columns: 1fr;
+        align-items: start;
+        gap: 6px;
+    }
+    .st-modal-root .st-m-field-slider .st-m-field-control,
+    .st-modal-root .st-m-field-dropdown .st-m-field-control,
+    .st-modal-root .st-m-field-text .st-m-field-control {
+        width: 100%;
+        max-width: 100%;
+        justify-content: stretch;
+    }
 }
 
 .st-modal-root .st-m-color {
@@ -1391,7 +1624,7 @@ const BASE_STYLES = `
     background: linear-gradient(145deg, rgba(0, 0, 0, 0.55), rgba(8, 8, 10, 0.95));
 }
 .st-modal-root .st-m-preset-preview .st-prv-line {
-    font-size: 13px;
+    font-size: calc(13px * var(--st-prv-scale, 1));
     font-weight: 700;
 }
 .st-modal-root .st-m-preset-meta {
@@ -1452,13 +1685,69 @@ const BASE_STYLES = `
 }
 
 .st-modal-root .st-m-mp-toolbar {
+    position: sticky;
+    top: -14px;
+    z-index: 6;
     display: grid;
     grid-template-columns: minmax(180px, 1fr) auto;
     gap: 10px;
     align-items: center;
+    padding: 10px 0;
+    margin-bottom: 4px;
+    background: rgba(18, 18, 20, 0.82);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+}
+.st-modal-root .st-m-mp-searchbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 12px;
+    border: 1px solid var(--st-border);
+    border-radius: var(--st-radius);
+    background: rgba(0, 0, 0, 0.3);
+    transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.st-modal-root .st-m-mp-searchbar:focus-within {
+    border-color: var(--st-accent);
 }
 .st-modal-root .st-m-mp-search {
+    flex: 1;
     min-width: 0;
+    border: none;
+    background: transparent;
+    color: var(--st-text);
+    font-size: 13px;
+    outline: none;
+}
+.st-modal-root .st-m-mp-search::placeholder {
+    color: var(--st-text-dim);
+}
+
+.st-modal-root .st-sk {
+    position: relative;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.05);
+}
+.st-modal-root .st-sk::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    transform: translateX(-100%);
+    animation: st-shimmer 1.25s ease-in-out infinite;
+}
+.st-modal-root .st-sk-line {
+    height: 11px;
+    border-radius: 4px;
+    margin: 7px 0;
+}
+.st-modal-root .st-m-mp-skeleton {
+    pointer-events: none;
+}
+@keyframes st-shimmer {
+    100% { transform: translateX(100%); }
 }
 .st-modal-root .st-m-mp-sort {
     display: flex;
@@ -1512,6 +1801,7 @@ const BASE_STYLES = `
 .st-modal-root .st-m-mp-card:hover {
     border-color: rgba(255, 255, 255, 0.18);
     transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 .st-modal-root .st-m-mp-preview {
     padding: 12px 14px;
@@ -1522,7 +1812,7 @@ const BASE_STYLES = `
     background: linear-gradient(145deg, rgba(0, 0, 0, 0.55), rgba(8, 8, 10, 0.95));
 }
 .st-modal-root .st-m-mp-preview .st-prv-line {
-    font-size: 13px;
+    font-size: calc(13px * var(--st-prv-scale, 1));
     font-weight: 700;
 }
 .st-modal-root .st-m-mp-body {
@@ -1669,6 +1959,21 @@ const BASE_STYLES = `
     .st-modal-root .st-m-mp-toolbar,
     .st-modal-root .st-m-save-row {
         grid-template-columns: 1fr;
+    }
+
+    .st-modal-root .st-m-cz-body {
+        grid-template-columns: 1fr;
+    }
+    .st-modal-root .st-m-cz-rail {
+        position: static;
+    }
+    .st-modal-root .st-m-cz-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    .st-modal-root .st-m-cz-nav-item {
+        flex: 1 1 auto;
+        text-align: center;
     }
 
     .st-modal-root .st-m-field {

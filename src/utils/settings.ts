@@ -177,6 +177,20 @@ function createTextInputRow(id: string, label: string, currentValue: string, pla
     return row;
 }
 
+function createComingSoonRow(id: string, label: string): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'x-settings-row';
+    row.innerHTML = `
+        <div class="x-settings-firstColumn">
+            <label class="e-10310-text encore-text-body-small encore-internal-color-text-subdued" for="${id}" style="opacity: 0.5;">${label}</label>
+        </div>
+        <div class="x-settings-secondColumn">
+            <span class="st-coming-soon">Coming soon</span>
+        </div>
+    `;
+    return row;
+}
+
 function createSectionHeader(text: string): HTMLElement {
     const header = document.createElement('div');
     header.className = 'st-section-header';
@@ -287,6 +301,16 @@ function renderSchemaFields(container: HTMLElement): void {
 
         const setProp = (v: any) => updateThemeProperty(def.id as keyof ThemeConfig, v);
 
+        if (def.comingSoon) {
+            row = createComingSoonRow(id, def.label);
+            if (def.when) {
+                row.style.display = def.when(themeState.activeTheme) ? '' : 'none';
+                conditionalRows.push({ def, row });
+            }
+            container.appendChild(row);
+            return;
+        }
+
         switch (def.type) {
             case 'color': {
                 row = createColorRow(id, def.label, String(cur || '#ffffff'), (v) => setProp(v));
@@ -314,8 +338,9 @@ function renderSchemaFields(container: HTMLElement): void {
             }
             case 'dropdown': {
                 const opts = def.options || [];
-                if (def.id === 'fontFamily' && opts.some(o => o.value === '__custom__')) {
-                    const isCustom = !FONT_OPTIONS.some(o => o.value === cur);
+                if (opts.some(o => o.value === '__custom__')) {
+                    const namedOptions = opts.filter(o => o.value !== '__custom__');
+                    const isCustom = !namedOptions.some(o => o.value === cur);
                     const currentVal = isCustom && cur !== '' ? '__custom__' : String(cur);
                     row = createDropdownRow(id, def.label, opts, currentVal, (v) => {
                         if (v === '__custom__') {
@@ -335,7 +360,8 @@ function renderSchemaFields(container: HTMLElement): void {
                 break;
             }
             case 'text': {
-                row = createTextInputRow(id, def.label, String(cur || ''), 'Enter font name', (v) => setProp(v));
+                const curText = String(cur || '');
+                row = createTextInputRow(id, def.label, curText === 'Custom Font' ? '' : curText, 'Enter font name', (v) => setProp(v));
                 break;
             }
         }

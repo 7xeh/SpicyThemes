@@ -1,5 +1,5 @@
 import { themeState, saveThemeState } from './state';
-import { injectThemeStyles, removeThemeStyles } from './themeEngine';
+import { injectThemeStyles, removeThemeStyles, startBlurPreviewObserver, stopBlurPreviewObserver } from './themeEngine';
 import { Icons } from './icons';
 import { openSettingsModal } from './settings';
 
@@ -103,11 +103,13 @@ export function onSpicyLyricsOpen(): void {
     if (themeState.isEnabled) {
         injectThemeStyles();
     }
+    startBlurPreviewObserver();
 }
 
 export function onSpicyLyricsClose(): void {
     setViewingLyrics(false);
     removeThemeButton();
+    stopBlurPreviewObserver();
 }
 
 export function injectIntoPiP(): void {

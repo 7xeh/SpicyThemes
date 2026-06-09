@@ -24,10 +24,15 @@ export interface ThemeConfig {
     fontWeight: number;
     letterSpacing: number;
     lineHeight: number;
+    lyricsScale: number;
 
     blurUnsung: boolean;
     blurAmount: number;
     blurPreviewLines: number;
+
+    lineWindowEnabled: boolean;
+    lineWindowSungLines: number;
+    lineWindowUnsungLines: number;
     scaleActive: number;
     scaleInEffect: boolean;
     scaleInFrom: number;
@@ -41,6 +46,11 @@ export interface ThemeConfig {
     sltStylingEnabled: boolean;
     sltTranslationOpacity: number;
     sltTranslationFontSize: number;
+    sltTranslationFont: string;
+    sltTranslationColorEnabled: boolean;
+    sltTranslationColor: string;
+    sltHighlightStartColor: string;
+    sltHighlightEndColor: string;
 
     bgGlowEnabled: boolean;
     bgGlowColor: string;
@@ -94,10 +104,15 @@ export const DEFAULT_THEME: ThemeConfig = {
     fontWeight: 800,
     letterSpacing: 0.02,
     lineHeight: 1.4,
+    lyricsScale: 1.0,
 
     blurUnsung: true,
     blurAmount: 2.0,
     blurPreviewLines: 2,
+
+    lineWindowEnabled: false,
+    lineWindowSungLines: 2,
+    lineWindowUnsungLines: 3,
     scaleActive: 1.02,
     scaleInEffect: false,
     scaleInFrom: 0.96,
@@ -111,6 +126,11 @@ export const DEFAULT_THEME: ThemeConfig = {
     sltStylingEnabled: true,
     sltTranslationOpacity: 0.8,
     sltTranslationFontSize: 0.75,
+    sltTranslationFont: '',
+    sltTranslationColorEnabled: false,
+    sltTranslationColor: '#ffffff',
+    sltHighlightStartColor: '#ffffff',
+    sltHighlightEndColor: '#9ca3af',
 
     bgGlowEnabled: false,
     bgGlowColor: '#ffffff',
@@ -162,6 +182,8 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             gradientStartColor: '#ffffff',
             gradientEndColor: '#94a3b8',
             gradientAngle: 180,
+            sltHighlightStartColor: '#ffffff',
+            sltHighlightEndColor: '#94a3b8',
             glowEnabled: false,
             blurUnsung: true,
             blurAmount: 1.6,
@@ -194,6 +216,8 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             gradientStartColor: '#1db954',
             gradientEndColor: '#00ff88',
             gradientAngle: 135,
+            sltHighlightStartColor: '#1db954',
+            sltHighlightEndColor: '#00ff88',
             bgGlowEnabled: true,
             bgGlowColor: '#1db954',
             bgGlowIntensity: 9,
@@ -222,6 +246,8 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             gradientStartColor: '#ff6b35',
             gradientEndColor: '#f7c948',
             gradientAngle: 135,
+            sltHighlightStartColor: '#ff6b35',
+            sltHighlightEndColor: '#f7c948',
             activeLineColor: '#ff6b35',
             sungLineColor: '#ffd27a',
             notSungLineColor: '#836d56',
@@ -270,6 +296,8 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             gradientStartColor: '#00d4ff',
             gradientEndColor: '#0066aa',
             gradientAngle: 180,
+            sltHighlightStartColor: '#00d4ff',
+            sltHighlightEndColor: '#5ec8ff',
             bgGlowEnabled: true,
             bgGlowColor: '#00d4ff',
             bgGlowIntensity: 14,
@@ -294,6 +322,8 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             gradientStartColor: '#ff00ff',
             gradientEndColor: '#00ffff',
             gradientAngle: 90,
+            sltHighlightStartColor: '#ff00ff',
+            sltHighlightEndColor: '#00ffff',
             activeLineColor: '#ff00ff',
             sungLineColor: '#ff8cf6',
             notSungLineColor: '#6d4e7a',
@@ -339,6 +369,8 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             sungLineOpacity: 0.5,
             notSungLineOpacity: 0.25,
             activeLineOpacity: 1.0,
+            sltHighlightStartColor: '#ffffff',
+            sltHighlightEndColor: '#ffffff',
             fontFamily: 'Segoe UI, system-ui, sans-serif',
             fontWeight: 700,
             letterSpacing: 0.03,
@@ -363,6 +395,8 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         sltTranslationOpacity: [0, 1],
         blurAmount: [0, 8],
         blurPreviewLines: [0, 5],
+        lineWindowSungLines: [0, 10],
+        lineWindowUnsungLines: [0, 10],
         glowIntensity: [0, 15],
         activeGlowIntensity: [0, 15],
         bgGlowIntensity: [0, 30],
@@ -378,6 +412,7 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         waveSpeed: [0.3, 2.0],
         lineHeight: [1.0, 2.5],
         letterSpacing: [-0.1, 0.3],
+        lyricsScale: [0.5, 2.0],
         fontWeight: [100, 900],
         playerArtRadius: [0, 50],
         playerProgressThickness: [0.5, 5],
