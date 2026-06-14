@@ -7,6 +7,7 @@ import {
     saveCustomPreset,
     deleteCustomPreset,
     updateThemeProperty,
+    mergeThemeConfig,
     DEFAULT_THEME,
     BUILTIN_PRESETS,
     ThemeConfig,
@@ -80,7 +81,7 @@ export const WEIGHT_OPTIONS = [
 ];
 
 export const SCHEMA: FieldDef[] = [
-    { id: 'activeLineColor', label: 'Active line color', type: 'color', section: 'Colors' },
+    { id: 'activeLineColor', label: 'Active line color', type: 'color', section: 'Colors', when: (t) => !t.gradientEnabled },
     { id: 'sungLineColor', label: 'Sung line color', type: 'color', section: 'Colors' },
     { id: 'notSungLineColor', label: 'Unsung line color', type: 'color', section: 'Colors' },
     { id: 'activeLineOpacity', label: 'Active line opacity', type: 'slider', section: 'Opacity', min: 0.1, max: 1.0, step: 0.05 },
@@ -91,30 +92,43 @@ export const SCHEMA: FieldDef[] = [
     { id: 'fontWeight', label: 'Font weight', type: 'dropdown', section: 'Typography', options: WEIGHT_OPTIONS },
     { id: 'letterSpacing', label: 'Letter spacing', type: 'slider', section: 'Typography', min: -0.1, max: 0.3, step: 0.01, unit: 'em' },
     { id: 'lineHeight', label: 'Line height', type: 'slider', section: 'Typography', min: 1.0, max: 2.5, step: 0.01 },
-    { id: 'lyricsScale', label: 'Lyrics scale', type: 'slider', section: 'Typography', min: 0.5, max: 2.0, step: 0.05, unit: 'x' },
-    { id: 'scaleActive', label: 'Active line scale', type: 'slider', section: 'Typography', min: 0.95, max: 1.12, step: 0.01, unit: 'x' },
+    { id: 'lyricsScale', label: 'Lyrics scale', type: 'slider', section: 'Typography', min: 0.25, max: 2.0, step: 0.05, unit: 'x' },
     { id: 'gradientEnabled', label: 'Gradient text', type: 'toggle', section: 'Gradient' },
     { id: 'gradientStartColor', label: 'Gradient start', type: 'color', section: 'Gradient', when: (t) => t.gradientEnabled },
     { id: 'gradientEndColor', label: 'Gradient end', type: 'color', section: 'Gradient', when: (t) => t.gradientEnabled },
     { id: 'gradientAngle', label: 'Gradient angle', type: 'slider', section: 'Gradient', min: 0, max: 360, step: 5, unit: 'deg', when: (t) => t.gradientEnabled, comingSoon: true },
-    { id: 'glowEnabled', label: 'Glow', type: 'toggle', section: 'Glow' },
-    { id: 'glowColor', label: 'Glow color', type: 'color', section: 'Glow', when: (t) => t.glowEnabled },
-    { id: 'glowIntensity', label: 'Glow intensity', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', when: (t) => t.glowEnabled },
-    { id: 'activeGlowColor', label: 'Active glow color', type: 'color', section: 'Glow', when: (t) => t.glowEnabled },
-    { id: 'activeGlowIntensity', label: 'Active glow intensity', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', when: (t) => t.glowEnabled },
-    { id: 'bgGlowEnabled', label: 'Background text glow', type: 'toggle', section: 'Glow' },
-    { id: 'bgGlowColor', label: 'BG glow color', type: 'color', section: 'Glow', when: (t) => t.bgGlowEnabled },
-    { id: 'bgGlowIntensity', label: 'BG glow intensity', type: 'slider', section: 'Glow', min: 0, max: 30, step: 1, unit: 'px', when: (t) => t.bgGlowEnabled },
+    { id: 'glowEnabled', label: 'Line glow', type: 'toggle', section: 'Glow' },
+    { id: 'activeGlowColor', label: 'Active line glow color', type: 'color', section: 'Glow', when: (t) => t.glowEnabled },
+    { id: 'activeGlowIntensity', label: 'Active line glow intensity', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', when: (t) => t.glowEnabled },
+    { id: 'glowColor', label: 'Other lines glow color', type: 'color', section: 'Glow', when: (t) => t.glowEnabled },
+    { id: 'glowIntensity', label: 'Other lines glow intensity', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', when: (t) => t.glowEnabled },
+    { id: 'bgGlowEnabled', label: 'Active word glow', type: 'toggle', section: 'Glow' },
+    { id: 'bgGlowColor', label: 'Word glow color', type: 'color', section: 'Glow', when: (t) => t.bgGlowEnabled },
+    { id: 'bgGlowIntensity', label: 'Word glow intensity', type: 'slider', section: 'Glow', min: 0, max: 30, step: 1, unit: 'px', when: (t) => t.bgGlowEnabled },
     { id: 'blurUnsung', label: 'Blur unsung lines', type: 'toggle', section: 'Effects' },
     { id: 'blurAmount', label: 'Blur amount', type: 'slider', section: 'Effects', min: 0, max: 8, step: 0.5, unit: 'px', when: (t) => t.blurUnsung },
-    { id: 'disableHighlight', label: 'Custom word highlight', type: 'toggle', section: 'Effects' },
-    { id: 'highlightColor', label: 'Highlight color', type: 'color', section: 'Effects', when: (t) => t.disableHighlight },
-    { id: 'popEffect', label: 'Word pop', type: 'toggle', section: 'Effects' },
-    { id: 'popScale', label: 'Pop scale', type: 'slider', section: 'Effects', min: 1.0, max: 1.3, step: 0.01, unit: 'x', when: (t) => t.popEffect },
-    { id: 'popDuration', label: 'Pop duration', type: 'slider', section: 'Effects', min: 0.1, max: 0.6, step: 0.05, unit: 's', when: (t) => t.popEffect },
-    { id: 'waveEffect', label: 'Word wave', type: 'toggle', section: 'Effects' },
-    { id: 'waveIntensity', label: 'Wave intensity', type: 'slider', section: 'Effects', min: 1, max: 10, step: 1, unit: 'px', when: (t) => t.waveEffect },
-    { id: 'waveSpeed', label: 'Wave speed', type: 'slider', section: 'Effects', min: 0.3, max: 2.0, step: 0.1, unit: 's', when: (t) => t.waveEffect },
+    { id: 'blurPreviewLines', label: 'Keep upcoming lines sharp', type: 'slider', section: 'Effects', min: 0, max: 5, step: 1, unit: ' lines', when: (t) => t.blurUnsung },
+    { id: 'blurSungWords', label: 'Blur sung words in active line', type: 'toggle', section: 'Effects' },
+    { id: 'blurSungWordsAmount', label: 'Sung word blur', type: 'slider', section: 'Effects', min: 0, max: 8, step: 0.5, unit: 'px', when: (t) => t.blurSungWords },
+    { id: 'blurSungWordsOpacity', label: 'Sung word opacity', type: 'slider', section: 'Effects', min: 0.05, max: 1.0, step: 0.05, when: (t) => t.blurSungWords },
+    { id: 'textShadowEnabled', label: 'Text shadow', type: 'toggle', section: 'Effects' },
+    { id: 'textShadowColor', label: 'Shadow color', type: 'color', section: 'Effects', when: (t) => t.textShadowEnabled },
+    { id: 'textShadowOpacity', label: 'Shadow opacity', type: 'slider', section: 'Effects', min: 0, max: 1, step: 0.05, when: (t) => t.textShadowEnabled },
+    { id: 'textShadowBlur', label: 'Shadow blur', type: 'slider', section: 'Effects', min: 0, max: 20, step: 1, unit: 'px', when: (t) => t.textShadowEnabled },
+    { id: 'textShadowOffsetX', label: 'Shadow offset X', type: 'slider', section: 'Effects', min: -10, max: 10, step: 1, unit: 'px', when: (t) => t.textShadowEnabled },
+    { id: 'textShadowOffsetY', label: 'Shadow offset Y', type: 'slider', section: 'Effects', min: -10, max: 10, step: 1, unit: 'px', when: (t) => t.textShadowEnabled },
+    { id: 'disableHighlight', label: 'Flat color mode (no karaoke fill)', type: 'toggle', section: 'Effects' },
+    { id: 'highlightColor', label: 'Flat color', type: 'color', section: 'Effects', when: (t) => t.disableHighlight },
+    { id: 'wordEffect', label: 'Word animation', type: 'dropdown', section: 'Effects', options: [
+        { value: 'none', text: 'None' },
+        { value: 'pop', text: 'Pop' },
+        { value: 'wave', text: 'Wave' },
+    ] },
+    { id: 'popScale', label: 'Pop scale', type: 'slider', section: 'Effects', min: 1.0, max: 1.3, step: 0.01, unit: 'x', when: (t) => t.wordEffect === 'pop' },
+    { id: 'popDuration', label: 'Pop duration', type: 'slider', section: 'Effects', min: 0.1, max: 0.6, step: 0.05, unit: 's', when: (t) => t.wordEffect === 'pop' },
+    { id: 'waveIntensity', label: 'Wave intensity', type: 'slider', section: 'Effects', min: 1, max: 10, step: 1, unit: 'px', when: (t) => t.wordEffect === 'wave' },
+    { id: 'waveSpeed', label: 'Wave speed', type: 'slider', section: 'Effects', min: 0.3, max: 2.0, step: 0.1, unit: 's', when: (t) => t.wordEffect === 'wave' },
+    { id: 'scaleActive', label: 'Active line scale', type: 'slider', section: 'Effects', min: 0.95, max: 1.12, step: 0.01, unit: 'x' },
     { id: 'scaleInEffect', label: 'Active line scale-in', type: 'toggle', section: 'Effects' },
     { id: 'scaleInFrom', label: 'Scale-in start', type: 'slider', section: 'Effects', min: 0.85, max: 1.05, step: 0.01, unit: 'x', when: (t) => t.scaleInEffect },
     { id: 'scaleInDuration', label: 'Scale-in duration', type: 'slider', section: 'Effects', min: 0.1, max: 1.0, step: 0.05, unit: 's', when: (t) => t.scaleInEffect },
@@ -132,19 +146,36 @@ export const SCHEMA: FieldDef[] = [
     { id: 'playerHideShuffle', label: 'Hide shuffle button', type: 'toggle', section: 'Player', when: (t) => t.playerStylingEnabled },
     { id: 'playerHideRepeat', label: 'Hide repeat button', type: 'toggle', section: 'Player', when: (t) => t.playerStylingEnabled },
     { id: 'playerHideLike', label: 'Hide like (heart) button', type: 'toggle', section: 'Player', when: (t) => t.playerStylingEnabled },
-    { id: 'videoBgEnabled', label: 'Video background', type: 'toggle', section: 'Video Background' },
-    { id: 'videoBgUrl', label: 'Video URL', type: 'text', section: 'Video Background', placeholder: 'https://... .mp4 / .webm', when: (t) => t.videoBgEnabled },
-    { id: 'videoBgBlur', label: 'Video blur', type: 'slider', section: 'Video Background', min: 0, max: 30, step: 1, unit: 'px', when: (t) => t.videoBgEnabled },
-    { id: 'videoBgDim', label: 'Video dim', type: 'slider', section: 'Video Background', min: 0, max: 1, step: 0.05, when: (t) => t.videoBgEnabled },
+    { id: 'eqEnabled', label: 'Song title equalizer', type: 'toggle', section: 'Equalizer' },
+    { id: 'eqStyle', label: 'Equalizer style', type: 'dropdown', section: 'Equalizer', options: [
+        { value: 'equalizer', text: '01 Equalizer' },
+        { value: 'dotwave', text: '02 Dot Wave' },
+        { value: 'signal', text: '03 Signal' },
+        { value: 'orbit', text: '04 Orbit' },
+        { value: 'pulsedot', text: '05 Pulse Dot' },
+        { value: 'spectrumring', text: '06 Spectrum Ring' },
+    ], when: (t) => t.eqEnabled },
+    { id: 'eqPosition', label: 'Equalizer position', type: 'dropdown', section: 'Equalizer', options: [
+        { value: 'both', text: 'Both sides' },
+        { value: 'left', text: 'Left' },
+        { value: 'right', text: 'Right' },
+    ], when: (t) => t.eqEnabled },
+    { id: 'eqColor', label: 'Equalizer color', type: 'color', section: 'Equalizer', when: (t) => t.eqEnabled },
+    { id: 'eqSize', label: 'Equalizer size', type: 'slider', section: 'Equalizer', min: 0.4, max: 2.5, step: 0.05, unit: 'x', when: (t) => t.eqEnabled },
+    { id: 'eqSpeed', label: 'Equalizer speed', type: 'slider', section: 'Equalizer', min: 0.3, max: 3.0, step: 0.1, unit: 'x', when: (t) => t.eqEnabled },
+    { id: 'musicVideoEnabled', label: 'Synced music videos', type: 'toggle', section: 'Music Videos' },
+    { id: 'musicVideoDim', label: 'Video dim', type: 'slider', section: 'Music Videos', min: 0, max: 1, step: 0.05, when: (t) => t.musicVideoEnabled },
     { id: 'sltStylingEnabled', label: 'Translation styling (SLT)', type: 'toggle', section: 'Translation' },
     { id: 'sltTranslationOpacity', label: 'Translation opacity', type: 'slider', section: 'Translation', min: 0.1, max: 1.0, step: 0.05, when: (t) => t.sltStylingEnabled },
-    { id: 'sltTranslationFontSize', label: 'Translation font size', type: 'slider', section: 'Translation', min: 0.5, max: 2.0, step: 0.05, unit: 'x', when: (t) => t.sltStylingEnabled },
+    { id: 'sltTranslationFontSize', label: 'Translation font size', type: 'slider', section: 'Translation', min: 0.25, max: 2.0, step: 0.05, unit: 'x', when: (t) => t.sltStylingEnabled },
     { id: 'sltTranslationFont', label: 'Translation font', type: 'dropdown', section: 'Translation', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom...' }], when: (t) => t.sltStylingEnabled },
     { id: 'sltTranslationFont', label: 'Custom translation font', type: 'text', section: 'Translation', placeholder: "e.g. 'Inter', sans-serif", when: (t) => t.sltStylingEnabled && t.sltTranslationFont !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltTranslationFont) },
     { id: 'sltTranslationColorEnabled', label: 'Custom translation color', type: 'toggle', section: 'Translation', when: (t) => t.sltStylingEnabled },
     { id: 'sltTranslationColor', label: 'Translation color', type: 'color', section: 'Translation', when: (t) => t.sltStylingEnabled && t.sltTranslationColorEnabled },
     { id: 'sltHighlightStartColor', label: 'Translation highlight start', type: 'color', section: 'Translation', when: (t) => t.sltStylingEnabled },
     { id: 'sltHighlightEndColor', label: 'Translation highlight end', type: 'color', section: 'Translation', when: (t) => t.sltStylingEnabled },
+    { id: 'sltGlowColorEnabled', label: 'Custom translation glow color', type: 'toggle', section: 'Translation', when: (t) => t.sltStylingEnabled },
+    { id: 'sltGlowColor', label: 'Translation glow color', type: 'color', section: 'Translation', when: (t) => t.sltStylingEnabled && t.sltGlowColorEnabled },
 ];
 
 let liveContainer: HTMLElement | null = null;
@@ -456,7 +487,7 @@ const CZ_CATEGORIES: { id: string; label: string; sections: string[] }[] = [
     { id: 'cz-effects', label: 'Glow & Effects', sections: ['Glow', 'Effects'] },
     { id: 'cz-layout', label: 'Layout', sections: ['Lyrics Window', 'Background'] },
     { id: 'cz-translation', label: 'Translation', sections: ['Translation'] },
-    { id: 'cz-player', label: 'Player & Media', sections: ['Player', 'Video Background'] },
+    { id: 'cz-player', label: 'Player & Media', sections: ['Player', 'Equalizer', 'Music Videos'] },
 ];
 
 function buildCustomizeTab(): HTMLElement {
@@ -707,7 +738,7 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
                 apply.textContent = 'Applying...';
                 try {
                     const data = await Marketplace.downloadTheme(t.id);
-                    themeState.activeTheme = { ...DEFAULT_THEME, ...data.theme };
+                    themeState.activeTheme = mergeThemeConfig(data.theme);
                     themeState.activePresetName = t.name;
                     saveThemeState();
                     injectThemeStyles();
@@ -728,7 +759,7 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
                 try {
                     const data = await Marketplace.downloadTheme(t.id);
                     const presetName = t.name;
-                    const merged: ThemeConfig = { ...DEFAULT_THEME, ...data.theme };
+                    const merged: ThemeConfig = mergeThemeConfig(data.theme);
                     const preset: ThemePreset = {
                         name: presetName,
                         description: t.description || `By ${t.author}`,
@@ -900,7 +931,7 @@ function buildAboutTab(): HTMLElement {
                 try {
                     const data = JSON.parse(reader.result as string);
                     if (data.theme) {
-                        themeState.activeTheme = { ...DEFAULT_THEME, ...data.theme };
+                        themeState.activeTheme = mergeThemeConfig(data.theme);
                     }
                     if (Array.isArray(data.presets)) {
                         themeState.customPresets = data.presets;

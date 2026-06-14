@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import { themeState, saveThemeState, applyPreset, getAllPresets, saveCustomPreset, deleteCustomPreset, updateThemeProperty, DEFAULT_THEME, BUILTIN_PRESETS } from './state';
+import { themeState, saveThemeState, applyPreset, getAllPresets, saveCustomPreset, deleteCustomPreset, updateThemeProperty, mergeThemeConfig, BUILTIN_PRESETS } from './state';
 import { injectThemeStyles } from './themeEngine';
 import { checkForUpdates, getCurrentVersion, getUpdateInfo, isDevChannel } from './updater';
 import { createSettingsModal, SCHEMA, FONT_OPTIONS, FieldDef } from './settingsModal';
@@ -10,6 +10,21 @@ const SETTINGS_ID = 'spicy-themes-settings';
 const MODAL_SETTINGS_ID = 'spicy-themes-modal-settings';
 const SETTINGS_WATCHER_FLAG = '__spicyThemesSettingsWatcherRegistered';
 const MENU_REGISTERED_FLAG = '__spicyThemesMenuRegistered';
+
+const CHANNEL_STATE_KEYS = [
+    'loaded-version',
+    'content-hash',
+    'hotfix-detected',
+    'pending-update-version',
+    'pending-update-timestamp',
+    'pending-update-changelog',
+    'last-known-version',
+    'last-known-hash',
+];
+
+function resetUpdateChannelState(): void {
+    CHANNEL_STATE_KEYS.forEach(key => storage.remove(key));
+}
 
 async function handleManualUpdateCheck(button: HTMLButtonElement, idleText: string): Promise<void> {
     button.disabled = true;
@@ -355,6 +370,7 @@ function renderSchemaFields(container: HTMLElement): void {
                     row = createDropdownRow(id, def.label, opts, String(cur), (v) => {
                         const parsed: any = def.id === 'fontWeight' ? parseInt(v, 10) : v;
                         setProp(parsed);
+                        updateConditionalVisibility();
                     });
                 }
                 break;
@@ -437,8 +453,9 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
             } else {
                 storage.remove('dev-channel');
             }
+            resetUpdateChannelState();
             if (Spicetify.showNotification) {
-                Spicetify.showNotification(v ? 'Dev channel enabled. Reload to apply' : 'Dev channel disabled. Reload to apply');
+                Spicetify.showNotification(v ? 'Dev channel enabled. Restart Spotify to apply' : 'Dev channel disabled. Restart Spotify to apply');
             }
         }
     ));
@@ -504,7 +521,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
                     try {
                         const data = JSON.parse(reader.result as string);
                         if (data.theme) {
-                            themeState.activeTheme = { ...DEFAULT_THEME, ...data.theme };
+                            themeState.activeTheme = mergeThemeConfig(data.theme);
                         }
                         if (data.presets && Array.isArray(data.presets)) {
                             themeState.customPresets = data.presets;

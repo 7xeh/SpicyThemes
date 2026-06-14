@@ -30,6 +30,17 @@ export interface ThemeConfig {
     blurAmount: number;
     blurPreviewLines: number;
 
+    blurSungWords: boolean;
+    blurSungWordsAmount: number;
+    blurSungWordsOpacity: number;
+
+    textShadowEnabled: boolean;
+    textShadowColor: string;
+    textShadowOpacity: number;
+    textShadowBlur: number;
+    textShadowOffsetX: number;
+    textShadowOffsetY: number;
+
     lineWindowEnabled: boolean;
     lineWindowSungLines: number;
     lineWindowUnsungLines: number;
@@ -51,6 +62,8 @@ export interface ThemeConfig {
     sltTranslationColor: string;
     sltHighlightStartColor: string;
     sltHighlightEndColor: string;
+    sltGlowColorEnabled: boolean;
+    sltGlowColor: string;
 
     bgGlowEnabled: boolean;
     bgGlowColor: string;
@@ -58,6 +71,7 @@ export interface ThemeConfig {
 
     disableHighlight: boolean;
     highlightColor: string;
+    wordEffect: string;
     popEffect: boolean;
     popScale: number;
     popDuration: number;
@@ -74,10 +88,15 @@ export interface ThemeConfig {
     playerHideRepeat: boolean;
     playerHideLike: boolean;
 
-    videoBgEnabled: boolean;
-    videoBgUrl: string;
-    videoBgBlur: number;
-    videoBgDim: number;
+    musicVideoEnabled: boolean;
+    musicVideoDim: number;
+
+    eqEnabled: boolean;
+    eqStyle: string;
+    eqPosition: string;
+    eqColor: string;
+    eqSize: number;
+    eqSpeed: number;
 }
 
 export const DEFAULT_THEME: ThemeConfig = {
@@ -110,6 +129,17 @@ export const DEFAULT_THEME: ThemeConfig = {
     blurAmount: 2.0,
     blurPreviewLines: 2,
 
+    blurSungWords: false,
+    blurSungWordsAmount: 2.0,
+    blurSungWordsOpacity: 0.6,
+
+    textShadowEnabled: false,
+    textShadowColor: '#000000',
+    textShadowOpacity: 0.8,
+    textShadowBlur: 4,
+    textShadowOffsetX: 0,
+    textShadowOffsetY: 2,
+
     lineWindowEnabled: false,
     lineWindowSungLines: 2,
     lineWindowUnsungLines: 3,
@@ -131,6 +161,8 @@ export const DEFAULT_THEME: ThemeConfig = {
     sltTranslationColor: '#ffffff',
     sltHighlightStartColor: '#ffffff',
     sltHighlightEndColor: '#9ca3af',
+    sltGlowColorEnabled: false,
+    sltGlowColor: '#ffffff',
 
     bgGlowEnabled: false,
     bgGlowColor: '#ffffff',
@@ -138,6 +170,7 @@ export const DEFAULT_THEME: ThemeConfig = {
 
     disableHighlight: false,
     highlightColor: 'rgba(255, 255, 255, 0.2)',
+    wordEffect: 'none',
     popEffect: false,
     popScale: 1.05,
     popDuration: 0.3,
@@ -154,10 +187,15 @@ export const DEFAULT_THEME: ThemeConfig = {
     playerHideRepeat: false,
     playerHideLike: false,
 
-    videoBgEnabled: false,
-    videoBgUrl: '',
-    videoBgBlur: 0,
-    videoBgDim: 0.4,
+    musicVideoEnabled: false,
+    musicVideoDim: 0.3,
+
+    eqEnabled: false,
+    eqStyle: 'equalizer',
+    eqPosition: 'both',
+    eqColor: '#ffffff',
+    eqSize: 1.0,
+    eqSpeed: 1.0,
 };
 
 export interface ThemePreset {
@@ -222,6 +260,7 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             bgGlowColor: '#1db954',
             bgGlowIntensity: 9,
             disableHighlight: false,
+            wordEffect: 'pop',
             popEffect: true,
             popScale: 1.08,
             popDuration: 0.2,
@@ -263,6 +302,7 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             bgGlowColor: '#ff6b35',
             bgGlowIntensity: 8,
             disableHighlight: false,
+            wordEffect: 'wave',
             popEffect: false,
             waveEffect: true,
             waveIntensity: 2,
@@ -339,6 +379,7 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             bgGlowColor: '#ff00ff',
             bgGlowIntensity: 15,
             disableHighlight: false,
+            wordEffect: 'wave',
             popEffect: false,
             popScale: 1.1,
             popDuration: 0.2,
@@ -386,54 +427,79 @@ export interface ThemeState {
     isEnabled: boolean;
 }
 
-function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
-    const clamps: Partial<Record<keyof ThemeConfig, [number, number]>> = {
-        activeLineOpacity: [0, 1],
-        sungLineOpacity: [0, 1],
-        notSungLineOpacity: [0, 1],
-        pageBgOpacity: [0, 1],
-        sltTranslationOpacity: [0, 1],
-        blurAmount: [0, 8],
-        blurPreviewLines: [0, 5],
-        lineWindowSungLines: [0, 10],
-        lineWindowUnsungLines: [0, 10],
-        glowIntensity: [0, 15],
-        activeGlowIntensity: [0, 15],
-        bgGlowIntensity: [0, 30],
-        sltTranslationFontSize: [0.5, 2.0],
-        scaleActive: [0.95, 1.12],
-        scaleInFrom: [0.85, 1.05],
-        scaleInDuration: [0.1, 1.0],
-        animationSpeed: [0.3, 3.0],
-        gradientAngle: [0, 360],
-        popScale: [1.0, 1.3],
-        popDuration: [0.1, 0.6],
-        waveIntensity: [1, 10],
-        waveSpeed: [0.3, 2.0],
-        lineHeight: [1.0, 2.5],
-        letterSpacing: [-0.1, 0.3],
-        lyricsScale: [0.5, 2.0],
-        fontWeight: [100, 900],
-        playerArtRadius: [0, 50],
-        playerProgressThickness: [0.5, 5],
-        videoBgBlur: [0, 30],
-        videoBgDim: [0, 1],
-    };
+const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
+    activeLineOpacity: [0, 1],
+    sungLineOpacity: [0, 1],
+    notSungLineOpacity: [0, 1],
+    pageBgOpacity: [0, 1],
+    sltTranslationOpacity: [0, 1],
+    blurAmount: [0, 8],
+    blurPreviewLines: [0, 5],
+    blurSungWordsAmount: [0, 8],
+    blurSungWordsOpacity: [0.05, 1],
+    textShadowOpacity: [0, 1],
+    textShadowBlur: [0, 20],
+    textShadowOffsetX: [-10, 10],
+    textShadowOffsetY: [-10, 10],
+    lineWindowSungLines: [0, 10],
+    lineWindowUnsungLines: [0, 10],
+    glowIntensity: [0, 15],
+    activeGlowIntensity: [0, 15],
+    bgGlowIntensity: [0, 30],
+    sltTranslationFontSize: [0.25, 2.0],
+    scaleActive: [0.95, 1.12],
+    scaleInFrom: [0.85, 1.05],
+    scaleInDuration: [0.1, 1.0],
+    animationSpeed: [0.3, 3.0],
+    gradientAngle: [0, 360],
+    popScale: [1.0, 1.3],
+    popDuration: [0.1, 0.6],
+    waveIntensity: [1, 10],
+    waveSpeed: [0.3, 2.0],
+    lineHeight: [1.0, 2.5],
+    letterSpacing: [-0.1, 0.3],
+    lyricsScale: [0.25, 2.0],
+    fontWeight: [100, 900],
+    playerArtRadius: [0, 50],
+    playerProgressThickness: [0.5, 5],
+    musicVideoDim: [0, 1],
+    eqSize: [0.4, 2.5],
+    eqSpeed: [0.3, 3.0],
+};
 
+function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
     const normalized = { ...config };
-    for (const [key, range] of Object.entries(clamps) as [keyof ThemeConfig, [number, number]][]) {
+    for (const [key, range] of Object.entries(CLAMPS) as [keyof ThemeConfig, [number, number]][]) {
         const value = (normalized as any)[key];
         if (typeof value === 'number') {
             (normalized as any)[key] = Math.min(Math.max(value, range[0]), range[1]);
         }
     }
 
-    if (normalized.popEffect && normalized.waveEffect) {
-        normalized.waveEffect = false;
+    const eqStyles = ['equalizer', 'dotwave', 'signal', 'orbit', 'pulsedot', 'spectrumring'];
+    if (!eqStyles.includes(normalized.eqStyle)) {
+        normalized.eqStyle = 'equalizer';
     }
+
+    if (normalized.wordEffect !== 'pop' && normalized.wordEffect !== 'wave') {
+        normalized.wordEffect = 'none';
+    }
+    if (normalized.wordEffect === 'none' && (normalized.popEffect || normalized.waveEffect)) {
+        normalized.wordEffect = normalized.popEffect ? 'pop' : 'wave';
+    }
+    normalized.popEffect = normalized.wordEffect === 'pop';
+    normalized.waveEffect = normalized.wordEffect === 'wave';
 
     normalized.lineHeight = Math.round(normalized.lineHeight * 100) / 100;
     return normalized;
+}
+
+export function mergeThemeConfig(raw: Partial<ThemeConfig> | null | undefined): ThemeConfig {
+    const merged = { ...DEFAULT_THEME, ...(raw || {}) };
+    if (raw && (raw as any).wordEffect === undefined) {
+        merged.wordEffect = merged.popEffect ? 'pop' : merged.waveEffect ? 'wave' : 'none';
+    }
+    return normalizeThemeConfig(merged);
 }
 
 function loadCustomPresets(): ThemePreset[] {
@@ -448,11 +514,10 @@ function loadActiveTheme(): ThemeConfig {
     try {
         const raw = storage.get('active-theme');
         if (raw) {
-            const parsed = JSON.parse(raw);
-            return normalizeThemeConfig({ ...DEFAULT_THEME, ...parsed });
+            return mergeThemeConfig(JSON.parse(raw));
         }
     } catch (e) {}
-    return normalizeThemeConfig({ ...DEFAULT_THEME });
+    return mergeThemeConfig(null);
 }
 
 export const themeState: ThemeState = {
@@ -470,7 +535,7 @@ export function saveThemeState(): void {
 }
 
 export function applyPreset(preset: ThemePreset): void {
-    themeState.activeTheme = normalizeThemeConfig({ ...preset.config });
+    themeState.activeTheme = mergeThemeConfig(preset.config);
     themeState.activePresetName = preset.name;
     saveThemeState();
 }
@@ -506,32 +571,7 @@ export function deleteCustomPreset(name: string): boolean {
 
 export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]): void {
     if (typeof value === 'number') {
-        const clamps: Partial<Record<keyof ThemeConfig, [number, number]>> = {
-            activeLineOpacity: [0, 1],
-            sungLineOpacity: [0, 1],
-            notSungLineOpacity: [0, 1],
-            pageBgOpacity: [0, 1],
-            sltTranslationOpacity: [0, 1],
-            blurAmount: [0, 8],
-            blurPreviewLines: [0, 5],
-            glowIntensity: [0, 15],
-            activeGlowIntensity: [0, 15],
-            bgGlowIntensity: [0, 30],
-            sltTranslationFontSize: [0.5, 2.0],
-            scaleActive: [0.95, 1.12],
-            scaleInFrom: [0.85, 1.05],
-            scaleInDuration: [0.1, 1.0],
-            animationSpeed: [0.3, 3.0],
-            gradientAngle: [0, 360],
-            popScale: [1.0, 1.3],
-            popDuration: [0.1, 0.6],
-            waveIntensity: [1, 10],
-            waveSpeed: [0.3, 2.0],
-            lineHeight: [1.0, 2.5],
-            letterSpacing: [-0.1, 0.3],
-            fontWeight: [100, 900],
-        };
-        const range = clamps[key];
+        const range = CLAMPS[key];
         if (range) {
             value = Math.min(Math.max(value as number, range[0]), range[1]) as ThemeConfig[K];
         }
@@ -541,11 +581,17 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
     }
     themeState.activeTheme[key] = value;
 
-    if (key === 'popEffect' && value === true) {
-        themeState.activeTheme.waveEffect = false;
+    if (key === 'wordEffect') {
+        themeState.activeTheme.popEffect = value === 'pop';
+        themeState.activeTheme.waveEffect = value === 'wave';
     }
-    if (key === 'waveEffect' && value === true) {
-        themeState.activeTheme.popEffect = false;
+    if (key === 'popEffect') {
+        themeState.activeTheme.waveEffect = value === true ? false : themeState.activeTheme.waveEffect;
+        themeState.activeTheme.wordEffect = value === true ? 'pop' : (themeState.activeTheme.waveEffect ? 'wave' : 'none');
+    }
+    if (key === 'waveEffect') {
+        themeState.activeTheme.popEffect = value === true ? false : themeState.activeTheme.popEffect;
+        themeState.activeTheme.wordEffect = value === true ? 'wave' : (themeState.activeTheme.popEffect ? 'pop' : 'none');
     }
 
     themeState.activePresetName = 'Custom';

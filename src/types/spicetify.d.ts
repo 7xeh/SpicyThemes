@@ -20,7 +20,10 @@ declare const Spicetify: {
         };
         addEventListener: (event: string, callback: (...args: any[]) => void) => void;
         removeEventListener: (event: string, callback: (...args: any[]) => void) => void;
+        getProgress: () => number;
+        isPlaying: () => boolean;
     };
+    getAudioData: (uri?: string) => Promise<any>;
     Playbar: {
         Button: any;
         Widget: any;

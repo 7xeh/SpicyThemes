@@ -1,9 +1,11 @@
 import { themeState, ThemeConfig } from './state';
+import { startEqAudio, stopEqAudio } from './eqAudio';
+import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer } from './musicVideo';
 
 
 const STYLE_ID = 'spicy-themes-injected-styles';
 const BASE_STYLE_ID = 'spicy-themes-base-styles';
-const VIDEO_BG_ID = 'spicy-themes-video-bg';
+const MUSIC_VIDEO_ID = 'spicy-themes-mv';
 
 function hexToRgba(hex: string, alpha: number): string {
     if (hex.startsWith('rgba') || hex.startsWith('rgb')) return hex;
@@ -110,10 +112,13 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const scaleEffect = !config.scaleInEffect && config.scaleActive !== 1.0 && `transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1) !important; transform-origin: left center !important;`;
     const bgGlowRgb = hexToRgb(config.bgGlowColor);
     const clampedBgGlow = Math.min(config.bgGlowIntensity, 30);
-    const bgGlowDecl = config.bgGlowEnabled
-        ? `text-shadow: 0 0 ${clampedBgGlow}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1)) !important;`
+    const dropShadow = config.textShadowEnabled
+        ? `${config.textShadowOffsetX}px ${config.textShadowOffsetY}px ${config.textShadowBlur}px ${hexToRgba(config.textShadowColor, config.textShadowOpacity)}`
         : '';
-    const karaokeGlowDecl = `text-shadow: 0 0 7px ${hexToRgba(config.activeLineColor, 0.5)} !important;`;
+    const shadowSuffix = dropShadow ? `, ${dropShadow}` : '';
+    const bgGlowDecl = config.bgGlowEnabled
+        ? `text-shadow: 0 0 ${clampedBgGlow}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1))${shadowSuffix} !important;`
+        : '';
     const lyricTransitionMs = Math.max(8.333, 110 / config.animationSpeed).toFixed(3);
     const lyricSnapMs = Math.max(8.333, 56 / config.animationSpeed).toFixed(3);
 
@@ -272,6 +277,40 @@ ${unblurTargets.join(',\n')} {
 `);
     }
 
+    if (config.blurSungWords) {
+        const sungWordTargets = ALL.flatMap(b => [
+            `${b} .line.Active .word.st-sung-word`,
+            `${b} .line.Active .letterGroup.st-sung-word`,
+        ]).join(',\n');
+        const sungWordTransitions = ALL.flatMap(b => [
+            `${b} .line.Active .word`,
+            `${b} .line.Active .letterGroup`,
+        ]).join(',\n');
+        css.push(`
+${sungWordTransitions} {
+    transition-property: color, -webkit-text-fill-color, filter !important;
+    transition-duration: 180ms !important;
+    transition-timing-function: linear !important;
+}
+${sungWordTargets} {
+    filter: blur(${config.blurSungWordsAmount}px) opacity(${config.blurSungWordsOpacity}) !important;
+}
+`);
+    }
+
+    if (config.textShadowEnabled) {
+        const shadowTargets = [
+            ...ALL.map(b => `${b} .line`),
+            '.slt-replace-line',
+            '.slt-interleaved-translation',
+        ].join(',\n');
+        css.push(`
+${shadowTargets} {
+    text-shadow: ${dropShadow} !important;
+}
+`);
+    }
+
     if (config.lineWindowEnabled) {
         const sungN = Math.min(Math.max(Math.round(config.lineWindowSungLines), 0), 10);
         const unsungN = Math.min(Math.max(Math.round(config.lineWindowUnsungLines), 0), 10);
@@ -282,8 +321,10 @@ ${unblurTargets.join(',\n')} {
         ]).join(',\n');
         css.push(`
 ${hideTargets} {
+    opacity: 0 !important;
     visibility: hidden !important;
     pointer-events: none !important;
+    transition: opacity 0.35s ease, visibility 0s linear 0.35s !important;
 }
 `);
 
@@ -300,8 +341,10 @@ ${hideTargets} {
         }
         css.push(`
 ${showTargets.join(',\n')} {
+    opacity: 1 !important;
     visibility: visible !important;
     pointer-events: auto !important;
+    transition: opacity 0.35s ease, visibility 0s !important;
 }
 `);
     }
@@ -383,6 +426,23 @@ ${highlightTargets} {
     if (config.sltStylingEnabled) {
     const useSltColor = config.sltTranslationColorEnabled && !!config.sltTranslationColor;
     const sltBaseColor = useSltColor ? config.sltTranslationColor : config.notSungLineColor;
+    const useSltGlow = config.sltGlowColorEnabled && !!config.sltGlowColor;
+    const sltGlowActive = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedActiveGlow}px ${useSltGlow ? config.sltGlowColor : config.activeGlowColor}) !important;`;
+    const sltBgGlowRgb = hexToRgb(useSltGlow ? config.sltGlowColor : config.bgGlowColor);
+    const sltBgGlowDecl = config.bgGlowEnabled
+        ? `text-shadow: 0 0 ${clampedBgGlow}px rgba(${sltBgGlowRgb.r}, ${sltBgGlowRgb.g}, ${sltBgGlowRgb.b}, var(--text-shadow-opacity, 1))${shadowSuffix} !important;`
+        : '';
+    const sltKaraokeGlowDecl = `text-shadow: 0 0 7px ${hexToRgba(useSltGlow ? config.sltGlowColor : (config.gradientEnabled ? config.gradientStartColor : config.activeLineColor), 0.5)}${shadowSuffix} !important;`;
+    if (sltFontFamilyDecl) {
+        css.push(`
+#SpicyLyricsPage .slt-interleaved-translation.slt-interleaved-translation,
+#SpicyLyricsPage .slt-interleaved-translation.slt-interleaved-translation *,
+#SpicyLyricsPage .slt-replace-line.slt-replace-line,
+#SpicyLyricsPage .slt-replace-line.slt-replace-line * {
+    ${sltFontFamilyDecl}
+}
+`);
+    }
     const sltHlStartRgb = hexToRgb(config.sltHighlightStartColor);
     const sltHlEndRgb = hexToRgb(config.sltHighlightEndColor);
     const sltHlGrad = gradientRule(sltHlStartRgb.r, sltHlStartRgb.g, sltHlStartRgb.b, sltHlEndRgb.r, sltHlEndRgb.g, sltHlEndRgb.b);
@@ -459,12 +519,12 @@ ${highlightTargets} {
 .slt-replace-line.Active,
 .slt-replace-line.active,
 .line.Active + .slt-replace-line {
-    ${buildProps(activeGrad, `opacity: ${config.activeLineOpacity} !important;`, glowActive)}
+    ${buildProps(activeGrad, `opacity: ${config.activeLineOpacity} !important;`, sltGlowActive)}
 }
 
 .slt-replace-line.active .slt-replace-word.word-active,
 .slt-replace-line.Active .slt-replace-word.word-active {
-    ${buildProps(activeGrad, scaleEffect, bgGlowDecl || karaokeGlowDecl)}
+    ${buildProps(activeGrad, scaleEffect, sltBgGlowDecl || sltKaraokeGlowDecl)}
 }
 
 .line.Active + .slt-interleaved-translation:not(.slt-sync-translation),
@@ -473,7 +533,7 @@ ${highlightTargets} {
     ${buildProps(
         activeGrad,
         `opacity: ${config.activeLineOpacity} !important;`,
-        glowActive,
+        sltGlowActive,
     )}
 }
 
@@ -486,12 +546,12 @@ ${highlightTargets} {
         `background-repeat: no-repeat !important;`,
         `-webkit-box-decoration-break: slice !important;`,
         `box-decoration-break: slice !important;`,
-        glowActive || `filter: none !important;`,
+        sltGlowActive || `filter: none !important;`,
     )}
 }
 
 .slt-sync-word.slt-word-active {
-    ${buildProps(activeGrad, scaleEffect, bgGlowDecl || karaokeGlowDecl)}
+    ${buildProps(activeGrad, scaleEffect, sltBgGlowDecl || sltKaraokeGlowDecl)}
 }
 
 .slt-replace-line.Sung,
@@ -708,31 +768,201 @@ ${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')
         }
     }
 
-    if (config.videoBgEnabled && config.videoBgUrl.trim()) {
-        const blur = Math.min(Math.max(config.videoBgBlur, 0), 30);
-        const dim = Math.min(Math.max(config.videoBgDim, 0), 1);
-
+    if (config.musicVideoEnabled) {
+        const mvDim = Math.min(Math.max(config.musicVideoDim, 0), 1);
         css.push(`
-${PLAYER.map(p => `${p} #${VIDEO_BG_ID}`).join(',\n')} {
+#SpicyLyricsPage #${MUSIC_VIDEO_ID} {
     position: absolute !important;
     inset: 0 !important;
     z-index: -1 !important;
     overflow: hidden !important;
     pointer-events: none !important;
 }
-${PLAYER.map(p => `${p} #${VIDEO_BG_ID} video`).join(',\n')} {
+#SpicyLyricsPage #${MUSIC_VIDEO_ID} video {
     width: 100% !important;
     height: 100% !important;
     object-fit: cover !important;
     display: block !important;
-    ${blur > 0 ? `filter: blur(${blur}px) !important;\n    transform: scale(1.1) !important;` : ''}
 }
-${PLAYER.map(p => `${p} #${VIDEO_BG_ID}::after`).join(',\n')} {
+#SpicyLyricsPage #${MUSIC_VIDEO_ID} iframe {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+    width: auto !important;
+    height: auto !important;
+    aspect-ratio: 16 / 9 !important;
+    border: 0 !important;
+    pointer-events: none !important;
+}
+#SpicyLyricsPage #${MUSIC_VIDEO_ID}::after {
     content: '' !important;
     position: absolute !important;
     inset: 0 !important;
-    background: rgba(0, 0, 0, ${dim}) !important;
+    background: rgba(0, 0, 0, ${mvDim}) !important;
     pointer-events: none !important;
+}
+#SpicyLyricsPage.st-mv-active .spicy-dynamic-bg {
+    opacity: 0 !important;
+    transition: opacity 0.4s ease !important;
+}
+#SpicyLyricsPage.st-mv-active .LyricsContainer::before,
+#SpicyLyricsPage.st-mv-active.CompactMode::before {
+    background: transparent !important;
+}
+`);
+    }
+
+    if (config.eqEnabled) {
+        const eqU = (6 * config.eqSize).toFixed(2);
+        const beatCalc = (n: number) => `calc(var(--st-eq-beat, 0.5s) * ${(n / config.eqSpeed).toFixed(3)})`;
+        const barRule = (style: string, bands: number[], decl: (v: number) => string) =>
+            bands.map((b, i) => `.st-eq[data-style="${style}"] i:nth-child(${i + 1}) { ${decl(b)} }`).join('\n');
+        css.push(`
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata {
+    position: relative !important;
+}
+.st-eq {
+    --st-eq-u: ${eqU}cqh;
+    --st-eq-level: 0;
+${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(v => `    --st-eq-b${v}: 0;`).join('\n')}
+    position: absolute;
+    top: 30cqh;
+    translate: 0 -50%;
+    display: flex;
+    align-items: center;
+    gap: calc(var(--st-eq-u) * 0.45);
+    pointer-events: none;
+    z-index: 5;
+    color: ${config.eqColor};
+    opacity: 0.92;
+}
+.st-eq-left { left: 2cqw; }
+.st-eq-right { right: 2cqw; }
+.st-eq i {
+    display: block;
+    background: currentColor;
+}
+.st-eq.st-eq-paused,
+.st-eq.st-eq-paused i {
+    animation-play-state: paused;
+}
+
+.st-eq[data-style="equalizer"] {
+    gap: calc(var(--st-eq-u) * 0.3);
+}
+.st-eq[data-style="equalizer"] i {
+    width: calc(var(--st-eq-u) * 0.55);
+    height: calc(var(--st-eq-u) * 3.6);
+    border-radius: calc(var(--st-eq-u) * 0.28);
+    will-change: transform;
+}
+${barRule('equalizer', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], v => `transform: scaleY(calc(0.15 + 0.85 * var(--st-eq-b${v})));`)}
+
+.st-eq[data-style="dotwave"] {
+    gap: calc(var(--st-eq-u) * 0.28);
+}
+.st-eq[data-style="dotwave"] i {
+    width: calc(var(--st-eq-u) * 0.55);
+    height: calc(var(--st-eq-u) * 0.55);
+    border-radius: 50%;
+    will-change: transform, opacity;
+}
+${barRule('dotwave', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], v => `transform: translateY(calc(var(--st-eq-u) * (0.45 - 1.35 * var(--st-eq-b${v})))); opacity: calc(0.45 + 0.55 * var(--st-eq-b${v}));`)}
+
+.st-eq[data-style="orbit"] {
+    width: calc(var(--st-eq-u) * 4);
+    height: calc(var(--st-eq-u) * 4);
+    transform: scale(calc(0.7 + 0.5 * var(--st-eq-level)));
+    transition: transform 80ms ease-out;
+}
+.st-eq[data-style="orbit"] i {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: calc(var(--st-eq-u) * 0.7);
+    height: calc(var(--st-eq-u) * 0.7);
+    margin: calc(var(--st-eq-u) * -0.35) 0 0 calc(var(--st-eq-u) * -0.35);
+    border-radius: 50%;
+    animation: st-eq-orbit ${beatCalc(4)} linear infinite;
+    will-change: transform, scale;
+}
+${[0, 1, 2].map(i => `.st-eq[data-style="orbit"] i:nth-child(${i + 1}) { animation-delay: ${beatCalc(-i * 4 / 3)}; scale: calc(0.55 + 0.85 * var(--st-eq-b${[1, 5, 10][i]})); }`).join('\n')}
+.st-eq[data-style="orbit"] i:nth-child(4) {
+    width: calc(var(--st-eq-u) * 0.9);
+    height: calc(var(--st-eq-u) * 0.9);
+    margin: calc(var(--st-eq-u) * -0.45) 0 0 calc(var(--st-eq-u) * -0.45);
+    animation: none;
+    scale: calc(0.6 + 0.9 * var(--st-eq-b1));
+}
+@keyframes st-eq-orbit {
+    from { transform: rotate(0deg) translateX(calc(var(--st-eq-u) * 1.5)); }
+    to { transform: rotate(360deg) translateX(calc(var(--st-eq-u) * 1.5)); }
+}
+
+.st-eq[data-style="spectrumring"] {
+    width: calc(var(--st-eq-u) * 4);
+    height: calc(var(--st-eq-u) * 4);
+    animation: st-eq-slow-spin ${beatCalc(16)} linear infinite;
+}
+.st-eq[data-style="spectrumring"] i {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: calc(var(--st-eq-u) * 0.55);
+    height: calc(var(--st-eq-u) * 0.55);
+    margin: calc(var(--st-eq-u) * -0.275) 0 0 calc(var(--st-eq-u) * -0.275);
+    border-radius: 50%;
+    will-change: scale;
+}
+${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => `.st-eq[data-style="spectrumring"] i:nth-child(${i + 1}) { transform: rotate(${i * 36}deg) translateX(calc(var(--st-eq-u) * 1.5)); scale: calc(0.35 + 1.05 * var(--st-eq-b${i + 1})); }`).join('\n')}
+@keyframes st-eq-slow-spin {
+    from { rotate: 0deg; }
+    to { rotate: 360deg; }
+}
+
+.st-eq[data-style="signal"] {
+    gap: calc(var(--st-eq-u) * 0.26);
+}
+.st-eq[data-style="signal"] i {
+    width: calc(var(--st-eq-u) * 0.34);
+    height: calc(var(--st-eq-u) * 0.9);
+    border-radius: calc(var(--st-eq-u) * 0.17);
+    will-change: transform;
+}
+${barRule('signal', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], v => `transform: translateY(calc(var(--st-eq-u) * (0.7 - 1.4 * var(--st-eq-b${v}))));`)}
+
+.st-eq[data-style="pulsedot"] {
+    width: calc(var(--st-eq-u) * 3.4);
+    height: calc(var(--st-eq-u) * 3.4);
+}
+.st-eq[data-style="pulsedot"] i:first-child {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: calc(var(--st-eq-u) * 1.1);
+    height: calc(var(--st-eq-u) * 1.1);
+    margin: calc(var(--st-eq-u) * -0.55) 0 0 calc(var(--st-eq-u) * -0.55);
+    border-radius: 50%;
+    transform: scale(calc(0.55 + 0.8 * var(--st-eq-b1)));
+    transition: transform 60ms ease-out;
+}
+.st-eq[data-style="pulsedot"] i:nth-child(n+2) {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    border: calc(var(--st-eq-u) * 0.16) solid currentColor;
+    border-radius: 50%;
+    animation: st-eq-ring ${beatCalc(2)} ease-out infinite;
+}
+.st-eq[data-style="pulsedot"] i:nth-child(3) {
+    animation-delay: ${beatCalc(-1)};
+}
+@keyframes st-eq-ring {
+    from { transform: scale(0.35); opacity: 1; }
+    to { transform: scale(1); opacity: 0; }
 }
 `);
     }
@@ -761,59 +991,125 @@ function injectIntoPIPDocument(css: string): void {
     style.textContent = css;
 }
 
-function updateVideoBackgroundIn(doc: Document): void {
+const EQ_CHILD_COUNT: Record<string, number> = {
+    equalizer: 10,
+    dotwave: 10,
+    signal: 10,
+    orbit: 4,
+    pulsedot: 3,
+    spectrumring: 10,
+};
+
+function updateEqualizerIn(doc: Document): void {
     const config = themeState.activeTheme;
-    const enabled = themeState.isEnabled && config.videoBgEnabled && !!config.videoBgUrl.trim();
+    const enabled = themeState.isEnabled && config.eqEnabled;
+    const existing = Array.from(doc.querySelectorAll<HTMLElement>('.st-eq'));
 
-    let wrap = doc.getElementById(VIDEO_BG_ID) as HTMLElement | null;
-
-    if (!enabled) {
-        if (wrap) wrap.remove();
+    const metadata = doc.querySelector('#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata');
+    if (!enabled || !metadata) {
+        existing.forEach(el => el.remove());
         return;
     }
 
-    const parent = doc.querySelector('#SpicyLyricsPage') as HTMLElement | null;
-    if (!parent) {
-        if (wrap) wrap.remove();
-        return;
-    }
+    const sides = config.eqPosition === 'both' ? ['left', 'right'] : [config.eqPosition];
+    const count = EQ_CHILD_COUNT[config.eqStyle] ?? 5;
+    existing.forEach(el => {
+        const side = el.classList.contains('st-eq-left') ? 'left' : 'right';
+        if (!sides.includes(side) || el.parentElement !== metadata || el.getAttribute('data-style') !== config.eqStyle || el.children.length !== count) {
+            el.remove();
+        }
+    });
 
-    if (!wrap) {
-        wrap = doc.createElement('div');
-        wrap.id = VIDEO_BG_ID;
-        const video = doc.createElement('video');
-        video.autoplay = true;
-        video.muted = true;
-        video.loop = true;
-        video.setAttribute('playsinline', '');
-        (video as HTMLVideoElement).playsInline = true;
-        wrap.appendChild(video);
-    }
-
-    if (wrap.parentElement !== parent) {
-        parent.appendChild(wrap);
-    }
-
-    const video = wrap.querySelector('video') as HTMLVideoElement;
-    const url = config.videoBgUrl.trim();
-    if (video.getAttribute('src') !== url) {
-        video.src = url;
-        video.play?.().catch(() => {});
-    }
+    sides.forEach(side => {
+        if (metadata.querySelector(`.st-eq-${side}`)) return;
+        const eq = doc.createElement('div');
+        eq.className = `st-eq st-eq-${side}`;
+        eq.setAttribute('data-style', config.eqStyle);
+        for (let i = 0; i < count; i++) {
+            eq.appendChild(doc.createElement('i'));
+        }
+        metadata.appendChild(eq);
+    });
 }
 
-export function updateVideoBackground(): void {
+export function updateEqualizer(): void {
     try {
-        updateVideoBackgroundIn(document);
+        updateEqualizerIn(document);
         const pipWindow = getPIPWindow();
-        if (pipWindow) updateVideoBackgroundIn(pipWindow.document);
+        if (pipWindow) updateEqualizerIn(pipWindow.document);
+        if (themeState.isEnabled && themeState.activeTheme.eqEnabled) {
+            startEqAudio();
+        } else {
+            stopEqAudio();
+        }
     } catch (e) {}
 }
 
-function removeVideoBackground(): void {
-    document.getElementById(VIDEO_BG_ID)?.remove();
+function removeEqualizer(): void {
+    stopEqAudio();
+    document.querySelectorAll('.st-eq').forEach(el => el.remove());
     const pipWindow = getPIPWindow();
-    if (pipWindow) pipWindow.document.getElementById(VIDEO_BG_ID)?.remove();
+    if (pipWindow) pipWindow.document.querySelectorAll('.st-eq').forEach(el => el.remove());
+}
+
+export function updateMusicVideo(): void {
+    try {
+        if (themeState.isEnabled && themeState.activeTheme.musicVideoEnabled) {
+            startMusicVideo();
+            refreshMusicVideoLayer();
+        } else {
+            stopMusicVideo();
+        }
+    } catch (e) {}
+}
+
+function removeMusicVideo(): void {
+    stopMusicVideo();
+}
+
+let sungWordTimer: ReturnType<typeof setInterval> | null = null;
+
+function tagSungWordsIn(doc: Document): void {
+    doc.querySelectorAll('#SpicyLyricsPage .line.Active').forEach(line => {
+        line.querySelectorAll<HTMLElement>('.word, .letterGroup').forEach(el => {
+            const probe = el.classList.contains('letterGroup')
+                ? (el.querySelector<HTMLElement>('.letter:last-child') || el)
+                : el;
+            const raw = probe.style.getPropertyValue('--gradient-position')
+                || probe.style.getPropertyValue('--SLM_GradientPosition');
+            const v = parseFloat(raw);
+            const sung = !Number.isNaN(v) && v >= 99;
+            if (el.classList.contains('st-sung-word') !== sung) {
+                el.classList.toggle('st-sung-word', sung);
+            }
+        });
+    });
+    doc.querySelectorAll('#SpicyLyricsPage .line:not(.Active) .st-sung-word').forEach(el => {
+        el.classList.remove('st-sung-word');
+    });
+}
+
+function tagSungWords(): void {
+    try {
+        tagSungWordsIn(document);
+        const pipWindow = getPIPWindow();
+        if (pipWindow) tagSungWordsIn(pipWindow.document);
+    } catch (e) {}
+}
+
+function startSungWordTagger(): void {
+    if (sungWordTimer) return;
+    sungWordTimer = setInterval(tagSungWords, 120);
+}
+
+function stopSungWordTagger(): void {
+    if (sungWordTimer) {
+        clearInterval(sungWordTimer);
+        sungWordTimer = null;
+    }
+    document.querySelectorAll('.st-sung-word').forEach(el => el.classList.remove('st-sung-word'));
+    const pipWindow = getPIPWindow();
+    if (pipWindow) pipWindow.document.querySelectorAll('.st-sung-word').forEach(el => el.classList.remove('st-sung-word'));
 }
 
 let blurPreviewObserver: MutationObserver | null = null;
@@ -887,7 +1183,13 @@ export function injectThemeStyles(): void {
 
     injectIntoPIPDocument(css);
 
-    updateVideoBackground();
+    updateEqualizer();
+    updateMusicVideo();
+    if (themeState.activeTheme.blurSungWords) {
+        startSungWordTagger();
+    } else {
+        stopSungWordTagger();
+    }
     scheduleBlurPreview();
 }
 
@@ -903,7 +1205,9 @@ export function removeThemeStyles(): void {
         if (pipStyle) pipStyle.remove();
     }
 
-    removeVideoBackground();
+    removeEqualizer();
+    removeMusicVideo();
+    stopSungWordTagger();
 }
 
 export function injectBaseStyles(): void {
