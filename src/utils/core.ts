@@ -10,7 +10,6 @@ let themeButton: HTMLElement | null = null;
 export function isSpicyLyricsOpen(): boolean {
     if (document.querySelector('#SpicyLyricsPage')) return true;
     if (document.querySelector('.spicy-pip-wrapper #SpicyLyricsPage')) return true;
-    if (document.querySelector('.Cinema--Container')) return true;
     if (document.body.classList.contains('SpicySidebarLyrics__Active')) return true;
 
     try {

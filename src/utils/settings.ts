@@ -26,6 +26,38 @@ function resetUpdateChannelState(): void {
     CHANNEL_STATE_KEYS.forEach(key => storage.remove(key));
 }
 
+function nativeSettingsClass(selector: string, fallback: string): string {
+    try {
+        const candidates = document.querySelectorAll<HTMLElement>(selector);
+        for (const el of Array.from(candidates)) {
+            if (el.closest(`#${SETTINGS_ID}, #spicy-lyrics-settings, #spicy-lyrics-dev-settings, #spicy-lyric-translator-settings`)) continue;
+            if (typeof el.className === 'string' && el.className.trim()) return el.className;
+        }
+    } catch (e) {}
+    return fallback;
+}
+
+function settingsLabelClass(): string {
+    return nativeSettingsClass(
+        '.x-settings-section .x-settings-firstColumn label',
+        'encore-text-body-small encore-internal-color-text-subdued'
+    );
+}
+
+function settingsButtonClass(): string {
+    return nativeSettingsClass(
+        '.x-settings-section button.x-settings-button',
+        'encore-text-body-small-bold encore-internal-color-text-base x-settings-button'
+    );
+}
+
+function settingsHeadingClass(): string {
+    return nativeSettingsClass(
+        '.x-settings-section h2',
+        'encore-text-body-medium-bold encore-internal-color-text-base'
+    );
+}
+
 async function handleManualUpdateCheck(button: HTMLButtonElement, idleText: string): Promise<void> {
     button.disabled = true;
     button.textContent = 'Checking...';
@@ -68,7 +100,7 @@ function createColorRow(id: string, label: string, currentValue: string, onChang
     row.className = 'x-settings-row';
     row.innerHTML = `
         <div class="x-settings-firstColumn">
-            <label class="e-10310-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
+            <label class="${settingsLabelClass()}" for="${id}">${label}</label>
         </div>
         <div class="x-settings-secondColumn">
             <div class="st-inline-group">
@@ -89,7 +121,7 @@ function createSliderRow(id: string, label: string, min: number, max: number, st
     row.className = 'x-settings-row';
     row.innerHTML = `
         <div class="x-settings-firstColumn">
-            <label class="e-10310-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
+            <label class="${settingsLabelClass()}" for="${id}">${label}</label>
         </div>
         <div class="x-settings-secondColumn">
             <div class="st-inline-group">
@@ -114,7 +146,7 @@ function createToggleRow(id: string, label: string, checked: boolean, onChange: 
     row.className = 'x-settings-row';
     row.innerHTML = `
         <div class="x-settings-firstColumn">
-            <label class="e-10310-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
+            <label class="${settingsLabelClass()}" for="${id}">${label}</label>
         </div>
         <div class="x-settings-secondColumn">
             <label class="x-toggle-wrapper">
@@ -138,7 +170,7 @@ function createDropdownRow(id: string, label: string, options: { value: string; 
     row.className = 'x-settings-row';
     row.innerHTML = `
         <div class="x-settings-firstColumn">
-            <label class="e-10310-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
+            <label class="${settingsLabelClass()}" for="${id}">${label}</label>
         </div>
         <div class="x-settings-secondColumn">
             <span>
@@ -161,10 +193,10 @@ function createButtonRow(id: string, label: string, buttonText: string, onClick:
     row.className = 'x-settings-row';
     row.innerHTML = `
         <div class="x-settings-firstColumn">
-            <label class="e-10310-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
+            <label class="${settingsLabelClass()}" for="${id}">${label}</label>
         </div>
         <div class="x-settings-secondColumn">
-            <button id="${id}" class="encore-text-body-small-bold e-10310-legacy-button--small e-10310-legacy-button-secondary--text-base encore-internal-color-text-base e-10310-legacy-button e-10310-legacy-button-secondary e-10310-overflow-wrap-anywhere x-settings-button" data-encore-id="buttonSecondary" type="button">${buttonText}</button>
+            <button id="${id}" class="${settingsButtonClass()}" data-encore-id="buttonSecondary" type="button">${buttonText}</button>
         </div>
     `;
     const button = row.querySelector('button') as HTMLButtonElement;
@@ -177,7 +209,7 @@ function createTextInputRow(id: string, label: string, currentValue: string, pla
     row.className = 'x-settings-row';
     row.innerHTML = `
         <div class="x-settings-firstColumn">
-            <label class="e-10310-text encore-text-body-small encore-internal-color-text-subdued" for="${id}">${label}</label>
+            <label class="${settingsLabelClass()}" for="${id}">${label}</label>
         </div>
         <div class="x-settings-secondColumn">
             <input type="text" id="${id}" class="main-dropDown-dropDown" style="width: 200px;" value="" placeholder="${placeholder}">
@@ -197,7 +229,7 @@ function createComingSoonRow(id: string, label: string): HTMLElement {
     row.className = 'x-settings-row';
     row.innerHTML = `
         <div class="x-settings-firstColumn">
-            <label class="e-10310-text encore-text-body-small encore-internal-color-text-subdued" for="${id}" style="opacity: 0.5;">${label}</label>
+            <label class="${settingsLabelClass()}" for="${id}" style="opacity: 0.5;">${label}</label>
         </div>
         <div class="x-settings-secondColumn">
             <span class="st-coming-soon">Coming soon</span>
@@ -220,7 +252,7 @@ function createPresetSelector(): HTMLElement {
     container.style.cssText = 'flex-direction: column; align-items: flex-start;';
 
     const label = document.createElement('label');
-    label.className = 'e-10310-text encore-text-body-small encore-internal-color-text-subdued';
+    label.className = settingsLabelClass();
     label.textContent = 'Theme Presets';
     label.style.marginBottom = '8px';
     container.appendChild(label);
@@ -398,12 +430,12 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     section.id = id;
     section.className = 'spicy-themes-settings';
     section.innerHTML = `
-        <div class="x-settings-section fNaaQ0Cp8Yzy19j8">
-            <h2 class="e-10310-text encore-text-body-medium-bold encore-internal-color-text-base">Spicy Themes</h2>
+        <div class="x-settings-section">
+            <h2 class="${settingsHeadingClass()}">Spicy Themes</h2>
         </div>
     `;
 
-    const content = section.querySelector('.x-settings-section.fNaaQ0Cp8Yzy19j8') as HTMLElement;
+    const content = section.querySelector('.x-settings-section') as HTMLElement;
 
     const optionsContainer = document.createElement('div');
     optionsContainer.id = 'st-settings-options';
@@ -551,10 +583,10 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     githubRow.className = 'x-settings-row';
     githubRow.innerHTML = `
         <div class="x-settings-firstColumn">
-            <label class="e-10310-text encore-text-body-small encore-internal-color-text-subdued">GitHub Repository</label>
+            <label class="${settingsLabelClass()}">GitHub Repository</label>
         </div>
         <div class="x-settings-secondColumn">
-            <a href="https://github.com/7xeh/SpicyThemes" target="_blank" class="encore-text-body-small-bold e-10310-legacy-button--small e-10310-legacy-button-secondary--text-base encore-internal-color-text-base e-10310-legacy-button e-10310-legacy-button-secondary e-10310-overflow-wrap-anywhere x-settings-button e-10310-legacy-button--trailing" data-encore-id="buttonSecondary">View<span aria-hidden="true" class="e-10310-button__icon-wrapper"><svg data-encore-id="icon" role="img" aria-hidden="true" class="e-10310-icon e-10310-baseline" viewBox="0 0 16 16" style="--encore-icon-height: var(--encore-graphic-size-decorative-smaller); --encore-icon-width: var(--encore-graphic-size-decorative-smaller);"><path d="M1 2.75A.75.75 0 0 1 1.75 2H7v1.5H2.5v11h10.219V9h1.5v6.25a.75.75 0 0 1-.75.75H1.75a.75.75 0 0 1-.75-.75z"></path><path d="M15 1v4.993a.75.75 0 1 1-1.5 0V3.56L8.78 8.28a.75.75 0 0 1-1.06-1.06l4.72-4.72h-2.433a.75.75 0 0 1 0-1.5z"></path></svg></span></a>
+            <a href="https://github.com/7xeh/SpicyThemes" target="_blank" class="${settingsButtonClass()}" data-encore-id="buttonSecondary">View<span aria-hidden="true" style="display: inline-flex; margin-left: 6px; vertical-align: middle;"><svg data-encore-id="icon" role="img" aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M1 2.75A.75.75 0 0 1 1.75 2H7v1.5H2.5v11h10.219V9h1.5v6.25a.75.75 0 0 1-.75.75H1.75a.75.75 0 0 1-.75-.75z"></path><path d="M15 1v4.993a.75.75 0 1 1-1.5 0V3.56L8.78 8.28a.75.75 0 0 1-1.06-1.06l4.72-4.72h-2.433a.75.75 0 0 1 0-1.5z"></path></svg></span></a>
         </div>
     `;
     optionsContainer.appendChild(githubRow);

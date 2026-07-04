@@ -784,13 +784,21 @@ ${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')
     object-fit: cover !important;
     display: block !important;
 }
+#SpicyLyricsPage #${MUSIC_VIDEO_ID} video::-webkit-media-text-track-container {
+    display: none !important;
+}
+#SpicyLyricsPage #${MUSIC_VIDEO_ID} video::cue {
+    visibility: hidden !important;
+    color: transparent !important;
+    background: transparent !important;
+}
 #SpicyLyricsPage #${MUSIC_VIDEO_ID} iframe {
     position: absolute !important;
     top: 50% !important;
     left: 50% !important;
     transform: translate(-50%, -50%) !important;
-    min-width: 100% !important;
-    min-height: 100% !important;
+    min-width: calc(100% + max(160px, 24%)) !important;
+    min-height: calc(100% + max(160px, 24%)) !important;
     width: auto !important;
     height: auto !important;
     aspect-ratio: 16 / 9 !important;

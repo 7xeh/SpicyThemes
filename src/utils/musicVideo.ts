@@ -181,7 +181,6 @@ export function songMsToVideoMs(v: VideoMeta, songMs: number): number {
 function spotifyHasOwnVideo(): boolean {
     const scopes = [
         document.querySelector('#SpicyLyricsPage'),
-        document.querySelector('.Cinema--Container'),
     ];
     for (const scope of scopes) {
         if (!scope) continue;
@@ -245,6 +244,13 @@ function loadYouTubeAPI(cb: () => void): void {
     document.head.appendChild(tag);
 }
 
+function disableYtCaptions(player: any): void {
+    try {
+        player.unloadModule?.('captions');
+        player.unloadModule?.('cc');
+    } catch (e) {}
+}
+
 function createYtPlayer(container: HTMLElement, videoId: string): void {
     if (!running || activeSource !== 'youtube' || currentMeta?.source_ref !== videoId) return;
     const host = document.createElement('div');
@@ -270,10 +276,14 @@ function createYtPlayer(container: HTMLElement, videoId: string): void {
             events: {
                 onReady: (e: any) => {
                     ytReady = true;
+                    disableYtCaptions(e.target);
                     try {
                         e.target.mute();
                         e.target.seekTo(songMsToVideoMs(currentMeta as VideoMeta, currentSongMs()) / 1000, true);
                     } catch (err) {}
+                },
+                onStateChange: (e: any) => {
+                    disableYtCaptions(e.target);
                 },
             },
         });
@@ -301,8 +311,19 @@ function buildSource(id: string, meta: VideoMeta): void {
         video.preload = 'auto';
         video.setAttribute('playsinline', '');
         video.playsInline = true;
+        const disableTextTracks = () => {
+            try {
+                for (let i = 0; i < video.textTracks.length; i++) {
+                    video.textTracks[i].mode = 'disabled';
+                }
+            } catch (e) {}
+        };
+        try {
+            video.textTracks.addEventListener('addtrack', disableTextTracks);
+        } catch (e) {}
         video.addEventListener('loadedmetadata', () => {
             if (mp4El !== video) return;
+            disableTextTracks();
             try {
                 video.currentTime = songMsToVideoMs(meta, currentSongMs()) / 1000;
             } catch (e) {}
