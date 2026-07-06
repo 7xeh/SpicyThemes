@@ -5,6 +5,7 @@ import { checkForUpdates, getCurrentVersion, getUpdateInfo, isDevChannel } from 
 import { createSettingsModal, SCHEMA, FONT_OPTIONS, FieldDef } from './settingsModal';
 import { displayModal } from './modal';
 import { ThemeConfig } from './state';
+import { Icons } from './icons';
 
 const SETTINGS_ID = 'spicy-themes-settings';
 const MODAL_SETTINGS_ID = 'spicy-themes-modal-settings';
@@ -728,9 +729,10 @@ export async function registerSettings(): Promise<void> {
         if ((Spicetify as any).Menu) {
             try {
                 new (Spicetify as any).Menu.Item(
-                    'Spicy Themes',
+                    'ST Settings',
                     false,
-                    openSettingsModal
+                    openSettingsModal,
+                    Icons.Palette
                 ).register();
                 globalWindow[MENU_REGISTERED_FLAG] = true;
                 return true;
