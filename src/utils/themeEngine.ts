@@ -206,9 +206,17 @@ ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
 
     css.push(`
 ${lineSelectors(ALL, 'Active')} {
-    ${buildProps(activeGrad, scaleEffect)}
+    ${activeGrad}
 }
 `);
+
+    if (scaleEffect) {
+        css.push(`
+${ALL.map(b => `${b} .line.Active`).join(',\n')} {
+    ${scaleEffect}
+}
+`);
+    }
 
     css.push(`
 ${lineSelectors(ALL, 'Sung')} {
@@ -449,6 +457,9 @@ ${highlightTargets} {
     const activeGrad = sltHlGrad;
     const sungGrad = sltHlGrad;
     const notSungGrad = colorRule(sltBaseColor);
+    const sltActiveOpacity = Math.round(config.activeLineOpacity * config.sltTranslationOpacity * 1000) / 1000;
+    const sltSungOpacity = Math.round(config.sungLineOpacity * config.sltTranslationOpacity * 1000) / 1000;
+    const sltNotSungOpacity = Math.round(config.notSungLineOpacity * config.sltTranslationOpacity * 1000) / 1000;
     css.push(`
 .slt-replace-line {
     ${buildProps(notSungGrad, `opacity: ${config.sltTranslationOpacity} !important;`, sltFontOverrides)}
@@ -519,7 +530,7 @@ ${highlightTargets} {
 .slt-replace-line.Active,
 .slt-replace-line.active,
 .line.Active + .slt-replace-line {
-    ${buildProps(activeGrad, `opacity: ${config.activeLineOpacity} !important;`, sltGlowActive)}
+    ${buildProps(activeGrad, `opacity: ${sltActiveOpacity} !important;`, sltGlowActive)}
 }
 
 .slt-replace-line.active .slt-replace-word.word-active,
@@ -532,7 +543,7 @@ ${highlightTargets} {
 .slt-interleaved-translation.Active:not(.slt-sync-translation) {
     ${buildProps(
         activeGrad,
-        `opacity: ${config.activeLineOpacity} !important;`,
+        `opacity: ${sltActiveOpacity} !important;`,
         sltGlowActive,
     )}
 }
@@ -541,7 +552,7 @@ ${highlightTargets} {
 .slt-sync-translation.slt-interleaved-translation.active {
     ${buildProps(
         activeGrad,
-        `opacity: ${config.activeLineOpacity} !important;`,
+        `opacity: ${sltActiveOpacity} !important;`,
         `background-size: 100% 100% !important;`,
         `background-repeat: no-repeat !important;`,
         `-webkit-box-decoration-break: slice !important;`,
@@ -556,7 +567,7 @@ ${highlightTargets} {
 
 .slt-replace-line.Sung,
 .line.Sung + .slt-replace-line {
-    ${buildProps(sungGrad, `opacity: ${config.sungLineOpacity} !important;`)}
+    ${buildProps(sungGrad, `opacity: ${sltSungOpacity} !important;`)}
 }
 
 .slt-replace-word.word-sung {
@@ -566,14 +577,14 @@ ${highlightTargets} {
 .line.Sung + .slt-interleaved-translation:not(.slt-sync-translation) {
     ${buildProps(
         sungGrad,
-        `opacity: ${config.sungLineOpacity} !important;`,
+        `opacity: ${sltSungOpacity} !important;`,
     )}
 }
 
 .line.Sung + .slt-sync-translation.slt-interleaved-translation {
     ${buildProps(
         sungGrad,
-        `opacity: ${config.sungLineOpacity} !important;`,
+        `opacity: ${sltSungOpacity} !important;`,
         `--gradient-position: 100% !important;`,
         `background-size: 100% 100% !important;`,
         `background-repeat: no-repeat !important;`,
@@ -588,7 +599,7 @@ ${highlightTargets} {
 
 .slt-replace-line.NotSung,
 .line.NotSung + .slt-replace-line {
-    ${buildProps(notSungGrad, `opacity: ${config.notSungLineOpacity} !important;`)}
+    ${buildProps(notSungGrad, `opacity: ${sltNotSungOpacity} !important;`)}
 }
 
 .slt-replace-word.word-notsung,
@@ -599,14 +610,14 @@ ${highlightTargets} {
 .line.NotSung + .slt-interleaved-translation:not(.slt-sync-translation) {
     ${buildProps(
         notSungGrad,
-        `opacity: ${config.notSungLineOpacity} !important;`,
+        `opacity: ${sltNotSungOpacity} !important;`,
     )}
 }
 
 .line.NotSung + .slt-sync-translation.slt-interleaved-translation {
     ${buildProps(
         notSungGrad,
-        `opacity: ${config.notSungLineOpacity} !important;`,
+        `opacity: ${sltNotSungOpacity} !important;`,
         `--gradient-position: -20% !important;`,
         `background-size: 100% 100% !important;`,
         `background-repeat: no-repeat !important;`,
@@ -1669,6 +1680,13 @@ const BASE_STYLES = `
     color: var(--st-text);
     padding-bottom: 7px;
     border-bottom: 1px solid var(--st-border);
+}
+
+.st-modal-root .st-m-cz-cat-desc {
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--st-text-dim);
+    margin-top: 8px;
 }
 
 .st-modal-root .st-m-section {

@@ -210,6 +210,13 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
     };
 }
 
+function toColorInputValue(value: string): string {
+    if (!value) return '#ffffff';
+    const { r, g, b } = hexToRgb(value);
+    const hex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+    return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
 function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
     const t = { ...DEFAULT_THEME, ...theme } as ThemeConfig;
     host.style.setProperty('--st-prv-scale', String(t.lyricsScale ?? 1));
@@ -269,14 +276,7 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
     }
     if (sung) {
         sung.style.opacity = String(t.sungLineOpacity);
-        if (t.gradientEnabled) {
-            sung.style.background = `linear-gradient(${t.gradientAngle}deg, ${t.gradientStartColor}, ${t.gradientEndColor})`;
-            sung.style.backgroundClip = 'text';
-            sung.style.webkitBackgroundClip = 'text';
-            (sung.style as any).webkitTextFillColor = 'transparent';
-        } else {
-            sung.style.color = t.sungLineColor;
-        }
+        sung.style.color = t.sungLineColor;
         if (t.glowEnabled) {
             const c = hexToRgb(t.glowColor);
             sung.style.textShadow = `0 0 ${t.glowIntensity}px rgba(${c.r}, ${c.g}, ${c.b}, 0.6)`;
@@ -284,14 +284,7 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
     }
     if (unsung) {
         unsung.style.opacity = String(t.notSungLineOpacity);
-        if (t.gradientEnabled) {
-            unsung.style.background = `linear-gradient(${t.gradientAngle}deg, ${t.gradientStartColor}, ${t.gradientEndColor})`;
-            unsung.style.backgroundClip = 'text';
-            unsung.style.webkitBackgroundClip = 'text';
-            (unsung.style as any).webkitTextFillColor = 'transparent';
-        } else {
-            unsung.style.color = t.notSungLineColor;
-        }
+        unsung.style.color = t.notSungLineColor;
         if (t.blurUnsung && t.blurPreviewLines === 0) {
             unsung.style.filter = `blur(${t.blurAmount}px)`;
         }
@@ -311,15 +304,9 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
     }
 }
 
-function refreshPreview(): void {
-    const preview = liveContainer?.querySelector<HTMLElement>('.st-modal-preview');
-    if (preview) renderPreview(preview, themeState.activeTheme);
-}
-
 function liveUpdate<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]): void {
     updateThemeProperty(key, value);
     injectThemeStyles();
-    refreshPreview();
     applyCustomizeFilter();
 }
 
@@ -402,8 +389,7 @@ function buildField(def: FieldDef, index: number): HTMLElement {
             const input = document.createElement('input');
             input.type = 'color';
             input.className = 'st-m-color';
-            const v = String(cur || '#ffffff');
-            input.value = v.startsWith('#') ? v : '#ffffff';
+            input.value = toColorInputValue(String(cur ?? ''));
             input.addEventListener('input', () => liveUpdate(def.id, input.value as any));
             control.appendChild(input);
             break;
@@ -455,13 +441,24 @@ function buildField(def: FieldDef, index: number): HTMLElement {
                     }
                 });
             } else {
+                let matched = false;
                 opts.forEach(o => {
                     const opt = document.createElement('option');
                     opt.value = o.value;
                     opt.textContent = o.text;
-                    if (String(cur) === o.value) opt.selected = true;
+                    if (String(cur) === o.value) {
+                        opt.selected = true;
+                        matched = true;
+                    }
                     select.appendChild(opt);
                 });
+                if (!matched && cur !== undefined && cur !== null && String(cur) !== '') {
+                    const opt = document.createElement('option');
+                    opt.value = String(cur);
+                    opt.textContent = def.id === 'fontWeight' ? `Custom (${cur})` : String(cur);
+                    opt.selected = true;
+                    select.appendChild(opt);
+                }
                 select.addEventListener('change', () => {
                     const v: any = def.id === 'fontWeight' ? parseInt(select.value, 10) : select.value;
                     liveUpdate(def.id, v);
@@ -486,12 +483,12 @@ function buildField(def: FieldDef, index: number): HTMLElement {
     return row;
 }
 
-const CZ_CATEGORIES: { id: string; label: string; sections: string[] }[] = [
+const CZ_CATEGORIES: { id: string; label: string; sections: string[]; description?: string }[] = [
     { id: 'cz-text', label: 'Text & Color', sections: ['Colors', 'Opacity', 'Typography', 'Gradient'] },
     { id: 'cz-effects', label: 'Glow & Effects', sections: ['Glow', 'Effects'] },
     { id: 'cz-layout', label: 'Layout', sections: ['Lyrics Window', 'Background'] },
     { id: 'cz-translation', label: 'Translation', sections: ['Translation'] },
-    { id: 'cz-player', label: 'Player & Media', sections: ['Player', 'Equalizer', 'Music Videos'] },
+    { id: 'cz-player', label: 'Player & Media', sections: ['Player', 'Equalizer', 'Music Videos'], description: 'Styling for the Now Playing bar and the main Spicy Lyrics window.' },
 ];
 
 let activeCategoryId = CZ_CATEGORIES[0].id;
@@ -548,6 +545,12 @@ function buildCustomizeTab(): HTMLElement {
         catTitle.className = 'st-m-cz-cat-title';
         catTitle.textContent = cat.label;
         catEl.appendChild(catTitle);
+        if (cat.description) {
+            const catDesc = document.createElement('div');
+            catDesc.className = 'st-m-cz-cat-desc';
+            catDesc.textContent = cat.description;
+            catEl.appendChild(catDesc);
+        }
         cat.sections.forEach(s => {
             const el = sectionEls.get(s);
             if (el) catEl.appendChild(el);
@@ -946,7 +949,6 @@ function buildAboutTab(): HTMLElement {
                     }
                     saveThemeState();
                     injectThemeStyles();
-                    refreshPreview();
                     notify('Theme imported');
                 } catch {
                     notify('Invalid theme file', true);
@@ -961,7 +963,6 @@ function buildAboutTab(): HTMLElement {
     resetBtn.addEventListener('click', () => {
         applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Default') || BUILTIN_PRESETS[0]);
         injectThemeStyles();
-        refreshPreview();
         notify('Theme reset to default');
     });
 

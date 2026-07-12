@@ -169,7 +169,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     bgGlowIntensity: 12,
 
     disableHighlight: false,
-    highlightColor: 'rgba(255, 255, 255, 0.2)',
+    highlightColor: '#ffffff',
     wordEffect: 'none',
     popEffect: false,
     popScale: 1.05,
@@ -580,6 +580,43 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     eqSpeed: [0.3, 3.0],
 };
 
+const COLOR_KEYS: (keyof ThemeConfig)[] = [
+    'activeLineColor', 'sungLineColor', 'notSungLineColor',
+    'glowColor', 'activeGlowColor',
+    'gradientStartColor', 'gradientEndColor',
+    'textShadowColor', 'pageBgColor',
+    'sltTranslationColor', 'sltHighlightStartColor', 'sltHighlightEndColor', 'sltGlowColor',
+    'bgGlowColor', 'highlightColor', 'eqColor',
+];
+
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+const RGB_COLOR_RE = /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(?:,\s*[\d.]+\s*)?\)$/;
+const FONT_NAME_RE = /^[A-Za-z0-9 ,'"._-]*$/;
+
+function sanitizeColor(value: unknown, fallback: string): string {
+    if (typeof value !== 'string') return fallback;
+    const v = value.trim();
+    return HEX_COLOR_RE.test(v) || RGB_COLOR_RE.test(v) ? v : fallback;
+}
+
+function sanitizeFont(value: unknown, fallback: string): string {
+    if (typeof value !== 'string') return fallback;
+    const v = value.trim();
+    if (v === '' || v === 'Custom Font') return v;
+    return FONT_NAME_RE.test(v) ? v : fallback;
+}
+
+export function sanitizeThemeString<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]): ThemeConfig[K] {
+    if (typeof value !== 'string') return value;
+    if (COLOR_KEYS.includes(key)) {
+        return sanitizeColor(value, DEFAULT_THEME[key] as string) as ThemeConfig[K];
+    }
+    if (key === 'fontFamily' || key === 'sltTranslationFont') {
+        return sanitizeFont(value, DEFAULT_THEME[key] as string) as ThemeConfig[K];
+    }
+    return value;
+}
+
 function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
     const normalized = { ...config };
     for (const [key, range] of Object.entries(CLAMPS) as [keyof ThemeConfig, [number, number]][]) {
@@ -602,6 +639,16 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
     }
     normalized.popEffect = normalized.wordEffect === 'pop';
     normalized.waveEffect = normalized.wordEffect === 'wave';
+
+    for (const key of COLOR_KEYS) {
+        (normalized as any)[key] = sanitizeColor((normalized as any)[key], (DEFAULT_THEME as any)[key]);
+    }
+    normalized.fontFamily = sanitizeFont(normalized.fontFamily, DEFAULT_THEME.fontFamily);
+    normalized.sltTranslationFont = sanitizeFont(normalized.sltTranslationFont, DEFAULT_THEME.sltTranslationFont);
+
+    if (!['both', 'left', 'right'].includes(normalized.eqPosition)) {
+        normalized.eqPosition = 'both';
+    }
 
     normalized.lineHeight = Math.round(normalized.lineHeight * 100) / 100;
     return normalized;
@@ -691,6 +738,8 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
         if (key === 'lineHeight') {
             value = Math.round((value as number) * 100) / 100 as ThemeConfig[K];
         }
+    } else if (typeof value === 'string') {
+        value = sanitizeThemeString(key, value);
     }
     themeState.activeTheme[key] = value;
 
