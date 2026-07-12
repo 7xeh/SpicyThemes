@@ -35,7 +35,7 @@ const EQ_WIDTH_FACTOR: Record<string, number> = {
     equalizer: 8.3,
     dotwave: 8.1,
     signal: 5.9,
-    orbit: 4.4,
+    orbit: 5.3,
     pulsedot: 3.6,
     spectrumring: 4.7,
 };
@@ -44,7 +44,7 @@ const EQ_HEIGHT_FACTOR: Record<string, number> = {
     equalizer: 3.6,
     dotwave: 2.1,
     signal: 2.4,
-    orbit: 4.4,
+    orbit: 5.3,
     pulsedot: 3.6,
     spectrumring: 4.7,
 };
@@ -93,8 +93,12 @@ function positionEq(el: HTMLElement): void {
                 ? sr.left - metaRect.left
                 : metaRect.right - sr.right;
             top = sr.top - metaRect.top + sr.height / 2;
+            uCfg = Math.min(uCfg, (sr.height * 1.2) / hf);
         }
     }
+
+    const room = Math.min(top, metaRect.height - top);
+    uCfg = Math.min(uCfg, (room * 2 * 0.95) / hf);
 
     const avail = sideGap - metaRect.width * 0.02 - 8;
     const u = Math.min(uCfg, avail > 0 ? avail / wf : 0);
@@ -103,6 +107,7 @@ function positionEq(el: HTMLElement): void {
         return;
     }
     el.style.display = '';
+    el.style.visibility = 'visible';
     el.style.setProperty('--st-eq-u', `${u.toFixed(2)}px`);
     el.style.top = `${top.toFixed(1)}px`;
 }

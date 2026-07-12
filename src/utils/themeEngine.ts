@@ -727,7 +727,7 @@ ${SIDEBAR.map(b => `${b} .line.Active`).join(',\n')} {
 
     if (config.playerStylingEnabled) {
         const radius = Math.min(Math.max(config.playerArtRadius, 0), 50);
-        const barH = (1.3 * config.playerProgressThickness).toFixed(2);
+        const barT = Math.min(Math.max(config.playerProgressThickness, 0.5), 5);
 
         css.push(`
 ${PLAYER.map(p => `${p} .ContentBox .NowBar .MediaImageContainer`).join(',\n')} {
@@ -736,11 +736,16 @@ ${PLAYER.map(p => `${p} .ContentBox .NowBar .MediaImageContainer`).join(',\n')} 
 }
 `);
 
-        css.push(`
+        if (barT !== 1) {
+            css.push(`
 ${PLAYER.map(p => `${p} .Timeline .SliderBar`).join(',\n')} {
-    height: ${barH}cqh !important;
+    height: calc(1.3cqh * ${barT}) !important;
+}
+${PLAYER.map(p => `${p} .Header > .Timeline .SliderBar`).join(',\n')} {
+    height: calc(1cqh * ${barT}) !important;
 }
 `);
+        }
 
         if (config.playerHideShuffle) {
             css.push(`${PLAYER.map(p => `${p} .PlaybackControls .ShuffleToggle`).join(',\n')} {\n    display: none !important;\n}`);
@@ -830,7 +835,7 @@ ${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')
             bands.map((b, i) => `.st-eq[data-style="${style}"] i:nth-child(${i + 1}) { ${decl(b)} }`).join('\n');
         css.push(`
 #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata {
-    position: relative !important;
+    position: relative;
 }
 .st-eq {
     --st-eq-u: ${eqU}cqh;
@@ -846,6 +851,7 @@ ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(v => `    --st-eq-b${v}: 0;`).join('\n')}
     z-index: 5;
     color: ${config.eqColor};
     opacity: 0.92;
+    visibility: hidden;
 }
 .st-eq-left { left: 2cqw; }
 .st-eq-right { right: 2cqw; }
@@ -1653,7 +1659,7 @@ const BASE_STYLES = `
     display: flex;
     flex-direction: column;
     gap: 10px;
-    scroll-margin-top: 64px;
+    animation: st-tab-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .st-modal-root .st-m-cz-cat-title {
     font-size: 12px;

@@ -324,7 +324,8 @@ function liveUpdate<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]):
 }
 
 function applyCustomizeFilter(): void {
-    const searchEl = liveContainer?.querySelector<HTMLInputElement>('.st-m-cz-search');
+    if (!liveContainer) return;
+    const searchEl = liveContainer.querySelector<HTMLInputElement>('.st-m-cz-search');
     const q = (searchEl?.value || '').trim().toLowerCase();
 
     czVisibilityFields.forEach(({ row, def }) => {
@@ -333,7 +334,6 @@ function applyCustomizeFilter(): void {
         row.style.display = whenOk && searchOk ? '' : 'none';
     });
 
-    if (!liveContainer) return;
     liveContainer.querySelectorAll<HTMLElement>('.st-m-cz-sections .st-m-section').forEach(sec => {
         const anyVisible = Array.from(sec.querySelectorAll<HTMLElement>('.st-m-field')).some(f => f.style.display !== 'none');
         sec.style.display = anyVisible ? '' : 'none';
@@ -341,9 +341,13 @@ function applyCustomizeFilter(): void {
 
     liveContainer.querySelectorAll<HTMLElement>('.st-m-cz-category').forEach(cat => {
         const anyVisible = Array.from(cat.querySelectorAll<HTMLElement>('.st-m-section')).some(s => s.style.display !== 'none');
-        cat.style.display = anyVisible ? '' : 'none';
+        const show = q ? anyVisible : (cat.id === activeCategoryId && anyVisible);
+        cat.style.display = show ? '' : 'none';
         const navItem = liveContainer!.querySelector<HTMLElement>(`.st-m-cz-nav-item[data-target="${cat.id}"]`);
-        if (navItem) navItem.style.display = anyVisible ? '' : 'none';
+        if (navItem) {
+            navItem.style.display = anyVisible ? '' : 'none';
+            navItem.classList.toggle('active', !q && cat.id === activeCategoryId);
+        }
     });
 }
 
@@ -490,6 +494,8 @@ const CZ_CATEGORIES: { id: string; label: string; sections: string[] }[] = [
     { id: 'cz-player', label: 'Player & Media', sections: ['Player', 'Equalizer', 'Music Videos'] },
 ];
 
+let activeCategoryId = CZ_CATEGORIES[0].id;
+
 function buildCustomizeTab(): HTMLElement {
     const tab = document.createElement('div');
     tab.className = 'st-m-tab-content st-m-cz';
@@ -534,11 +540,7 @@ function buildCustomizeTab(): HTMLElement {
         section.appendChild(row);
     });
 
-    const setActiveNav = (id: string) => {
-        nav.querySelectorAll('.st-m-cz-nav-item').forEach(b => b.classList.toggle('active', (b as HTMLElement).dataset.target === id));
-    };
-
-    CZ_CATEGORIES.forEach((cat, ci) => {
+    CZ_CATEGORIES.forEach(cat => {
         const catEl = document.createElement('div');
         catEl.className = 'st-m-cz-category';
         catEl.id = cat.id;
@@ -553,12 +555,15 @@ function buildCustomizeTab(): HTMLElement {
         sectionsCol.appendChild(catEl);
 
         const navBtn = document.createElement('button');
-        navBtn.className = `st-m-cz-nav-item${ci === 0 ? ' active' : ''}`;
+        navBtn.className = `st-m-cz-nav-item${cat.id === activeCategoryId ? ' active' : ''}`;
         navBtn.textContent = cat.label;
         navBtn.dataset.target = cat.id;
         navBtn.addEventListener('click', () => {
-            document.getElementById(cat.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            setActiveNav(cat.id);
+            activeCategoryId = cat.id;
+            if (search.value) search.value = '';
+            applyCustomizeFilter();
+            if (liveContainer) liveContainer.scrollTop = 0;
+            liveContainer?.closest('.sl-modal-content')?.scrollTo?.(0, 0);
         });
         nav.appendChild(navBtn);
     });
