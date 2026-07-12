@@ -79,37 +79,42 @@ function positionEq(el: HTMLElement): void {
     const style = el.getAttribute('data-style') || 'equalizer';
     const wf = EQ_WIDTH_FACTOR[style] ?? 8.3;
     const hf = EQ_HEIGHT_FACTOR[style] ?? 4.4;
+    const isLeft = el.classList.contains('st-eq-left');
 
-    let uCfg = metaRect.height * 0.06 * config.eqSize;
-    uCfg = Math.min(uCfg, (metaRect.height * 0.95) / hf);
-
-    let sideGap = metaRect.width * 0.075;
-    let top = metaRect.height * 0.3;
     const song = meta.querySelector('.SongName');
-    if (song) {
-        const sr = song.getBoundingClientRect();
-        if (sr.width > 0 && sr.height > 0) {
-            sideGap = el.classList.contains('st-eq-left')
-                ? sr.left - metaRect.left
-                : metaRect.right - sr.right;
-            top = sr.top - metaRect.top + sr.height / 2;
-            uCfg = Math.min(uCfg, (sr.height * 1.2) / hf);
-        }
+    const sr = song ? song.getBoundingClientRect() : null;
+    if (!sr || sr.width <= 0 || sr.height <= 0) {
+        el.style.display = 'none';
+        return;
     }
 
-    const room = Math.min(top, metaRect.height - top);
-    uCfg = Math.min(uCfg, (room * 2 * 0.95) / hf);
+    const top = sr.top - metaRect.top + sr.height / 2;
+    const gap = Math.max(sr.height * 0.3, 6);
 
-    const avail = sideGap - metaRect.width * 0.02 - 8;
-    const u = Math.min(uCfg, avail > 0 ? avail / wf : 0);
+    let u = (sr.height * config.eqSize) / hf;
+
+    const vRoom = Math.min(top, metaRect.height - top);
+    if (vRoom > 0) u = Math.min(u, (vRoom * 2 * 0.9) / hf);
+
+    const hRoom = (isLeft ? sr.left - metaRect.left : metaRect.right - sr.right) - gap - 2;
+    u = Math.min(u, hRoom > 0 ? hRoom / wf : 0);
+
     if (u < 1.2) {
         el.style.display = 'none';
         return;
     }
+
     el.style.display = '';
     el.style.visibility = 'visible';
     el.style.setProperty('--st-eq-u', `${u.toFixed(2)}px`);
     el.style.top = `${top.toFixed(1)}px`;
+    if (isLeft) {
+        el.style.right = `${(metaRect.right - sr.left + gap).toFixed(1)}px`;
+        el.style.left = 'auto';
+    } else {
+        el.style.left = `${(sr.right - metaRect.left + gap).toFixed(1)}px`;
+        el.style.right = 'auto';
+    }
 }
 
 function getPIPWindow(): Window | null {
