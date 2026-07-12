@@ -50,7 +50,7 @@ Customize [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) with colors, 
   - Word Highlight
 - Active line scaling and animation speed controls
 - Background overlay with custom color and opacity
-- 6 built-in theme presets
+- 8 built-in theme presets
 - Custom preset saving and management
 - Web-based Theme Creator with live preview
 - Community Theme Marketplace
@@ -86,18 +86,24 @@ https://7xeh.dev/apps/SpicyThemes/marketplace/
 
 ## Built-in Presets
 
+Each preset showcases a different part of the feature set, not just a color palette:
+
 - Default
-  - Balanced baseline with clean contrast and comfortable spacing
-- SpotiGlow
-  - Spotify green with vibrant neon glow and gradient styling
-- Sunset
-  - Warm orange and yellow gradient tones with glow and wave effects
-- Deep Ocean
-  - Cool blue tones with crisp active focus and strong glow
-- Synthwave
-  - Retro neon magenta and cyan styling with wave motion
+  - Balanced, neutral baseline to build from
+- Cinematic
+  - Synced music videos with a dark overlay, deep text shadow, scale-in and a tight line window
+- Neon Arcade
+  - Song-title equalizer (Spectrum Ring), layered glow, Pop animation and animated player controls
+- Focus
+  - Distraction-free reading via a tight line window plus sung-word blur and scale-in
+- Player Pro
+  - The NowBar styling suite: rounded art, thick progress bar, animated/hidden controls, Dot Wave EQ and videos
+- Bilingual
+  - Translation (SLT) styling — a tinted, glowing translation line in its own larger font with extra spacing
+- Aurora
+  - Ambient atmosphere: shifting gradient, wide background glow, Orbit EQ and slow scale-in
 - Raw Performance
-  - Zero expensive CSS effects for maximum FPS on low-end devices
+  - Every expensive effect off for maximum FPS on low-end devices
 
 ## Requirements
 
