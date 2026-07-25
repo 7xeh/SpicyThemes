@@ -24,6 +24,8 @@ const SEEK_THRESHOLD_MS = 350;
 const SYNC_INTERVAL_MS = 60;
 const OFFICIAL_CHECK_MS = 600;
 const PREFETCH_COUNT = 5;
+const AD_CONFIRM_TICKS = 3;
+const AD_DURATION_MARGIN_MS = 1500;
 
 const videoCache = new Map<string, VideoMeta | null>();
 
@@ -46,6 +48,8 @@ let ytApiLoading = false;
 const ytApiCallbacks: Array<() => void> = [];
 
 let mediaPlaying = false;
+let adActive = false;
+let adSignalCount = 0;
 let lastSync = 0;
 let lastOfficialCheck = 0;
 
@@ -299,6 +303,8 @@ function buildSource(id: string, meta: VideoMeta): void {
     currentMeta = meta;
     activeSource = meta.source_type;
     mediaPlaying = false;
+    adActive = false;
+    adSignalCount = 0;
 
     lastSync = 0;
     lastOfficialCheck = 0;
@@ -354,6 +360,8 @@ function teardownSource(): void {
     }
     ytReady = false;
     mediaPlaying = false;
+    adActive = false;
+    adSignalCount = 0;
     const c = document.getElementById(CONTAINER_ID);
     if (c) c.innerHTML = '';
     setPageActive(false);
@@ -366,6 +374,28 @@ function isMediaReady(): boolean {
     if (activeSource === 'mp4_url') return !!mp4El && mp4El.readyState >= 2;
     if (activeSource === 'youtube') return ytReady && !!ytPlayer;
     return false;
+}
+
+function isYtAdPlaying(): boolean {
+    if (activeSource !== 'youtube' || !ytReady || !ytPlayer || !currentMeta) return false;
+    try {
+        const durMs = (ytPlayer.getDuration?.() || 0) * 1000;
+        if (durMs <= 0) return false;
+        return durMs < currentMeta.video_end_ms - AD_DURATION_MARGIN_MS;
+    } catch (e) {
+        return false;
+    }
+}
+
+function songIsPlaying(): boolean {
+    try {
+        const player = Spicetify.Player as any;
+        return typeof player.isPlaying === 'function'
+            ? !!player.isPlaying()
+            : !(player.data?.isPaused ?? player.data?.is_paused ?? true);
+    } catch (e) {
+        return false;
+    }
 }
 
 function getVideoMs(): number {
@@ -447,16 +477,25 @@ function tick(ts: number): void {
 
     if (!isMediaReady()) return;
 
+    if (activeSource === 'youtube') {
+        adSignalCount = isYtAdPlaying() ? Math.min(adSignalCount + 1, AD_CONFIRM_TICKS) : 0;
+        const hide = adSignalCount >= AD_CONFIRM_TICKS;
+        if (hide !== adActive) {
+            adActive = hide;
+            setPageActive(!adActive);
+        }
+        if (adActive) {
+            setMediaPlaying(songIsPlaying());
+            return;
+        }
+    }
+
     const v = currentMeta;
-    let playing = false;
     let songMs = 0;
     try {
-        const player = Spicetify.Player as any;
-        playing = typeof player.isPlaying === 'function'
-            ? !!player.isPlaying()
-            : !(player.data?.isPaused ?? player.data?.is_paused ?? true);
-        songMs = player.getProgress?.() || 0;
+        songMs = (Spicetify.Player as any).getProgress?.() || 0;
     } catch (e) {}
+    const playing = songIsPlaying();
 
     const targetVideoMs = songMsToVideoMs(v, songMs);
 
