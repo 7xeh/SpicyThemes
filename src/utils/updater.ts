@@ -17,7 +17,7 @@ const GITHUB_REPO = '7xeh/SpicyThemes';
 const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
-const UPDATE_API_URL = 'https://7xeh.dev/apps/SpicyThemes/api/version.php';
+const UPDATE_API_URL = 'https://7xeh.dev/apps/spicythemes/api/version.php';
 
 function getDevChannelParams(): string {
     const devKey = storage.get('dev-channel');
@@ -74,7 +74,7 @@ const updateState: UpdateState = {
     status: ''
 };
 
-let hasShownUpdateNotice = false;
+let notifiedVersion: string | null = null;
 let lastCheckTime = 0;
 const MIN_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 const DEFAULT_CHECK_INTERVAL_MS = 30 * 60 * 1000;
@@ -124,7 +124,7 @@ function resetBackoff(): void {
 }
 
 function parseVersion(version: string): VersionInfo | null {
-    const cleanVersion = version.replace(/^v/, '');
+    const cleanVersion = String(version || '').trim().replace(/^v/i, '');
     const match = cleanVersion.match(/^(\d+)\.(\d+)\.(\d+)/);
     if (!match) return null;
     return {
@@ -160,78 +160,61 @@ export function getContentHashShort(length: number = 8): string {
     return hash ? hash.substring(0, length) : '';
 }
 
-export async function getLatestVersion(): Promise<{ version: VersionInfo; release: GitHubRelease; downloadUrl: string } | null> {
-    let releaseNotes = '';
-    let githubRelease: GitHubRelease | null = null;
+type LatestVersionResult = { version: VersionInfo; release: GitHubRelease; downloadUrl: string };
 
+async function getLatestVersionFromPrimaryApi(): Promise<LatestVersionResult> {
+    const url = `${UPDATE_API_URL}?action=version${getDevChannelParams()}&_=${Date.now()}`;
+    const response = await fetchWithTimeout(url, { headers: getDevChannelHeaders() });
+    if (!response.ok) throw new Error(`Primary API status ${response.status}`);
+
+    const data = await response.json();
+    const version = parseVersion(String(data?.version ?? ''));
+    if (!version) throw new Error('Primary API did not return a valid version');
+
+    const downloadUrl = typeof data?.download_url === 'string' ? data.download_url : '';
+    return {
+        version,
+        release: {
+            tag_name: `v${version.text}`,
+            name: `v${version.text}`,
+            html_url: typeof data?.release_notes_url === 'string' && data.release_notes_url ? data.release_notes_url : RELEASES_URL,
+            body: typeof data?.changelog === 'string' ? data.changelog : '',
+            published_at: typeof data?.published_at === 'string' ? data.published_at : new Date().toISOString(),
+            assets: downloadUrl
+                ? [{ name: 'spicy-themes.js', browser_download_url: downloadUrl, size: 0, download_count: 0 }]
+                : []
+        },
+        downloadUrl
+    };
+}
+
+async function getLatestVersionFromGitHub(): Promise<LatestVersionResult> {
+    const response = await fetchWithTimeout(`${GITHUB_API_URL}?_=${Date.now()}`, {
+        headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (!response.ok) throw new Error(`GitHub API status ${response.status}`);
+
+    const release: GitHubRelease = await response.json();
+    const version = parseVersion(String(release?.tag_name ?? ''));
+    if (!version) throw new Error('GitHub API did not return a valid release tag');
+
+    const jsAsset = Array.isArray(release.assets)
+        ? release.assets.find(a => typeof a?.name === 'string' && a.name.endsWith('.js'))
+        : null;
+    return { version, release, downloadUrl: jsAsset?.browser_download_url || '' };
+}
+
+export async function getLatestVersion(): Promise<LatestVersionResult | null> {
     try {
-        const ghResponse = await fetch(GITHUB_API_URL, {
-            headers: { 'Accept': 'application/vnd.github.v3+json' }
-        });
-        if (ghResponse.ok) {
-            githubRelease = await ghResponse.json();
-            releaseNotes = githubRelease?.body || '';
-        }
-    } catch (e) {
+        return await getLatestVersionFromPrimaryApi();
+    } catch (primaryError) {
+        warn('Primary version API unavailable, falling back to GitHub:', primaryError);
     }
 
     try {
-        const response = await fetchWithTimeout(`${UPDATE_API_URL}?action=version${getDevChannelParams()}&_=${Date.now()}`, {
-            headers: getDevChannelHeaders()
-        });
-        if (response.ok) {
-            const data = await response.json();
-            const version = parseVersion(data.version);
-            if (version) {
-                return {
-                    version,
-                    release: {
-                        tag_name: `v${data.version}`,
-                        name: `v${data.version}`,
-                        html_url: data.release_notes_url || RELEASES_URL,
-                        body: data.changelog || releaseNotes || '',
-                        published_at: data.published_at || new Date().toISOString(),
-                        assets: [{
-                            name: 'spicy-themes.js',
-                            browser_download_url: data.download_url,
-                            size: 0,
-                            download_count: 0
-                        }]
-                    },
-                    downloadUrl: data.download_url
-                };
-            }
-        }
-    } catch (error) {
-        warn('Self-hosted API unavailable, trying GitHub:', error);
-    }
-
-    if (githubRelease) {
-        const version = parseVersion(githubRelease.tag_name);
-        if (version) {
-            const jsAsset = githubRelease.assets?.find(a => a.name.endsWith('.js'));
-            return { version, release: githubRelease, downloadUrl: jsAsset?.browser_download_url || '' };
-        }
-    }
-
-    try {
-        const response = await fetchWithTimeout(GITHUB_API_URL, {
-            headers: { 'Accept': 'application/vnd.github.v3+json' }
-        });
-        if (!response.ok) {
-            warn('Failed to fetch latest version:', response.status);
-            return null;
-        }
-        const release: GitHubRelease = await response.json();
-        const version = parseVersion(release.tag_name);
-        if (!version) {
-            warn('Failed to parse version from tag:', release.tag_name);
-            return null;
-        }
-        const jsAsset = release.assets?.find(a => a.name.endsWith('.js'));
-        return { version, release, downloadUrl: jsAsset?.browser_download_url || '' };
-    } catch (error) {
-        logError('Error fetching latest version:', error);
+        return await getLatestVersionFromGitHub();
+    } catch (githubError) {
+        logError('Error fetching latest version:', githubError);
         return null;
     }
 }
@@ -358,10 +341,11 @@ export async function checkForUpdates(force: boolean = false): Promise<void> {
         const latest = await getLatestVersion();
         if (!latest) { increaseBackoff(); return; }
 
+        resetBackoff();
         const current = getCurrentVersion();
         if (compareVersions(latest.version, current) > 0) {
-            if (!hasShownUpdateNotice) {
-                hasShownUpdateNotice = true;
+            if (notifiedVersion !== latest.version.text) {
+                notifiedVersion = latest.version.text;
                 if (Spicetify.showNotification) {
                     Spicetify.showNotification(`SpicyThemes v${latest.version.text} available! Restart Spotify to update.`, false, 10000);
                 }
@@ -372,8 +356,7 @@ export async function checkForUpdates(force: boolean = false): Promise<void> {
                 }
             }
         } else {
-            resetBackoff();
-            hasShownUpdateNotice = false;
+            notifiedVersion = null;
         }
     } catch (error) {
         increaseBackoff();
