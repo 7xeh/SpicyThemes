@@ -89,6 +89,7 @@ export interface ThemeConfig {
     playerHideLike: boolean;
 
     musicVideoEnabled: boolean;
+    musicVideoCompact: boolean;
     musicVideoDim: number;
 
     eqEnabled: boolean;
@@ -188,6 +189,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     playerHideLike: false,
 
     musicVideoEnabled: false,
+    musicVideoCompact: false,
     musicVideoDim: 0.3,
 
     eqEnabled: false,

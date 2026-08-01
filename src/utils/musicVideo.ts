@@ -26,8 +26,14 @@ const OFFICIAL_CHECK_MS = 600;
 const PREFETCH_COUNT = 5;
 const AD_CONFIRM_TICKS = 3;
 const AD_DURATION_MARGIN_MS = 1500;
+const LOAD_TIMEOUT_MS = 9000;
+const SEEK_COOLDOWN_MS = 400;
+const PLAY_RETRY_MS = 400;
+const MAX_SOURCE_ATTEMPTS = 2;
+const MODE_CHECK_MS = 400;
 
 const videoCache = new Map<string, VideoMeta | null>();
+const failCounts = new Map<string, number>();
 
 let running = false;
 let rafId: number | null = null;
@@ -43,15 +49,23 @@ let officialForId: string | null = null;
 let mp4El: HTMLVideoElement | null = null;
 let ytPlayer: any = null;
 let ytReady = false;
+let buildToken = 0;
 
 let ytApiLoading = false;
 const ytApiCallbacks: Array<() => void> = [];
 
 let mediaPlaying = false;
+let mediaVisible = false;
+let loadDeadline = 0;
 let adActive = false;
 let adSignalCount = 0;
 let lastSync = 0;
 let lastOfficialCheck = 0;
+let lastSeekAt = 0;
+let lastPlayAttempt = 0;
+let lastModeCheck = 0;
+let allowCompact = false;
+let compactBlocked = false;
 
 async function fetchWithTimeout(url: string, timeout: number = FETCH_TIMEOUT): Promise<Response> {
     const controller = new AbortController();
@@ -90,32 +104,125 @@ function currentSongMs(): number {
     }
 }
 
+function isYouTubeHost(host: string): boolean {
+    return (
+        host === 'youtu.be' ||
+        host === 'youtube.com' ||
+        host === 'www.youtube.com' ||
+        host === 'm.youtube.com' ||
+        host === 'music.youtube.com' ||
+        host === 'www.youtube-nocookie.com' ||
+        host === 'youtube-nocookie.com'
+    );
+}
+
+function extractYouTubeId(ref: string): string | null {
+    const s = ref.trim();
+    if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+    const m = s.match(
+        /(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\/?\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/))([A-Za-z0-9_-]{11})/
+    );
+    return m ? m[1] : null;
+}
+
+function refIsYouTubeUrl(ref: string): boolean {
+    const s = ref.trim();
+    if (!/^(https?:)?\/\//i.test(s) && !/^(www\.)?youtu/i.test(s)) return false;
+    try {
+        const u = new URL(s.startsWith('//') ? `https:${s}` : /^https?:\/\//i.test(s) ? s : `https://${s}`);
+        return isYouTubeHost(u.hostname.toLowerCase());
+    } catch (e) {
+        return false;
+    }
+}
+
+function normalizeMediaUrl(ref: string): string | null {
+    let s = ref.trim();
+    if (!s) return null;
+    if (s.startsWith('//')) s = `https:${s}`;
+    else if (/^http:\/\//i.test(s)) s = `https://${s.slice(7)}`;
+    else if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = `https://${s}`;
+    if (!/^https:\/\//i.test(s)) return null;
+
+    let u: URL;
+    try {
+        u = new URL(s);
+    } catch (e) {
+        return null;
+    }
+    const host = u.hostname.toLowerCase();
+
+    if (host === 'drive.google.com') {
+        const id = u.pathname.match(/\/file\/d\/([^/]+)/)?.[1] || u.searchParams.get('id');
+        return id ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}` : null;
+    }
+    if (host === 'www.dropbox.com' || host === 'dropbox.com') {
+        u.hostname = 'dl.dropboxusercontent.com';
+        u.searchParams.delete('dl');
+        u.searchParams.set('raw', '1');
+        return u.toString();
+    }
+    if (host === 'github.com' && u.pathname.includes('/blob/')) {
+        u.hostname = 'raw.githubusercontent.com';
+        u.pathname = u.pathname.replace('/blob/', '/');
+        return u.toString();
+    }
+    return u.toString();
+}
+
 function normalizeMeta(raw: any, id: string): VideoMeta | null {
     if (!raw || typeof raw !== 'object') return null;
-    const type = raw.source_type;
-    const ref = raw.source_ref;
-    if ((type !== 'youtube' && type !== 'mp4_url') || !ref) return null;
 
-    const num = (x: any, fallback: number) => (typeof x === 'number' && isFinite(x) ? x : fallback);
-    const start = num(raw.video_start_ms, 0);
-    const end = num(raw.video_end_ms, 0);
+    let ref = raw.source_ref == null ? '' : String(raw.source_ref).trim();
+    if (!ref) return null;
+
+    let type: 'youtube' | 'mp4_url';
+    if (raw.source_type === 'youtube' || raw.source_type === 'mp4_url') {
+        type = raw.source_type;
+    } else {
+        type = refIsYouTubeUrl(ref) || /^[A-Za-z0-9_-]{11}$/.test(ref) ? 'youtube' : 'mp4_url';
+    }
+
+    if (type === 'youtube') {
+        const ytId = extractYouTubeId(ref);
+        if (!ytId) return null;
+        ref = ytId;
+    } else if (refIsYouTubeUrl(ref)) {
+        const ytId = extractYouTubeId(ref);
+        if (!ytId) return null;
+        type = 'youtube';
+        ref = ytId;
+    } else {
+        const url = normalizeMediaUrl(ref);
+        if (!url) return null;
+        ref = url;
+    }
+
+    const num = (x: any, fallback: number) => {
+        const n = typeof x === 'string' ? Number(x) : x;
+        return typeof n === 'number' && isFinite(n) ? n : fallback;
+    };
+    const start = Math.max(num(raw.video_start_ms, 0), 0);
+    const duration = Math.max(num(raw.track_duration_ms, 0), 0);
+    let end = num(raw.video_end_ms, 0);
+    if (end <= start && duration > 0) end = start + duration;
     if (end <= start) return null;
 
     const breaks: VideoBreak[] = Array.isArray(raw.breaks)
         ? raw.breaks
-              .filter((b: any) => b && isFinite(b.start_ms) && isFinite(b.end_ms) && b.end_ms > b.start_ms)
-              .map((b: any) => ({ start_ms: b.start_ms, end_ms: b.end_ms }))
+              .map((b: any) => (b ? { start_ms: num(b.start_ms, NaN), end_ms: num(b.end_ms, NaN) } : null))
+              .filter((b: any): b is VideoBreak => !!b && isFinite(b.start_ms) && isFinite(b.end_ms) && b.end_ms > b.start_ms)
               .sort((a: VideoBreak, b: VideoBreak) => a.start_ms - b.start_ms)
         : [];
 
     return {
         spotify_track_id: id,
         source_type: type,
-        source_ref: String(ref),
+        source_ref: ref,
         video_start_ms: start,
         video_end_ms: end,
         breaks,
-        track_duration_ms: num(raw.track_duration_ms, end - start),
+        track_duration_ms: duration || end - start,
         track_title: raw.track_title,
         track_artist: raw.track_artist,
         track_album_art: raw.track_album_art,
@@ -198,6 +305,22 @@ function spotifyHasOwnVideo(): boolean {
     return false;
 }
 
+function isCompactBlocked(): boolean {
+    if (allowCompact) return false;
+    const page = document.querySelector('#SpicyLyricsPage');
+    return !!page && page.classList.contains('CompactMode');
+}
+
+export function setMusicVideoCompactAllowed(allowed: boolean): void {
+    const next = !!allowed;
+    if (next === allowCompact) return;
+    allowCompact = next;
+    if (!running) return;
+    compactBlocked = isCompactBlocked();
+    if (compactBlocked) teardownSource();
+    else if (!evaluating) evaluate();
+}
+
 function setPageActive(active: boolean): void {
     const page = document.querySelector('#SpicyLyricsPage');
     if (page) page.classList.toggle('st-mv-active', active);
@@ -245,6 +368,10 @@ function loadYouTubeAPI(cb: () => void): void {
 
     const tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
+    tag.onerror = () => {
+        ytApiLoading = false;
+        ytApiCallbacks.length = 0;
+    };
     document.head.appendChild(tag);
 }
 
@@ -289,8 +416,58 @@ function createYtPlayer(container: HTMLElement, videoId: string): void {
                 onStateChange: (e: any) => {
                     disableYtCaptions(e.target);
                 },
+                onError: () => {
+                    setTimeout(() => failSource(), 0);
+                },
             },
         });
+    } catch (e) {
+        failSource();
+    }
+}
+
+function attachMp4(container: HTMLElement, meta: VideoMeta): void {
+    const video = document.createElement('video');
+    video.muted = true;
+    video.defaultMuted = true;
+    video.volume = 0;
+    video.loop = false;
+    video.autoplay = false;
+    video.controls = false;
+    video.preload = 'auto';
+    video.setAttribute('playsinline', '');
+    video.playsInline = true;
+    video.disablePictureInPicture = true;
+    (video as any).disableRemotePlayback = true;
+    video.setAttribute('disableremoteplayback', '');
+
+    const disableTextTracks = () => {
+        try {
+            for (let i = 0; i < video.textTracks.length; i++) {
+                video.textTracks[i].mode = 'disabled';
+            }
+        } catch (e) {}
+    };
+    try {
+        video.textTracks.addEventListener('addtrack', disableTextTracks);
+    } catch (e) {}
+
+    video.addEventListener('loadedmetadata', () => {
+        if (mp4El !== video) return;
+        disableTextTracks();
+        try {
+            video.currentTime = songMsToVideoMs(meta, currentSongMs()) / 1000;
+        } catch (e) {}
+    });
+    video.addEventListener('error', () => {
+        if (mp4El === video) failSource();
+    });
+
+    video.src = meta.source_ref;
+    container.appendChild(video);
+    mp4El = video;
+    try {
+        video.load();
     } catch (e) {}
 }
 
@@ -303,76 +480,86 @@ function buildSource(id: string, meta: VideoMeta): void {
     currentMeta = meta;
     activeSource = meta.source_type;
     mediaPlaying = false;
+    mediaVisible = false;
     adActive = false;
     adSignalCount = 0;
 
     lastSync = 0;
     lastOfficialCheck = 0;
+    lastSeekAt = 0;
+    lastPlayAttempt = 0;
+    loadDeadline = performance.now() + LOAD_TIMEOUT_MS;
 
     if (meta.source_type === 'mp4_url') {
-        const video = document.createElement('video');
-        video.muted = true;
-        video.loop = false;
-        video.autoplay = false;
-        video.preload = 'auto';
-        video.setAttribute('playsinline', '');
-        video.playsInline = true;
-        const disableTextTracks = () => {
-            try {
-                for (let i = 0; i < video.textTracks.length; i++) {
-                    video.textTracks[i].mode = 'disabled';
-                }
-            } catch (e) {}
-        };
-        try {
-            video.textTracks.addEventListener('addtrack', disableTextTracks);
-        } catch (e) {}
-        video.addEventListener('loadedmetadata', () => {
-            if (mp4El !== video) return;
-            disableTextTracks();
-            try {
-                video.currentTime = songMsToVideoMs(meta, currentSongMs()) / 1000;
-            } catch (e) {}
-        });
-        video.src = meta.source_ref;
-        container.appendChild(video);
-        mp4El = video;
+        attachMp4(container, meta);
     } else {
-        loadYouTubeAPI(() => createYtPlayer(container, meta.source_ref));
+        const token = buildToken;
+        loadYouTubeAPI(() => {
+            if (token !== buildToken) return;
+            createYtPlayer(container, meta.source_ref);
+        });
     }
-
-    setPageActive(true);
 }
 
 function teardownSource(): void {
+    buildToken++;
     if (mp4El) {
-        try {
-            mp4El.pause();
-        } catch (e) {}
-        mp4El.remove();
+        const el = mp4El;
         mp4El = null;
+        try {
+            el.pause();
+            el.removeAttribute('src');
+            el.load();
+        } catch (e) {}
+        el.remove();
     }
     if (ytPlayer) {
-        try {
-            ytPlayer.destroy();
-        } catch (e) {}
+        const p = ytPlayer;
         ytPlayer = null;
+        try {
+            p.stopVideo?.();
+        } catch (e) {}
+        try {
+            p.destroy?.();
+        } catch (e) {}
     }
     ytReady = false;
     mediaPlaying = false;
+    mediaVisible = false;
     adActive = false;
     adSignalCount = 0;
     const c = document.getElementById(CONTAINER_ID);
-    if (c) c.innerHTML = '';
+    if (c) {
+        c.querySelectorAll('iframe').forEach(f => {
+            try {
+                f.src = 'about:blank';
+            } catch (e) {}
+        });
+        c.innerHTML = '';
+    }
     setPageActive(false);
     currentId = null;
     currentMeta = null;
     activeSource = null;
 }
 
+function failSource(): void {
+    const id = currentId;
+    if (id) failCounts.set(id, (failCounts.get(id) || 0) + 1);
+    teardownSource();
+}
+
 function isMediaReady(): boolean {
     if (activeSource === 'mp4_url') return !!mp4El && mp4El.readyState >= 2;
     if (activeSource === 'youtube') return ytReady && !!ytPlayer;
+    return false;
+}
+
+function hasRenderableFrame(): boolean {
+    try {
+        if (activeSource === 'mp4_url') return !!mp4El && mp4El.readyState >= 2 && mp4El.videoWidth > 0;
+        if (activeSource === 'youtube') return ytReady && !!ytPlayer && (ytPlayer.getDuration?.() || 0) > 0;
+    } catch (e) {}
     return false;
 }
 
@@ -406,21 +593,38 @@ function getVideoMs(): number {
     return NaN;
 }
 
-function seekVideo(ms: number): void {
+function seekVideo(ms: number, ts: number): void {
+    if (ts - lastSeekAt < SEEK_COOLDOWN_MS) return;
     try {
-        if (activeSource === 'mp4_url' && mp4El) mp4El.currentTime = ms / 1000;
-        else if (activeSource === 'youtube' && ytPlayer?.seekTo) ytPlayer.seekTo(ms / 1000, true);
+        if (activeSource === 'mp4_url' && mp4El) {
+            if (mp4El.seeking) return;
+            mp4El.currentTime = ms / 1000;
+        } else if (activeSource === 'youtube' && ytPlayer?.seekTo) {
+            ytPlayer.seekTo(ms / 1000, true);
+        } else {
+            return;
+        }
+        lastSeekAt = ts;
     } catch (e) {}
 }
 
-function setMediaPlaying(play: boolean): void {
-    if (play === mediaPlaying) return;
-    mediaPlaying = play;
+function setMediaPlaying(play: boolean, ts: number): void {
     try {
         if (activeSource === 'mp4_url' && mp4El) {
-            if (play) mp4El.play().catch(() => {});
-            else mp4El.pause();
-        } else if (activeSource === 'youtube' && ytPlayer) {
+            mediaPlaying = play;
+            const paused = mp4El.paused || mp4El.ended;
+            if (play && paused) {
+                if (ts - lastPlayAttempt < PLAY_RETRY_MS) return;
+                lastPlayAttempt = ts;
+                mp4El.play().catch(() => {});
+            } else if (!play && !paused) {
+                mp4El.pause();
+            }
+            return;
+        }
+        if (play === mediaPlaying) return;
+        mediaPlaying = play;
+        if (activeSource === 'youtube' && ytPlayer) {
             if (play) ytPlayer.playVideo?.();
             else ytPlayer.pauseVideo?.();
         }
@@ -431,12 +635,21 @@ async function evaluate(): Promise<void> {
     if (!running || evaluating) return;
     evaluating = true;
     try {
+        compactBlocked = isCompactBlocked();
+        if (compactBlocked) {
+            teardownSource();
+            return;
+        }
         const id = currentTrackId();
         if (!id) {
             teardownSource();
             return;
         }
         if (officialForId === id) {
+            teardownSource();
+            return;
+        }
+        if ((failCounts.get(id) || 0) >= MAX_SOURCE_ATTEMPTS) {
             teardownSource();
             return;
         }
@@ -464,6 +677,20 @@ function tick(ts: number): void {
     if (ts - lastSync < SYNC_INTERVAL_MS) return;
     lastSync = ts;
 
+    if (ts - lastModeCheck > MODE_CHECK_MS) {
+        lastModeCheck = ts;
+        const blocked = isCompactBlocked();
+        if (blocked !== compactBlocked) {
+            compactBlocked = blocked;
+            if (blocked) {
+                teardownSource();
+                return;
+            }
+            if (!evaluating) evaluate();
+        }
+    }
+    if (compactBlocked) return;
+
     if (!currentMeta || !activeSource) return;
 
     if (ts - lastOfficialCheck > OFFICIAL_CHECK_MS) {
@@ -475,6 +702,16 @@ function tick(ts: number): void {
         }
     }
 
+    if (!mediaVisible) {
+        if (hasRenderableFrame()) {
+            mediaVisible = true;
+            setPageActive(true);
+        } else if (ts > loadDeadline) {
+            failSource();
+            return;
+        }
+    }
+
     if (!isMediaReady()) return;
 
     if (activeSource === 'youtube') {
@@ -482,10 +719,10 @@ function tick(ts: number): void {
         const hide = adSignalCount >= AD_CONFIRM_TICKS;
         if (hide !== adActive) {
             adActive = hide;
-            setPageActive(!adActive);
+            setPageActive(mediaVisible && !adActive);
         }
         if (adActive) {
-            setMediaPlaying(songIsPlaying());
+            setMediaPlaying(songIsPlaying(), ts);
             return;
         }
     }
@@ -500,7 +737,7 @@ function tick(ts: number): void {
     const targetVideoMs = songMsToVideoMs(v, songMs);
 
     if (targetVideoMs >= v.video_end_ms) {
-        setMediaPlaying(false);
+        setMediaPlaying(false, ts);
         return;
     }
 
@@ -509,7 +746,7 @@ function tick(ts: number): void {
     if (isFinite(actualVideoMs)) {
         for (const b of v.breaks) {
             if (actualVideoMs >= b.start_ms && actualVideoMs < b.end_ms) {
-                seekVideo(b.end_ms);
+                seekVideo(b.end_ms, ts);
                 actualVideoMs = b.end_ms;
                 break;
             }
@@ -517,10 +754,10 @@ function tick(ts: number): void {
     }
 
     if (!isFinite(actualVideoMs) || Math.abs(actualVideoMs - targetVideoMs) > SEEK_THRESHOLD_MS) {
-        seekVideo(targetVideoMs);
+        seekVideo(targetVideoMs, ts);
     }
 
-    setMediaPlaying(playing);
+    setMediaPlaying(playing, ts);
 }
 
 function onSongChange(): void {
@@ -550,6 +787,8 @@ export function startMusicVideo(): void {
     }
     lastSync = 0;
     lastOfficialCheck = 0;
+    lastModeCheck = 0;
+    compactBlocked = isCompactBlocked();
     evaluate();
     batchPrefetch(queueIds());
     rafId = requestAnimationFrame(tick);
@@ -575,15 +814,22 @@ export function refreshMusicVideoLayer(): void {
     if (!running) return;
     const page = document.querySelector('#SpicyLyricsPage');
     if (!page) return;
+    compactBlocked = isCompactBlocked();
+    if (compactBlocked) {
+        teardownSource();
+        return;
+    }
     if (!currentMeta || !activeSource) {
         if (!evaluating) evaluate();
         return;
     }
     const c = document.getElementById(CONTAINER_ID);
     if (!c) {
-        buildSource(currentId!, currentMeta);
+        const id = currentId;
+        const meta = currentMeta;
+        if (id && meta) buildSource(id, meta);
         return;
     }
     if (c.parentElement !== page) page.appendChild(c);
-    setPageActive(true);
+    setPageActive(mediaVisible && !adActive);
 }

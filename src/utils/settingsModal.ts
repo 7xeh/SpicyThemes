@@ -164,6 +164,7 @@ export const SCHEMA: FieldDef[] = [
     { id: 'eqSize', label: 'Equalizer size', type: 'slider', section: 'Equalizer', min: 0.4, max: 2.5, step: 0.05, unit: 'x', when: (t) => t.eqEnabled },
     { id: 'eqSpeed', label: 'Equalizer speed', type: 'slider', section: 'Equalizer', min: 0.3, max: 3.0, step: 0.1, unit: 'x', when: (t) => t.eqEnabled },
     { id: 'musicVideoEnabled', label: 'Synced music videos', type: 'toggle', section: 'Music Videos' },
+    { id: 'musicVideoCompact', label: 'Show in compact player', type: 'toggle', section: 'Music Videos', when: (t) => t.musicVideoEnabled },
     { id: 'musicVideoDim', label: 'Video dim', type: 'slider', section: 'Music Videos', min: 0, max: 1, step: 0.05, when: (t) => t.musicVideoEnabled },
     { id: 'sltStylingEnabled', label: 'Translation styling (SLT)', type: 'toggle', section: 'Translation' },
     { id: 'sltTranslationOpacity', label: 'Translation opacity', type: 'slider', section: 'Translation', min: 0.1, max: 1.0, step: 0.05, when: (t) => t.sltStylingEnabled },

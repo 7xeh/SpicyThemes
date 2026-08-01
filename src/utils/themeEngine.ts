@@ -1,6 +1,6 @@
 import { themeState, ThemeConfig } from './state';
 import { startEqAudio, stopEqAudio } from './eqAudio';
-import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer } from './musicVideo';
+import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer, setMusicVideoCompactAllowed } from './musicVideo';
 
 
 const STYLE_ID = 'spicy-themes-injected-styles';
@@ -793,12 +793,21 @@ ${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')
     z-index: -1 !important;
     overflow: hidden !important;
     pointer-events: none !important;
+    opacity: 0 !important;
+    transition: opacity 0.4s ease !important;
+}
+#SpicyLyricsPage.st-mv-active #${MUSIC_VIDEO_ID} {
+    opacity: 1 !important;
 }
 #SpicyLyricsPage #${MUSIC_VIDEO_ID} video {
+    position: absolute !important;
+    inset: 0 !important;
     width: 100% !important;
     height: 100% !important;
     object-fit: cover !important;
+    object-position: center !important;
     display: block !important;
+    background: transparent !important;
 }
 #SpicyLyricsPage #${MUSIC_VIDEO_ID} video::-webkit-media-text-track-container {
     display: none !important;
@@ -837,6 +846,20 @@ ${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')
     background: transparent !important;
 }
 `);
+        if (!config.musicVideoCompact) {
+            css.push(`
+#SpicyLyricsPage.CompactMode #${MUSIC_VIDEO_ID} {
+    display: none !important;
+}
+#SpicyLyricsPage.CompactMode.st-mv-active .spicy-dynamic-bg {
+    opacity: 1 !important;
+}
+#SpicyLyricsPage.CompactMode.st-mv-active .LyricsContainer::before,
+#SpicyLyricsPage.CompactMode.st-mv-active::before {
+    background: revert !important;
+}
+`);
+        }
     }
 
     if (config.eqEnabled) {
@@ -1080,6 +1103,7 @@ function removeEqualizer(): void {
 export function updateMusicVideo(): void {
     try {
         if (themeState.isEnabled && themeState.activeTheme.musicVideoEnabled) {
+            setMusicVideoCompactAllowed(themeState.activeTheme.musicVideoCompact);
             startMusicVideo();
             refreshMusicVideoLayer();
         } else {
