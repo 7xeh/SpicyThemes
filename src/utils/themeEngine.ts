@@ -847,15 +847,18 @@ ${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')
 }
 `);
         if (!config.musicVideoCompact) {
+            const compactScopes = ['CardMode', 'CompactMode'];
             css.push(`
-#SpicyLyricsPage.CompactMode #${MUSIC_VIDEO_ID} {
+${compactScopes.map(c => `#SpicyLyricsPage.${c} #${MUSIC_VIDEO_ID}`).join(',\n')} {
     display: none !important;
 }
-#SpicyLyricsPage.CompactMode.st-mv-active .spicy-dynamic-bg {
+${compactScopes.map(c => `#SpicyLyricsPage.${c}.st-mv-active .spicy-dynamic-bg`).join(',\n')} {
     opacity: 1 !important;
 }
-#SpicyLyricsPage.CompactMode.st-mv-active .LyricsContainer::before,
-#SpicyLyricsPage.CompactMode.st-mv-active::before {
+${compactScopes.flatMap(c => [
+    `#SpicyLyricsPage.${c}.st-mv-active .LyricsContainer::before`,
+    `#SpicyLyricsPage.${c}.st-mv-active::before`,
+]).join(',\n')} {
     background: revert !important;
 }
 `);

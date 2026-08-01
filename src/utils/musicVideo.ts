@@ -308,7 +308,8 @@ function spotifyHasOwnVideo(): boolean {
 function isCompactBlocked(): boolean {
     if (allowCompact) return false;
     const page = document.querySelector('#SpicyLyricsPage');
-    return !!page && page.classList.contains('CompactMode');
+    if (!page) return false;
+    return page.classList.contains('CardMode') || page.classList.contains('CompactMode');
 }
 
 export function setMusicVideoCompactAllowed(allowed: boolean): void {
@@ -432,7 +433,6 @@ function attachMp4(container: HTMLElement, meta: VideoMeta): void {
     video.defaultMuted = true;
     video.volume = 0;
     video.loop = false;
-    video.autoplay = false;
     video.controls = false;
     video.preload = 'auto';
     video.setAttribute('playsinline', '');
@@ -463,11 +463,12 @@ function attachMp4(container: HTMLElement, meta: VideoMeta): void {
         if (mp4El === video) failSource();
     });
 
+    video.autoplay = true;
     video.src = meta.source_ref;
     container.appendChild(video);
     mp4El = video;
     try {
-        video.load();
+        video.play().catch(() => {});
     } catch (e) {}
 }
 
@@ -566,12 +567,14 @@ function hasRenderableFrame(): boolean {
 function isYtAdPlaying(): boolean {
     if (activeSource !== 'youtube' || !ytReady || !ytPlayer || !currentMeta) return false;
     try {
+        const data = ytPlayer.getVideoData?.();
+        const playingId = data && typeof data.video_id === 'string' ? data.video_id : '';
+        if (playingId && playingId !== currentMeta.source_ref) return true;
+
         const durMs = (ytPlayer.getDuration?.() || 0) * 1000;
-        if (durMs <= 0) return false;
-        return durMs < currentMeta.video_end_ms - AD_DURATION_MARGIN_MS;
-    } catch (e) {
-        return false;
-    }
+        if (durMs > 0 && durMs < currentMeta.video_end_ms - AD_DURATION_MARGIN_MS) return true;
+    } catch (e) {}
+    return false;
 }
 
 function songIsPlaying(): boolean {
@@ -712,7 +715,10 @@ function tick(ts: number): void {
         }
     }
 
-    if (!isMediaReady()) return;
+    if (!isMediaReady()) {
+        if (activeSource === 'mp4_url') setMediaPlaying(songIsPlaying(), ts);
+        return;
+    }
 
     if (activeSource === 'youtube') {
         adSignalCount = isYtAdPlaying() ? Math.min(adSignalCount + 1, AD_CONFIRM_TICKS) : 0;
