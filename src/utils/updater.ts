@@ -3,6 +3,7 @@ import { warn, error as logError } from './debug';
 import { displayModal, hideModal } from './modal';
 
 declare const __VERSION__: string;
+declare const __BUILD_HASH__: string;
 
 const getLoadedVersion = (): string => {
     const metadata = (window as any)._spicy_themes_metadata;
@@ -18,26 +19,6 @@ const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/lat
 const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 const UPDATE_API_URL = 'https://7xeh.dev/apps/spicythemes/api/version.php';
-
-function getDevChannelParams(): string {
-    const devKey = storage.get('dev-channel');
-    if (devKey) {
-        return '&channel=dev';
-    }
-    return '';
-}
-
-function getDevChannelHeaders(): Record<string, string> {
-    const devKey = storage.get('dev-channel');
-    if (devKey) {
-        return { 'X-Dev-Channel-Key': devKey };
-    }
-    return {};
-}
-
-export function isDevChannel(): boolean {
-    return !!storage.get('dev-channel');
-}
 
 interface VersionInfo {
     major: number;
@@ -160,11 +141,23 @@ export function getContentHashShort(length: number = 8): string {
     return hash ? hash.substring(0, length) : '';
 }
 
+export function getBuildHash(): string {
+    return typeof __BUILD_HASH__ === 'string' && !__BUILD_HASH__.startsWith('ST_BUILD_HASH_PLACEHOLDER') ? __BUILD_HASH__ : '';
+}
+
+export function getDisplayHash(): { hash: string; source: 'delivered' | 'build' | '' } {
+    const delivered = getContentHash();
+    if (delivered) return { hash: delivered, source: 'delivered' };
+    const build = getBuildHash();
+    if (build) return { hash: build, source: 'build' };
+    return { hash: '', source: '' };
+}
+
 type LatestVersionResult = { version: VersionInfo; release: GitHubRelease; downloadUrl: string };
 
 async function getLatestVersionFromPrimaryApi(): Promise<LatestVersionResult> {
-    const url = `${UPDATE_API_URL}?action=version${getDevChannelParams()}&_=${Date.now()}`;
-    const response = await fetchWithTimeout(url, { headers: getDevChannelHeaders() });
+    const url = `${UPDATE_API_URL}?action=version&_=${Date.now()}`;
+    const response = await fetchWithTimeout(url);
     if (!response.ok) throw new Error(`Primary API status ${response.status}`);
 
     const data = await response.json();
@@ -617,17 +610,13 @@ function showChangelogModal(version: string, changelog: string, options: Changel
         </div>
     `;
 
+    content.querySelector('#st-changelog-dismiss')?.addEventListener('click', () => hideModal());
+
     displayModal({
         title: 'Spicy Themes',
         content: content,
         isLarge: true
     });
-    setTimeout(() => {
-        const dismissBtn = document.getElementById('st-changelog-dismiss');
-        if (dismissBtn) {
-            dismissBtn.addEventListener('click', () => hideModal());
-        }
-    }, 100);
 }
 
 async function fetchChangelogForVersion(version: string): Promise<string> {

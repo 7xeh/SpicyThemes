@@ -9,6 +9,41 @@ const CLOSE_SVG = '<svg width="18" height="18" viewBox="0 0 32 32" xmlns="http:/
 
 let activeModal: HTMLElement | null = null;
 let activeOnClose: (() => void) | null = null;
+let escapeHandler: ((event: KeyboardEvent) => void) | null = null;
+
+function bindEscape(): void {
+    unbindEscape();
+    escapeHandler = (event: KeyboardEvent) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        hideModal();
+    };
+    document.addEventListener('keydown', escapeHandler);
+}
+
+function unbindEscape(): void {
+    if (!escapeHandler) return;
+    document.removeEventListener('keydown', escapeHandler);
+    escapeHandler = null;
+}
+
+function genericModalElement(): any {
+    try {
+        if (typeof customElements === 'undefined') return null;
+        const Ctor = customElements.get('sl-generic-modal') as (new () => HTMLElement) | undefined;
+        return Ctor ? new Ctor() : null;
+    } catch {
+        return null;
+    }
+}
+
+function fallbackModalHost(): HTMLElement | null {
+    try {
+        if (typeof customElements !== 'undefined' && customElements.get('sl-generic-modal')) return null;
+        return document.createElement('sl-generic-modal');
+    } catch {
+        return null;
+    }
+}
 
 function escapeForHtml(text: string): string {
     return text
@@ -28,11 +63,20 @@ function spicyLyricsAvailable(): boolean {
 }
 
 export function hideModal(): void {
+    unbindEscape();
+
     if (activeModal) {
-        const modal = activeModal;
+        const modal = activeModal as any;
         const onClose = activeOnClose;
         activeModal = null;
         activeOnClose = null;
+
+        if (typeof modal.hide === 'function') {
+            try {
+                modal.hide();
+                return;
+            } catch {}
+        }
 
         const finish = () => {
             try { modal.remove(); } catch {}
@@ -56,23 +100,52 @@ export function hideModal(): void {
 }
 
 export function displayModal(options: ModalOptions): void {
-    if (!spicyLyricsAvailable()) {
+    if (activeModal) {
+        try { activeModal.remove(); } catch {}
+        activeModal = null;
+        activeOnClose = null;
+    }
+    unbindEscape();
+
+    const native = genericModalElement();
+    if (native && typeof native.display === 'function') {
+        activeModal = native;
+        activeOnClose = null;
+        try {
+            native.display({
+                title: options.title,
+                content: options.content,
+                isLarge: options.isLarge,
+                onClose: () => {
+                    if (activeModal === native) {
+                        activeModal = null;
+                        activeOnClose = null;
+                    }
+                    unbindEscape();
+                    if (typeof options.onClose === 'function') {
+                        try { options.onClose(); } catch {}
+                    }
+                }
+            });
+            bindEscape();
+            return;
+        } catch {
+            activeModal = null;
+        }
+    }
+
+    const host = spicyLyricsAvailable() ? fallbackModalHost() : null;
+    if (!host) {
         const spicetify = (globalThis as any).Spicetify;
         spicetify?.PopupModal?.display({
             title: options.title,
             content: options.content,
             isLarge: options.isLarge
         });
+        bindEscape();
         return;
     }
 
-    if (activeModal) {
-        try { activeModal.remove(); } catch {}
-        activeModal = null;
-        activeOnClose = null;
-    }
-
-    const host = document.createElement('sl-generic-modal');
     host.classList.add('SpicyLyricsModal');
     const containerClass = options.isLarge ? 'sl-modal-container-large' : 'sl-modal-container';
 
@@ -111,6 +184,7 @@ export function displayModal(options: ModalOptions): void {
     });
 
     document.body.append(host);
+    bindEscape();
 
     setTimeout(() => {
         host.querySelector('.sl-modal-overlay-animated')?.classList.add('Active');

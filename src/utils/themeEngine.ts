@@ -7,6 +7,9 @@ const STYLE_ID = 'spicy-themes-injected-styles';
 const BASE_STYLE_ID = 'spicy-themes-base-styles';
 const MUSIC_VIDEO_ID = 'spicy-themes-mv';
 
+const NPV_CARD = '#SpicyLyricsNPVCard';
+const METADATA_SELECTOR = '#SpicyLyricsPage:not(.CardMode) .ContentBox .NowBar .Header .Metadata';
+
 function hexToRgba(hex: string, alpha: number): string {
     if (hex.startsWith('rgba') || hex.startsWith('rgb')) return hex;
     hex = hex.replace('#', '');
@@ -33,6 +36,11 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
         g: parseInt(hex.substring(2, 4), 16),
         b: parseInt(hex.substring(4, 6), 16),
     };
+}
+
+function readableOn(color: string): string {
+    const { r, g, b } = hexToRgb(color);
+    return (r * 0.299 + g * 0.587 + b * 0.114) > 150 ? 'rgba(0, 0, 0, 0.68)' : '#fff';
 }
 
 function gradientRule(r: number, g: number, b: number, r2?: number, g2?: number, b2?: number): string {
@@ -74,6 +82,22 @@ function buildProps(...decls: (string | false | null | undefined | 0 | '')[]): s
     return (decls.filter(Boolean) as string[]).join('\n    ');
 }
 
+function lineOriginRules(lineTargets: string[]): string {
+    const variant = (suffix: string) => lineTargets.map(t => `${t}${suffix}`).join(',\n');
+    return `
+${variant('')} {
+    transform-origin: left center !important;
+}
+${variant('.OppositeAligned')},
+${variant('.rtl')} {
+    transform-origin: right center !important;
+}
+${variant('.rtl.OppositeAligned')} {
+    transform-origin: left center !important;
+}
+`;
+}
+
 export function generateThemeCSS(config: ThemeConfig): string {
     const css: string[] = [];
 
@@ -88,7 +112,8 @@ export function generateThemeCSS(config: ThemeConfig): string {
         '#SpicyLyricsPage .SpicyLyricsScrollContainer',
     ];
     const SIDEBAR = [
-        'body.SpicySidebarLyrics__Active #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent',
+        `${NPV_CARD} #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent`,
+        `${NPV_CARD} #SpicyLyricsPage .SpicyLyricsScrollContainer`,
     ];
     const PIP = [
         '.spicy-pip-wrapper #SpicyLyricsPage .LyricsContainer .LyricsContent',
@@ -109,7 +134,11 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const glowActive = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedActiveGlow}px ${config.activeGlowColor}) !important;`;
     const glowNormal = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`;
     const glowSidebar = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedSidebarGlow}px ${config.activeGlowColor}) !important;`;
-    const scaleEffect = !config.scaleInEffect && config.scaleActive !== 1.0 && `transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1) !important; transform-origin: left center !important;`;
+    const scaleEffect = !config.scaleInEffect && config.scaleActive !== 1.0 && `transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1) !important;`;
+    const glowPulseOn = config.glowEnabled && config.glowPulse;
+    const pulseSpeed = Math.min(Math.max(config.glowPulseSpeed, 0.3), 3);
+    const pulsePeak = Math.min(Math.round(clampedActiveGlow * 1.9) + 2, 30);
+    const pulseAnim = glowPulseOn ? `st-glow-pulse ${(1.6 / pulseSpeed).toFixed(2)}s ease-in-out infinite` : '';
     const bgGlowRgb = hexToRgb(config.bgGlowColor);
     const clampedBgGlow = Math.min(config.bgGlowIntensity, 30);
     const dropShadow = config.textShadowEnabled
@@ -198,6 +227,50 @@ ${ALL.flatMap(b => [
 }
 `);
 
+    if (config.textTransform !== 'none') {
+        css.push(`
+${ALL.map(b => `${b} .line`).join(',\n')} {
+    text-transform: ${config.textTransform} !important;
+}
+`);
+    }
+
+    if (config.activeLineWeight > 0) {
+        css.push(`
+${ALL.flatMap(b => [
+    `${b} .line.Active`,
+    `${b} .line.Active .word`,
+    `${b} .line.Active .letter`,
+    `${b} .line.Active .letterGroup`,
+]).join(',\n')} {
+    font-weight: ${Math.round(config.activeLineWeight)} !important;
+}
+`);
+    }
+
+    if (config.gradientEnabled && config.gradientDirection !== 'auto') {
+        const DIRECTIONS: Record<string, [number, number]> = {
+            horizontal: [90, -90],
+            vertical: [180, 180],
+            diagonal: [135, -135],
+        };
+        const [ltr, rtl] = DIRECTIONS[config.gradientDirection] || DIRECTIONS.horizontal;
+        const paints = (base: string, prefix: string) => [
+            `${base} ${prefix}`,
+            `${base} ${prefix} .word`,
+            `${base} ${prefix} .letter`,
+            `${base} ${prefix} .letterGroup`,
+        ];
+        css.push(`
+${ALL.flatMap(b => paints(b, '.line:not(.rtl)')).join(',\n')} {
+    --gradient-degrees: ${ltr}deg !important;
+}
+${ALL.flatMap(b => paints(b, '.line.rtl')).join(',\n')} {
+    --gradient-degrees: ${rtl}deg !important;
+}
+`);
+    }
+
     css.push(`
 ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
     will-change: opacity, filter, transform !important;
@@ -215,6 +288,7 @@ ${lineSelectors(ALL, 'Active')} {
 ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
     ${scaleEffect}
 }
+${lineOriginRules(ALL.map(b => `${b} .line.Active`))}
 `);
     }
 
@@ -242,6 +316,23 @@ ${ALL.map(b => `${b} .line.NotSung`).join(',\n')} {
 `);
     }
 
+    if (glowPulseOn) {
+        css.push(`
+@keyframes st-glow-pulse {
+    0%, 100% { filter: drop-shadow(0 0 ${clampedActiveGlow}px ${config.activeGlowColor}); }
+    50% { filter: drop-shadow(0 0 ${pulsePeak}px ${config.activeGlowColor}); }
+}
+`);
+        if (!config.scaleInEffect) {
+            css.push(`
+${ALL.map(b => `${b} .line.Active`).join(',\n')} {
+    animation: ${pulseAnim} !important;
+    will-change: filter !important;
+}
+`);
+        }
+    }
+
     if (config.blurUnsung) {
         const blurTargets = [
             ...ALL.flatMap(b => [`${b} .line.Sung`, `${b} .line.NotSung`]),
@@ -261,6 +352,27 @@ ${blurTargets} {
     will-change: filter, opacity, transform;
 }
 `);
+
+        if (config.blurProgressive) {
+            const glowPart = config.glowEnabled ? ` drop-shadow(0 0 ${clampedGlow}px ${config.glowColor})` : '';
+            const ramp = [0.3, 0.6, 0.85];
+            const rampRules = ramp.map((factor, idx) => {
+                const k = idx + 1;
+                const ahead = Array(k).fill('+ [data-index]');
+                ahead[ahead.length - 1] = '+ [data-index]:not(.st-preview-line)';
+                const behind = Array(k).fill('+ [data-index]');
+                behind[behind.length - 1] = '+ [data-index] > .line.Active';
+
+                const targets = ALL.flatMap(b => [
+                    `${b} [data-index]:has(> .line.Active) ${ahead.join(' ')} > .line`,
+                    `${b} [data-index]:not(.st-preview-line):has(${behind.join(' ')}) > .line`,
+                ]).join(',\n');
+
+                const amount = Math.round(config.blurAmount * factor * 100) / 100;
+                return `${targets} {\n    filter: blur(${amount}px)${glowPart} !important;\n}`;
+            });
+            css.push(rampRules.join('\n'));
+        }
 
         const unblurFilter = config.glowEnabled
             ? `filter: drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`
@@ -399,7 +511,7 @@ ${highlightTargets} {
 
     if (config.pageBgOverlay) {
         css.push(`
-#SpicyLyricsPage .LyricsContainer::before,
+#SpicyLyricsPage:not(.CardMode) .LyricsContainer::before,
 #SpicyLyricsPage.CompactMode::before {
     content: '';
     position: absolute;
@@ -677,21 +789,17 @@ ${waveTargets} {
     backface-visibility: hidden !important;
 }
 `);
+        const waveDelays: string[] = [];
         for (let i = 0; i < 20; i++) {
+            const nth = `:nth-child(${i + 1})`;
             const nthTargets = [
-                ...ALL.flatMap(b => [
-                    `${b} .line.Active .word:nth-child(${i + 1})`,
-                    `${b} .line.Active .letterGroup:nth-child(${i + 1})`,
-                ]),
-                `.slt-interleaved-translation.Active .slt-sync-word:nth-child(${i + 1})`,
-                `.slt-replace-line.Active .slt-replace-word:nth-child(${i + 1})`,
+                ...ALL.map(b => `${b} .line.Active :is(.word, .letterGroup)${nth}`),
+                `.slt-interleaved-translation.Active .slt-sync-word${nth}`,
+                `.slt-replace-line.Active .slt-replace-word${nth}`,
             ].join(',\n');
-            css.push(`
-${nthTargets} {
-    animation-delay: ${(i * 0.08).toFixed(2)}s !important;
-}
-`);
+            waveDelays.push(`${nthTargets} {\n    animation-delay: ${(i * 0.08).toFixed(2)}s !important;\n}`);
         }
+        css.push(waveDelays.join('\n'));
     }
 
     if (config.scaleInEffect) {
@@ -710,21 +818,16 @@ ${nthTargets} {
     to { transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1); }
 }
 ${scaleInTargets} {
-    transform-origin: left center !important;
-    animation: st-line-scale-in ${config.scaleInDuration}s cubic-bezier(0.16, 1, 0.3, 1) both !important;
-    will-change: transform !important;
+    animation: ${[`st-line-scale-in ${config.scaleInDuration}s cubic-bezier(0.16, 1, 0.3, 1) both`, pulseAnim].filter(Boolean).join(', ')} !important;
+    will-change: transform${glowPulseOn ? ', filter' : ''} !important;
 }
+${lineOriginRules([
+    ...ALL.map(b => `${b} .line.Active`),
+    '.slt-replace-line.Active',
+    '.slt-interleaved-translation.Active',
+])}
 `);
     }
-
-    css.push(`
-${lineSelectors(SIDEBAR, 'Sung')} {
-    ${sungGrad}
-}
-${lineSelectors(SIDEBAR, 'NotSung')} {
-    ${notSungGrad}
-}
-`);
 
     if (config.glowEnabled) {
         css.push(`
@@ -735,25 +838,61 @@ ${SIDEBAR.map(b => `${b} .line.Active`).join(',\n')} {
     }
 
     const PLAYER = ['#SpicyLyricsPage', '.spicy-pip-wrapper #SpicyLyricsPage'];
+    const playerSel = (mod: string, rest: string) => PLAYER.map(p => `${p}${mod} ${rest}`).join(',\n');
 
     if (config.playerStylingEnabled) {
         const radius = Math.min(Math.max(config.playerArtRadius, 0), 50);
         const barT = Math.min(Math.max(config.playerProgressThickness, 0.5), 5);
 
+        const artTargets = [
+            ...PLAYER.map(p => `${p} .ContentBox .NowBar .MediaImageContainer`),
+            '.spicy-pip-wrapper #SpicyLyricsPage.CompactMode .ContentBox .NowBar .Header .MediaBox:not(:hover) .MediaImageContainer',
+            '.spicy-pip-wrapper #SpicyLyricsPage.CompactMode .ContentBox .NowBar .Header .MediaBox:hover .MediaImageContainer',
+        ];
         css.push(`
-${PLAYER.map(p => `${p} .ContentBox .NowBar .MediaImageContainer`).join(',\n')} {
+${artTargets.join(',\n')} {
     border-radius: ${radius}% !important;
     --BorderRadius: ${radius}% !important;
 }
 `);
 
         if (barT !== 1) {
-            css.push(`
-${PLAYER.map(p => `${p} .Timeline .SliderBar`).join(',\n')} {
-    height: calc(1.3cqh * ${barT}) !important;
+            const SKINS = [
+                { mod: '.Exp_NewProgressBar', bar: 2.2, header: 1.7, barHover: 3, headerHover: 2.3 },
+                { mod: ':not(.Exp_NewProgressBar)', bar: 1.3, header: 1, barHover: 0, headerHover: 0 },
+            ];
+            const barHeight = (cqh: number) => `height: calc(${cqh}cqh * ${barT}) !important;`;
+            const barRules = (mod: string, state: string, bar: number, header: number) => !bar ? '' : `
+${playerSel(mod, `.Timeline .SliderBar${state}`)} {
+    ${barHeight(bar)}
 }
-${PLAYER.map(p => `${p} .Header > .Timeline .SliderBar`).join(',\n')} {
-    height: calc(1cqh * ${barT}) !important;
+${playerSel(mod, `.Header > .Timeline .SliderBar${state}`)} {
+    ${barHeight(header)}
+}
+`;
+            css.push(SKINS.map(s =>
+                barRules(s.mod, '', s.bar, s.header) +
+                barRules(s.mod, ':is(:hover, .Dragging)', s.barHover, s.headerHover)
+            ).join('\n'));
+        }
+
+        if (config.playerAccentEnabled) {
+            const accent = config.playerAccentColor;
+            css.push(`
+${playerSel(':not(.Exp_NewProgressBar)', '.Timeline .SliderBar')},
+${playerSel(':not(.Exp_NewProgressBar)', '.VolumeControl')} {
+    --TraveledColor: ${accent} !important;
+}
+${playerSel(':not(.Exp_NewProgressBar)', '.Timeline .SliderBar .Handle')},
+${playerSel(':not(.Exp_NewProgressBar)', '.VolumeControl .Handle')} {
+    background: ${readableOn(accent)} !important;
+}
+${playerSel('.Exp_NewProgressBar', '.Timeline .SliderBar::before')},
+${playerSel('.Exp_NewProgressBar', '.VolumeControl .VolumeFill')} {
+    background: ${accent} !important;
+}
+${playerSel('.Exp_NewProgressBar', '.VolumeControl.IconOnFill .VolumeIcon')} {
+    fill: ${readableOn(accent)} !important;
 }
 `);
         }
@@ -769,16 +908,21 @@ ${PLAYER.map(p => `${p} .Header > .Timeline .SliderBar`).join(',\n')} {
         }
 
         if (config.playerControlsAnimation) {
+            const notFs = PLAYER.map(p => `${p}:not(.Fullscreen)`);
             css.push(`
 ${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl`).join(',\n')} {
+    --ShrinkScale: 0.86;
+    --ShrinkDelta: calc(1 - var(--ShrinkScale));
     transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.175s ease-out, opacity 0.175s cubic-bezier(0.37, 0, 0.63, 1) !important;
 }
 ${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl:hover`).join(',\n')} {
-    transform: scale(1.18) !important;
     filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.55)) !important;
 }
-${PLAYER.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')} {
-    transform: scale(0.86) !important;
+${notFs.map(p => `${p} .PlaybackControls .PlaybackControl:hover:not(.Pressed)`).join(',\n')} {
+    transform: scale(1.18);
+}
+${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')} {
+    transform: scale(var(--ShrinkScale));
 }
 `);
         }
@@ -871,7 +1015,7 @@ ${compactScopes.flatMap(c => [
         const barRule = (style: string, bands: number[], decl: (v: number) => string) =>
             bands.map((b, i) => `.st-eq[data-style="${style}"] i:nth-child(${i + 1}) { ${decl(b)} }`).join('\n');
         css.push(`
-#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata {
+${METADATA_SELECTOR} {
     position: relative;
 }
 .st-eq {
@@ -1056,7 +1200,7 @@ function updateEqualizerIn(doc: Document): void {
     const enabled = themeState.isEnabled && config.eqEnabled;
     const existing = Array.from(doc.querySelectorAll<HTMLElement>('.st-eq'));
 
-    const metadata = doc.querySelector('#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata');
+    const metadata = doc.querySelector(METADATA_SELECTOR);
     if (!enabled || !metadata) {
         existing.forEach(el => el.remove());
         return;
@@ -1154,7 +1298,7 @@ function startSungWordTagger(): void {
     sungWordTimer = setInterval(tagSungWords, 120);
 }
 
-function stopSungWordTagger(): void {
+export function stopSungWordTagger(): void {
     if (sungWordTimer) {
         clearInterval(sungWordTimer);
         sungWordTimer = null;
@@ -1164,19 +1308,17 @@ function stopSungWordTagger(): void {
     if (pipWindow) pipWindow.document.querySelectorAll('.st-sung-word').forEach(el => el.classList.remove('st-sung-word'));
 }
 
-let blurPreviewObserver: MutationObserver | null = null;
+type BlurPreviewWatch = { target: Element; observer: MutationObserver };
+const blurPreviewWatches = new Map<Document, BlurPreviewWatch>();
 let blurPreviewScheduled = false;
 
-export function refreshBlurPreview(): void {
-    blurPreviewScheduled = false;
-    document.querySelectorAll('#SpicyLyricsPage [data-index].st-preview-line')
+function refreshBlurPreviewIn(doc: Document, n: number): void {
+    doc.querySelectorAll('#SpicyLyricsPage [data-index].st-preview-line')
         .forEach(el => el.classList.remove('st-preview-line'));
 
-    if (!themeState.isEnabled || !themeState.activeTheme.blurUnsung) return;
-    const n = Math.max(0, Math.round(themeState.activeTheme.blurPreviewLines));
     if (n <= 0) return;
 
-    const active = document.querySelector('#SpicyLyricsPage .line.Active');
+    const active = doc.querySelector('#SpicyLyricsPage .line.Active');
     const activeWrapper = active?.closest('[data-index]') as HTMLElement | null;
     const container = activeWrapper?.parentElement;
     if (!activeWrapper || !container) return;
@@ -1189,17 +1331,34 @@ export function refreshBlurPreview(): void {
     }
 }
 
+export function refreshBlurPreview(): void {
+    blurPreviewScheduled = false;
+    const enabled = themeState.isEnabled && themeState.activeTheme.blurUnsung;
+    const n = enabled ? Math.max(0, Math.round(themeState.activeTheme.blurPreviewLines)) : 0;
+    try {
+        refreshBlurPreviewIn(document, n);
+        const pipWindow = getPIPWindow();
+        if (pipWindow) refreshBlurPreviewIn(pipWindow.document, n);
+    } catch (e) {}
+}
+
 function scheduleBlurPreview(): void {
     if (blurPreviewScheduled) return;
     blurPreviewScheduled = true;
     requestAnimationFrame(refreshBlurPreview);
 }
 
-export function startBlurPreviewObserver(): void {
-    if (blurPreviewObserver) return;
-    const target = document.querySelector('#SpicyLyricsPage');
+function watchBlurPreviewIn(doc: Document): void {
+    const target = doc.querySelector('#SpicyLyricsPage');
+    const existing = blurPreviewWatches.get(doc);
+    if (existing) {
+        if (existing.target === target && target?.isConnected) return;
+        existing.observer.disconnect();
+        blurPreviewWatches.delete(doc);
+    }
     if (!target) return;
-    blurPreviewObserver = new MutationObserver((muts) => {
+
+    const observer = new MutationObserver((muts) => {
         for (const m of muts) {
             const t = m.target as HTMLElement;
             if (t.classList && t.classList.contains('line')) {
@@ -1208,13 +1367,28 @@ export function startBlurPreviewObserver(): void {
             }
         }
     });
-    blurPreviewObserver.observe(target, { attributes: true, attributeFilter: ['class'], subtree: true });
+    observer.observe(target, { attributes: true, attributeFilter: ['class'], subtree: true });
+    blurPreviewWatches.set(doc, { target, observer });
+}
+
+export function startBlurPreviewObserver(): void {
+    try {
+        blurPreviewWatches.forEach((watch, doc) => {
+            if (doc !== document && !doc.defaultView) {
+                watch.observer.disconnect();
+                blurPreviewWatches.delete(doc);
+            }
+        });
+        watchBlurPreviewIn(document);
+        const pipWindow = getPIPWindow();
+        if (pipWindow) watchBlurPreviewIn(pipWindow.document);
+    } catch (e) {}
     scheduleBlurPreview();
 }
 
 export function stopBlurPreviewObserver(): void {
-    blurPreviewObserver?.disconnect();
-    blurPreviewObserver = null;
+    blurPreviewWatches.forEach(w => w.observer.disconnect());
+    blurPreviewWatches.clear();
 }
 
 export function injectThemeStyles(): void {
@@ -1473,6 +1647,15 @@ const BASE_STYLES = `
     box-sizing: border-box;
 }
 
+.st-modal-root .st-m-header {
+    position: sticky;
+    top: -14px;
+    z-index: 8;
+    padding-top: 14px;
+    margin-top: -14px;
+    background: transparent;
+}
+
 .st-modal-root .st-m-enabled-bar {
     display: flex;
     align-items: center;
@@ -1481,11 +1664,16 @@ const BASE_STYLES = `
     background: var(--st-bg-elev);
     border: 1px solid var(--st-border);
     border-radius: var(--st-radius);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     transition: background 0.24s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.st-modal-root .st-m-enabled-bar:not(.st-m-enabled-off) {
+    border-color: rgba(29, 185, 84, 0.32);
+    background: linear-gradient(90deg, var(--st-accent-soft), var(--st-bg-elev) 55%);
 }
 .st-modal-root .st-m-enabled-text {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -1497,6 +1685,15 @@ const BASE_STYLES = `
 .st-modal-root .st-m-enabled-sub {
     font-size: 11px;
     color: var(--st-text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.st-modal-root .st-m-enabled-reset {
+    flex-shrink: 0;
+    min-height: 28px;
+    padding: 5px 10px;
+    font-size: 11px;
 }
 
 .st-modal-root .st-m-toggle {
@@ -1588,30 +1785,22 @@ const BASE_STYLES = `
     animation: st-tab-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.st-modal-root .st-m-customize-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-    align-items: start;
-}
-
 .st-modal-root .st-m-cz {
     gap: 0;
 }
 .st-modal-root .st-m-cz-toolbar {
-    position: sticky;
-    top: -14px;
-    z-index: 6;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 9px 12px;
     margin-bottom: 14px;
     border: 1px solid var(--st-border);
     border-radius: var(--st-radius);
-    background: rgba(18, 18, 20, 0.82);
-    -webkit-backdrop-filter: blur(14px) saturate(1.3);
-    backdrop-filter: blur(14px) saturate(1.3);
+    background: rgba(255, 255, 255, 0.03);
+    transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.st-modal-root .st-m-cz-toolbar:focus-within {
+    border-color: var(--st-accent);
 }
 .st-modal-root .st-m-cz-search-icon {
     display: flex;
@@ -1633,40 +1822,32 @@ const BASE_STYLES = `
 
 .st-modal-root .st-m-cz-body {
     display: grid;
-    grid-template-columns: 158px minmax(0, 1fr);
-    gap: 14px;
+    grid-template-columns: 186px minmax(0, 1fr);
+    gap: 16px;
     align-items: start;
 }
 .st-modal-root .st-m-cz-rail {
     position: sticky;
-    top: 44px;
+    top: 104px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 6px;
     align-self: start;
     min-width: 0;
-}
-.st-modal-root .st-m-cz-preview {
-    border: 1px solid var(--st-border);
-    border-radius: var(--st-radius);
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-height: 92px;
-    overflow: hidden;
-    background: linear-gradient(145deg, rgba(0, 0, 0, 0.55), rgba(8, 8, 10, 0.95));
-}
-.st-modal-root .st-m-cz-preview .st-prv-line {
-    font-size: calc(16px * var(--st-prv-scale, 1));
-    font-weight: 800;
 }
 .st-modal-root .st-m-cz-nav {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.st-modal-root .st-m-cz-nav.st-m-cz-nav-muted {
+    opacity: 0.4;
 }
 .st-modal-root .st-m-cz-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
     text-align: left;
     background: transparent;
     border: none;
@@ -1678,6 +1859,19 @@ const BASE_STYLES = `
     cursor: pointer;
     transition: background 0.18s cubic-bezier(0.16, 1, 0.3, 1), color 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
+.st-modal-root .st-m-cz-nav-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 11px;
+    line-height: 1;
+    transition: background 0.18s cubic-bezier(0.16, 1, 0.3, 1), color 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
 .st-modal-root .st-m-cz-nav-item:hover {
     background: rgba(255, 255, 255, 0.05);
     color: var(--st-text);
@@ -1685,6 +1879,38 @@ const BASE_STYLES = `
 .st-modal-root .st-m-cz-nav-item.active {
     background: var(--st-accent-soft);
     color: var(--st-accent);
+}
+.st-modal-root .st-m-cz-nav-item.active .st-m-cz-nav-icon {
+    background: var(--st-accent);
+    color: #000;
+}
+
+.st-modal-root .st-m-cz-clear {
+    background: transparent;
+    border: none;
+    color: var(--st-text-dim);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 3px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.18s cubic-bezier(0.16, 1, 0.3, 1), background 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.st-modal-root .st-m-cz-clear:hover {
+    color: var(--st-text);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.st-modal-root .st-m-cz-status {
+    font-size: 12px;
+    color: var(--st-text-dim);
+    padding: 0 2px 10px;
+}
+.st-modal-root .st-m-cz-status-empty {
+    color: var(--st-text);
 }
 
 .st-modal-root .st-m-cz-sections {
@@ -1699,21 +1925,22 @@ const BASE_STYLES = `
     gap: 10px;
     animation: st-tab-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.st-modal-root .st-m-cz-cat-title {
-    font-size: 12px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--st-text);
-    padding-bottom: 7px;
+.st-modal-root .st-m-cz-cat-head {
+    padding-bottom: 9px;
     border-bottom: 1px solid var(--st-border);
+}
+.st-modal-root .st-m-cz-cat-title {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    color: var(--st-text);
 }
 
 .st-modal-root .st-m-cz-cat-desc {
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 1.45;
     color: var(--st-text-dim);
-    margin-top: 8px;
+    margin-top: 3px;
 }
 
 .st-modal-root .st-m-section {
@@ -1755,12 +1982,24 @@ const BASE_STYLES = `
     border-top: none;
     padding-top: 2px;
 }
+.st-modal-root .st-m-field-labelbox {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
 .st-modal-root .st-m-field-label {
     min-width: 0;
     font-size: 13px;
     color: var(--st-text);
     overflow-wrap: normal;
     line-height: 1.3;
+}
+.st-modal-root .st-m-field-hint {
+    font-size: 11.5px;
+    line-height: 1.4;
+    color: var(--st-text-dim);
+    max-width: 46ch;
 }
 .st-modal-root .st-m-field-control {
     display: flex;
@@ -1769,6 +2008,57 @@ const BASE_STYLES = `
     justify-content: flex-end;
     min-width: 0;
     width: 100%;
+}
+
+.st-modal-root .st-m-field-reset {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--st-text-dim);
+    cursor: pointer;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), background 0.18s cubic-bezier(0.16, 1, 0.3, 1), color 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.st-modal-root .st-m-field-reset-on {
+    visibility: visible;
+    opacity: 0.45;
+}
+.st-modal-root .st-m-field-reset-on:hover,
+.st-modal-root .st-m-field-reset-on:focus-visible {
+    opacity: 1;
+    color: var(--st-text);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.st-modal-root .st-m-subgroup {
+    display: flex;
+    flex-direction: column;
+    margin: 2px 0 4px 10px;
+    padding-left: 12px;
+    border-left: 2px solid var(--st-accent-soft);
+}
+.st-modal-root .st-m-subgroup .st-m-field {
+    min-height: 34px;
+    padding: 4px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.03);
+}
+.st-modal-root .st-m-subgroup > .st-m-field:first-child {
+    border-top: none;
+}
+.st-modal-root .st-m-subgroup .st-m-field-label {
+    font-size: 12.5px;
+    color: var(--st-text-dim);
+}
+.st-modal-root .st-m-subgroup .st-m-subgroup {
+    border-left-color: rgba(255, 255, 255, 0.07);
 }
 
 .st-modal-root .st-m-field-color,
@@ -2256,6 +2546,16 @@ const BASE_STYLES = `
     padding: 2px 8px;
     border-radius: 4px;
 }
+.st-modal-root .st-m-about-hash {
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 11px;
+    color: var(--st-text-dim);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--st-border);
+    padding: 2px 7px;
+    border-radius: 4px;
+    user-select: all;
+}
 .st-modal-root .st-m-about-text {
     font-size: 13px;
     color: var(--st-text-dim);
@@ -2318,7 +2618,6 @@ const BASE_STYLES = `
         padding: 12px;
     }
 
-    .st-modal-root .st-m-customize-grid,
     .st-modal-root .st-m-mp-toolbar,
     .st-modal-root .st-m-save-row {
         grid-template-columns: 1fr;
@@ -2336,7 +2635,17 @@ const BASE_STYLES = `
     }
     .st-modal-root .st-m-cz-nav-item {
         flex: 1 1 auto;
-        text-align: center;
+        justify-content: center;
+    }
+    .st-modal-root .st-m-enabled-bar {
+        flex-wrap: wrap;
+    }
+    .st-modal-root .st-m-field-reset {
+        visibility: visible;
+        opacity: 0;
+    }
+    .st-modal-root .st-m-field-reset-on {
+        opacity: 0.6;
     }
 
     .st-modal-root .st-m-field {
@@ -2365,6 +2674,10 @@ const BASE_STYLES = `
     .st-modal-root .st-m-about-actions .st-m-toggle-row {
         width: 100%;
         justify-content: center;
+    }
+
+    .st-modal-root .st-m-enabled-reset {
+        width: auto;
     }
 }
 

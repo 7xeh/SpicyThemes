@@ -163,7 +163,6 @@ Spicy Themes works in full lyrics view, sidebar lyrics view, Cinema mode, and Pi
 - Overlay opacity
 - Translation opacity for Spicy Lyric Translator
 - Translation font size scale for Spicy Lyric Translator
-- Dev channel
 - Export theme
 - Import theme
 - Check for updates

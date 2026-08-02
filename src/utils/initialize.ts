@@ -1,5 +1,5 @@
 import { themeState, saveThemeState, getAllPresets, applyPreset as applyPresetFn } from './state';
-import { injectThemeStyles, injectBaseStyles, removeThemeStyles, updateEqualizer, updateMusicVideo } from './themeEngine';
+import { injectThemeStyles, injectBaseStyles, removeThemeStyles, updateEqualizer, updateMusicVideo, startBlurPreviewObserver } from './themeEngine';
 import { registerSettings } from './settings';
 import { isSpicyLyricsOpen, onSpicyLyricsOpen, onSpicyLyricsClose, createThemeButton, injectIntoPiP } from './core';
 import { startUpdateChecker, checkForUpdates, getUpdateInfo, VERSION, showPostUpdateChangelog } from './updater';
@@ -59,6 +59,7 @@ export async function initialize(): Promise<void> {
     showPostUpdateChangelog().catch(() => {});
 
     let wasSpicyLyricsOpen = false;
+    let lastPageElement: Element | null = null;
     let observerDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     const observer = new MutationObserver(() => {
         if (observerDebounceTimer) return;
@@ -77,9 +78,17 @@ export async function initialize(): Promise<void> {
                 createThemeButton();
             }
 
+            const pageElement = document.querySelector('#SpicyLyricsPage');
+            const pageChanged = pageElement !== lastPageElement;
+            lastPageElement = pageElement;
+
             if (isOpen && themeState.isEnabled) {
-                updateEqualizer();
-                updateMusicVideo();
+                const eqMissing = themeState.activeTheme.eqEnabled && !document.querySelector('.st-eq');
+                if (pageChanged || eqMissing) {
+                    startBlurPreviewObserver();
+                    updateEqualizer();
+                    updateMusicVideo();
+                }
             }
         }, 50);
     });

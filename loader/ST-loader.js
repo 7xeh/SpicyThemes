@@ -66,22 +66,8 @@
         });
     };
 
-    const getDevChannelParams = () => {
-        const devKey = storageGet('dev-channel');
-        if (devKey) return '&channel=dev';
-        return '';
-    };
-
-    const getDevChannelHeaders = () => {
-        const devKey = storageGet('dev-channel');
-        if (devKey) return { 'X-Dev-Channel-Key': devKey };
-        return {};
-    };
-
     const getVersionInfoFromPrimaryApi = async () => {
-        const response = await fetch(appendCacheBust(`${VERSION_API_URL}?action=version${getDevChannelParams()}`), {
-            headers: getDevChannelHeaders()
-        });
+        const response = await fetch(appendCacheBust(`${VERSION_API_URL}?action=version`));
         if (!response.ok) throw new Error(`Primary API status ${response.status}`);
         const data = await response.json();
         const version = normalizeVersion(data.version);

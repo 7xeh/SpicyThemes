@@ -83,6 +83,14 @@ export interface ThemeConfig {
     playerStylingEnabled: boolean;
     playerArtRadius: number;
     playerProgressThickness: number;
+    blurProgressive: boolean;
+    gradientDirection: string;
+    activeLineWeight: number;
+    textTransform: string;
+    glowPulse: boolean;
+    glowPulseSpeed: number;
+    playerAccentEnabled: boolean;
+    playerAccentColor: string;
     playerControlsAnimation: boolean;
     playerHideShuffle: boolean;
     playerHideRepeat: boolean;
@@ -183,6 +191,14 @@ export const DEFAULT_THEME: ThemeConfig = {
     playerStylingEnabled: false,
     playerArtRadius: 12,
     playerProgressThickness: 1.0,
+    blurProgressive: false,
+    gradientDirection: 'auto',
+    activeLineWeight: 0,
+    textTransform: 'none',
+    glowPulse: false,
+    glowPulseSpeed: 1.0,
+    playerAccentEnabled: false,
+    playerAccentColor: '#1db954',
     playerControlsAnimation: false,
     playerHideShuffle: false,
     playerHideRepeat: false,
@@ -206,11 +222,6 @@ export interface ThemePreset {
     config: ThemeConfig;
 }
 
-// Built-in presets are curated *experiences*, not palettes. Each one leans on a
-// distinct slice of the feature set (effects, line focus, player styling, the
-// equalizer, music videos, translations) so the gallery doubles as a tour of
-// what SpicyThemes can do. Keep a preset named 'Default' — settings.ts resets to
-// it by name.
 export const BUILTIN_PRESETS: ThemePreset[] = [
     {
         name: 'Default',
@@ -561,6 +572,8 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     glowIntensity: [0, 15],
     activeGlowIntensity: [0, 15],
     bgGlowIntensity: [0, 30],
+    glowPulseSpeed: [0.3, 3.0],
+    activeLineWeight: [0, 900],
     sltTranslationFontSize: [0.25, 2.0],
     scaleActive: [0.95, 1.12],
     scaleInFrom: [0.85, 1.05],
@@ -588,7 +601,7 @@ const COLOR_KEYS: (keyof ThemeConfig)[] = [
     'gradientStartColor', 'gradientEndColor',
     'textShadowColor', 'pageBgColor',
     'sltTranslationColor', 'sltHighlightStartColor', 'sltHighlightEndColor', 'sltGlowColor',
-    'bgGlowColor', 'highlightColor', 'eqColor',
+    'bgGlowColor', 'highlightColor', 'eqColor', 'playerAccentColor',
 ];
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
@@ -650,6 +663,14 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
 
     if (!['both', 'left', 'right'].includes(normalized.eqPosition)) {
         normalized.eqPosition = 'both';
+    }
+
+    if (!['auto', 'horizontal', 'vertical', 'diagonal'].includes(normalized.gradientDirection)) {
+        normalized.gradientDirection = 'auto';
+    }
+
+    if (!['none', 'uppercase', 'lowercase', 'capitalize'].includes(normalized.textTransform)) {
+        normalized.textTransform = 'none';
     }
 
     normalized.lineHeight = Math.round(normalized.lineHeight * 100) / 100;

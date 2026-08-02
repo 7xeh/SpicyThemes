@@ -1,7 +1,10 @@
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execSync } = require('child_process');
+
+const BUILD_HASH_PLACEHOLDER = 'ST_BUILD_HASH_PLACEHOLDER_0000000000000000000000000000';
 
 const ARGS = process.argv.slice(2);
 const IS_WATCH = ARGS.includes('--watch');
@@ -50,8 +53,18 @@ const buildOptions = {
     logLevel: 'info',
     define: {
         '__VERSION__': JSON.stringify(packageVersion),
-        '__DEV__': JSON.stringify(false)
+        '__DEV__': JSON.stringify(false),
+        '__BUILD_HASH__': JSON.stringify(BUILD_HASH_PLACEHOLDER)
     }
+};
+
+const stampBuildHash = () => {
+    if (!fs.existsSync(OUT_FILE)) return;
+    const code = fs.readFileSync(OUT_FILE, 'utf8');
+    if (!code.includes(BUILD_HASH_PLACEHOLDER)) return;
+    const hash = crypto.createHash('sha256').update(code).digest('hex');
+    fs.writeFileSync(OUT_FILE, code.split(BUILD_HASH_PLACEHOLDER).join(hash));
+    console.log(`[Hash] Build hash: ${hash.substring(0, 12)}`);
 };
 
 const run = async () => {
@@ -66,11 +79,20 @@ const run = async () => {
     }
 
     if (IS_WATCH) {
-        const ctx = await esbuild.context(buildOptions);
+        const ctx = await esbuild.context({
+            ...buildOptions,
+            plugins: [{
+                name: 'st-build-hash',
+                setup(build) {
+                    build.onEnd(() => stampBuildHash());
+                }
+            }]
+        });
         await ctx.watch();
         console.log(`[Watch] Watching for changes...`);
     } else {
         await esbuild.build(buildOptions);
+        stampBuildHash();
         console.log(`✅ Build complete`);
     }
 };

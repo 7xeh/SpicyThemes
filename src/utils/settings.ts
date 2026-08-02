@@ -1,7 +1,7 @@
 import { storage } from './storage';
 import { themeState, saveThemeState, applyPreset, getAllPresets, saveCustomPreset, deleteCustomPreset, updateThemeProperty, mergeThemeConfig, BUILTIN_PRESETS } from './state';
 import { injectThemeStyles } from './themeEngine';
-import { checkForUpdates, getCurrentVersion, getUpdateInfo, isDevChannel } from './updater';
+import { checkForUpdates, getCurrentVersion, getUpdateInfo } from './updater';
 import { createSettingsModal, SCHEMA, FONT_OPTIONS, FieldDef } from './settingsModal';
 import { displayModal } from './modal';
 import { ThemeConfig } from './state';
@@ -11,21 +11,6 @@ const SETTINGS_ID = 'spicy-themes-settings';
 const MODAL_SETTINGS_ID = 'spicy-themes-modal-settings';
 const SETTINGS_WATCHER_FLAG = '__spicyThemesSettingsWatcherRegistered';
 const MENU_REGISTERED_FLAG = '__spicyThemesMenuRegistered';
-
-const CHANNEL_STATE_KEYS = [
-    'loaded-version',
-    'content-hash',
-    'hotfix-detected',
-    'pending-update-version',
-    'pending-update-timestamp',
-    'pending-update-changelog',
-    'last-known-version',
-    'last-known-hash',
-];
-
-function resetUpdateChannelState(): void {
-    CHANNEL_STATE_KEYS.forEach(key => storage.remove(key));
-}
 
 function nativeSettingsClass(selector: string, fallback: string): string {
     try {
@@ -475,23 +460,6 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     renderSchemaFields(optionsContainer);
 
     optionsContainer.appendChild(createSectionHeader('Miscellaneous'));
-
-    optionsContainer.appendChild(createToggleRow(
-        'st-settings.dev-channel',
-        'Dev Channel',
-        isDevChannel(),
-        (v) => {
-            if (v) {
-                storage.set('dev-channel', 'ST_D3V_7xeh');
-            } else {
-                storage.remove('dev-channel');
-            }
-            resetUpdateChannelState();
-            if (Spicetify.showNotification) {
-                Spicetify.showNotification(v ? 'Dev channel enabled. Restart Spotify to apply' : 'Dev channel disabled. Restart Spotify to apply');
-            }
-        }
-    ));
 
     optionsContainer.appendChild(createButtonRow(
         'st-settings.check-updates',

@@ -1,5 +1,5 @@
 import { themeState, saveThemeState } from './state';
-import { injectThemeStyles, removeThemeStyles, startBlurPreviewObserver, stopBlurPreviewObserver } from './themeEngine';
+import { injectThemeStyles, removeThemeStyles, startBlurPreviewObserver, stopBlurPreviewObserver, stopSungWordTagger } from './themeEngine';
 import { Icons } from './icons';
 import { openSettingsModal } from './settings';
 
@@ -10,7 +10,7 @@ let themeButton: HTMLElement | null = null;
 export function isSpicyLyricsOpen(): boolean {
     if (document.querySelector('#SpicyLyricsPage')) return true;
     if (document.querySelector('.spicy-pip-wrapper #SpicyLyricsPage')) return true;
-    if (document.body.classList.contains('SpicySidebarLyrics__Active')) return true;
+    if (document.querySelector('#SpicyLyricsNPVCard')) return true;
 
     try {
         const pipWindow = (window as any).documentPictureInPicture?.window;
@@ -28,7 +28,7 @@ export function createThemeButton(): void {
 
     if (document.getElementById('ThemeToggle')) return;
 
-    const viewControls = document.querySelector('#SpicyLyricsPage .ViewControls');
+    const viewControls = document.querySelector('#SpicyLyricsPage:not(.CardMode) .ViewControls');
     if (!viewControls) {
         return;
     }
@@ -109,6 +109,7 @@ export function onSpicyLyricsClose(): void {
     setViewingLyrics(false);
     removeThemeButton();
     stopBlurPreviewObserver();
+    stopSungWordTagger();
 }
 
 export function injectIntoPiP(): void {
@@ -120,7 +121,7 @@ export function injectIntoPiP(): void {
         const pipViewControls = pipDoc.querySelector('#SpicyLyricsPage .ViewControls');
         if (!pipViewControls || pipDoc.getElementById('ThemeToggle')) return;
 
-        const button = document.createElement('button');
+        const button = pipDoc.createElement('button') as HTMLElement;
         button.id = 'ThemeToggle';
         button.className = 'ViewControl';
         button.innerHTML = themeState.isEnabled ? Icons.Palette : Icons.PaletteOff;

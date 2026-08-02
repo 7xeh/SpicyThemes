@@ -14,7 +14,7 @@ import {
     ThemePreset,
 } from './state';
 import { injectThemeStyles } from './themeEngine';
-import { checkForUpdates, getCurrentVersion, getUpdateInfo, isDevChannel } from './updater';
+import { checkForUpdates, getCurrentVersion, getDisplayHash, getUpdateInfo } from './updater';
 import * as Marketplace from './marketplace';
 
 export type FieldType = 'toggle' | 'color' | 'slider' | 'dropdown' | 'text';
@@ -32,6 +32,9 @@ export interface FieldDef<K extends keyof ThemeConfig = keyof ThemeConfig> {
     options?: { value: string; text: string }[];
     when?: (t: ThemeConfig) => boolean;
     comingSoon?: boolean;
+    parent?: keyof ThemeConfig;
+    hint?: string;
+    keywords?: string;
 }
 
 export const FONT_OPTIONS = [
@@ -81,106 +84,152 @@ export const WEIGHT_OPTIONS = [
 ];
 
 export const SCHEMA: FieldDef[] = [
-    { id: 'activeLineColor', label: 'Active line color', type: 'color', section: 'Colors', when: (t) => !t.gradientEnabled },
-    { id: 'sungLineColor', label: 'Sung line color', type: 'color', section: 'Colors' },
-    { id: 'notSungLineColor', label: 'Unsung line color', type: 'color', section: 'Colors' },
-    { id: 'activeLineOpacity', label: 'Active line opacity', type: 'slider', section: 'Opacity', min: 0.1, max: 1.0, step: 0.05 },
-    { id: 'sungLineOpacity', label: 'Sung line opacity', type: 'slider', section: 'Opacity', min: 0.1, max: 1.0, step: 0.05 },
-    { id: 'notSungLineOpacity', label: 'Unsung line opacity', type: 'slider', section: 'Opacity', min: 0.1, max: 1.0, step: 0.05 },
-    { id: 'fontFamily', label: 'Font', type: 'dropdown', section: 'Typography', options: [...FONT_OPTIONS, { value: '__custom__', text: 'Custom...' }] },
-    { id: 'fontFamily', label: 'Custom font', type: 'text', section: 'Typography', when: (t) => t.fontFamily !== '' && !FONT_OPTIONS.some(o => o.value === t.fontFamily) },
-    { id: 'fontWeight', label: 'Font weight', type: 'dropdown', section: 'Typography', options: WEIGHT_OPTIONS },
-    { id: 'letterSpacing', label: 'Letter spacing', type: 'slider', section: 'Typography', min: -0.1, max: 0.3, step: 0.01, unit: 'em' },
-    { id: 'lineHeight', label: 'Line height', type: 'slider', section: 'Typography', min: 1.0, max: 2.5, step: 0.01 },
-    { id: 'lyricsScale', label: 'Lyrics scale', type: 'slider', section: 'Typography', min: 0.25, max: 2.0, step: 0.05, unit: 'x' },
-    { id: 'gradientEnabled', label: 'Gradient text', type: 'toggle', section: 'Gradient' },
-    { id: 'gradientStartColor', label: 'Gradient start', type: 'color', section: 'Gradient', when: (t) => t.gradientEnabled },
-    { id: 'gradientEndColor', label: 'Gradient end', type: 'color', section: 'Gradient', when: (t) => t.gradientEnabled },
-    { id: 'gradientAngle', label: 'Gradient angle', type: 'slider', section: 'Gradient', min: 0, max: 360, step: 5, unit: 'deg', when: (t) => t.gradientEnabled, comingSoon: true },
-    { id: 'glowEnabled', label: 'Line glow', type: 'toggle', section: 'Glow' },
-    { id: 'activeGlowColor', label: 'Active line glow color', type: 'color', section: 'Glow', when: (t) => t.glowEnabled },
-    { id: 'activeGlowIntensity', label: 'Active line glow intensity', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', when: (t) => t.glowEnabled },
-    { id: 'glowColor', label: 'Other lines glow color', type: 'color', section: 'Glow', when: (t) => t.glowEnabled },
-    { id: 'glowIntensity', label: 'Other lines glow intensity', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', when: (t) => t.glowEnabled },
-    { id: 'bgGlowEnabled', label: 'Active word glow', type: 'toggle', section: 'Glow' },
-    { id: 'bgGlowColor', label: 'Word glow color', type: 'color', section: 'Glow', when: (t) => t.bgGlowEnabled },
-    { id: 'bgGlowIntensity', label: 'Word glow intensity', type: 'slider', section: 'Glow', min: 0, max: 30, step: 1, unit: 'px', when: (t) => t.bgGlowEnabled },
-    { id: 'blurUnsung', label: 'Blur unsung lines', type: 'toggle', section: 'Effects' },
-    { id: 'blurAmount', label: 'Blur amount', type: 'slider', section: 'Effects', min: 0, max: 8, step: 0.5, unit: 'px', when: (t) => t.blurUnsung },
-    { id: 'blurPreviewLines', label: 'Keep upcoming lines sharp', type: 'slider', section: 'Effects', min: 0, max: 5, step: 1, unit: ' lines', when: (t) => t.blurUnsung },
-    { id: 'blurSungWords', label: 'Blur sung words in active line', type: 'toggle', section: 'Effects' },
-    { id: 'blurSungWordsAmount', label: 'Sung word blur', type: 'slider', section: 'Effects', min: 0, max: 8, step: 0.5, unit: 'px', when: (t) => t.blurSungWords },
-    { id: 'blurSungWordsOpacity', label: 'Sung word opacity', type: 'slider', section: 'Effects', min: 0.05, max: 1.0, step: 0.05, when: (t) => t.blurSungWords },
-    { id: 'textShadowEnabled', label: 'Text shadow', type: 'toggle', section: 'Effects' },
-    { id: 'textShadowColor', label: 'Shadow color', type: 'color', section: 'Effects', when: (t) => t.textShadowEnabled },
-    { id: 'textShadowOpacity', label: 'Shadow opacity', type: 'slider', section: 'Effects', min: 0, max: 1, step: 0.05, when: (t) => t.textShadowEnabled },
-    { id: 'textShadowBlur', label: 'Shadow blur', type: 'slider', section: 'Effects', min: 0, max: 20, step: 1, unit: 'px', when: (t) => t.textShadowEnabled },
-    { id: 'textShadowOffsetX', label: 'Shadow offset X', type: 'slider', section: 'Effects', min: -10, max: 10, step: 1, unit: 'px', when: (t) => t.textShadowEnabled },
-    { id: 'textShadowOffsetY', label: 'Shadow offset Y', type: 'slider', section: 'Effects', min: -10, max: 10, step: 1, unit: 'px', when: (t) => t.textShadowEnabled },
-    { id: 'disableHighlight', label: 'Flat color mode (no karaoke fill)', type: 'toggle', section: 'Effects' },
-    { id: 'highlightColor', label: 'Flat color', type: 'color', section: 'Effects', when: (t) => t.disableHighlight },
-    { id: 'wordEffect', label: 'Word animation', type: 'dropdown', section: 'Effects', options: [
+    { id: 'activeLineColor', label: 'Active line', type: 'color', section: 'Line colors', when: (t) => !t.gradientEnabled, hint: 'The line currently being sung. Replaced by the gradient when gradient text is on.', keywords: 'current karaoke highlight' },
+    { id: 'sungLineColor', label: 'Already sung', type: 'color', section: 'Line colors', keywords: 'past previous' },
+    { id: 'notSungLineColor', label: 'Not yet sung', type: 'color', section: 'Line colors', keywords: 'upcoming future next' },
+    { id: 'activeLineOpacity', label: 'Active line opacity', type: 'slider', section: 'Line colors', min: 0.1, max: 1.0, step: 0.05, keywords: 'transparency fade' },
+    { id: 'sungLineOpacity', label: 'Sung line opacity', type: 'slider', section: 'Line colors', min: 0.1, max: 1.0, step: 0.05, keywords: 'transparency fade' },
+    { id: 'notSungLineOpacity', label: 'Unsung line opacity', type: 'slider', section: 'Line colors', min: 0.1, max: 1.0, step: 0.05, keywords: 'transparency fade' },
+
+    { id: 'gradientEnabled', label: 'Gradient text', type: 'toggle', section: 'Gradient', hint: 'Fills the active line with a two-colour gradient instead of a flat colour.', keywords: 'rainbow fade blend' },
+    { id: 'gradientStartColor', label: 'Sung colour', type: 'color', section: 'Gradient', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, hint: 'The part of the active line already sung.' },
+    { id: 'gradientEndColor', label: 'Upcoming colour', type: 'color', section: 'Gradient', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, hint: 'The part of the active line still to come.' },
+    { id: 'gradientDirection', label: 'Sweep direction', type: 'dropdown', section: 'Gradient', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, options: [
+        { value: 'auto', text: 'Follow Spicy Lyrics' },
+        { value: 'horizontal', text: 'Horizontal' },
+        { value: 'vertical', text: 'Vertical' },
+        { value: 'diagonal', text: 'Diagonal' },
+    ], hint: 'Which way the karaoke fill travels. Horizontal and diagonal flip automatically for right-to-left lyrics.', keywords: 'angle direction karaoke sweep fill' },
+
+    { id: 'fontFamily', label: 'Font', type: 'dropdown', section: 'Typography', options: [...FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], keywords: 'typeface family' },
+    { id: 'fontFamily', label: 'Custom font name', type: 'text', section: 'Typography', placeholder: "e.g. 'Inter', sans-serif", when: (t) => t.fontFamily !== '' && !FONT_OPTIONS.some(o => o.value === t.fontFamily) },
+    { id: 'fontWeight', label: 'Weight', type: 'dropdown', section: 'Typography', options: WEIGHT_OPTIONS, keywords: 'bold thin' },
+    { id: 'activeLineWeight', label: 'Active line weight', type: 'dropdown', section: 'Typography', options: [{ value: '0', text: 'Same as above' }, ...WEIGHT_OPTIONS], hint: 'Make the line being sung heavier than the rest.', keywords: 'bold emphasis active' },
+    { id: 'textTransform', label: 'Capitalisation', type: 'dropdown', section: 'Typography', options: [
+        { value: 'none', text: 'As written' },
+        { value: 'uppercase', text: 'UPPERCASE' },
+        { value: 'lowercase', text: 'lowercase' },
+        { value: 'capitalize', text: 'Title Case' },
+    ], keywords: 'uppercase lowercase caps case' },
+    { id: 'lyricsScale', label: 'Text size', type: 'slider', section: 'Typography', min: 0.25, max: 2.0, step: 0.05, unit: 'x', keywords: 'scale bigger smaller font size' },
+    { id: 'letterSpacing', label: 'Letter spacing', type: 'slider', section: 'Typography', min: -0.1, max: 0.3, step: 0.01, unit: 'em', keywords: 'tracking kerning' },
+    { id: 'lineHeight', label: 'Line spacing', type: 'slider', section: 'Typography', min: 1.0, max: 2.5, step: 0.01, keywords: 'leading gap' },
+
+    { id: 'glowEnabled', label: 'Line glow', type: 'toggle', section: 'Glow', hint: 'Adds a soft halo around every lyric line.', keywords: 'halo neon shine bloom' },
+    { id: 'activeGlowColor', label: 'Active line colour', type: 'color', section: 'Glow', parent: 'glowEnabled', when: (t) => t.glowEnabled },
+    { id: 'activeGlowIntensity', label: 'Active line strength', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', parent: 'glowEnabled', when: (t) => t.glowEnabled },
+    { id: 'glowColor', label: 'Other lines colour', type: 'color', section: 'Glow', parent: 'glowEnabled', when: (t) => t.glowEnabled },
+    { id: 'glowIntensity', label: 'Other lines strength', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', parent: 'glowEnabled', when: (t) => t.glowEnabled },
+    { id: 'glowPulse', label: 'Pulse the active line', type: 'toggle', section: 'Glow', parent: 'glowEnabled', when: (t) => t.glowEnabled, hint: 'The active line’s glow breathes in and out instead of sitting still.', keywords: 'breathe pulse animate throb' },
+    { id: 'glowPulseSpeed', label: 'Pulse speed', type: 'slider', section: 'Glow', min: 0.3, max: 3.0, step: 0.1, unit: 'x', parent: 'glowPulse', when: (t) => t.glowEnabled && t.glowPulse },
+    { id: 'bgGlowEnabled', label: 'Active word glow', type: 'toggle', section: 'Glow', hint: 'Lights up only the word being sung right now.', keywords: 'karaoke halo neon' },
+    { id: 'bgGlowColor', label: 'Word glow colour', type: 'color', section: 'Glow', parent: 'bgGlowEnabled', when: (t) => t.bgGlowEnabled },
+    { id: 'bgGlowIntensity', label: 'Word glow strength', type: 'slider', section: 'Glow', min: 0, max: 30, step: 1, unit: 'px', parent: 'bgGlowEnabled', when: (t) => t.bgGlowEnabled },
+    { id: 'textShadowEnabled', label: 'Text shadow', type: 'toggle', section: 'Glow', hint: 'A hard drop shadow — useful for readability over bright backgrounds.', keywords: 'drop shadow outline readability' },
+    { id: 'textShadowColor', label: 'Shadow colour', type: 'color', section: 'Glow', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
+    { id: 'textShadowOpacity', label: 'Shadow opacity', type: 'slider', section: 'Glow', min: 0, max: 1, step: 0.05, parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
+    { id: 'textShadowBlur', label: 'Shadow blur', type: 'slider', section: 'Glow', min: 0, max: 20, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
+    { id: 'textShadowOffsetX', label: 'Shadow offset X', type: 'slider', section: 'Glow', min: -10, max: 10, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
+    { id: 'textShadowOffsetY', label: 'Shadow offset Y', type: 'slider', section: 'Glow', min: -10, max: 10, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
+
+    { id: 'blurUnsung', label: 'Blur other lines', type: 'toggle', section: 'Focus', hint: 'Softens every line except the one being sung, so the eye lands on the right place.', keywords: 'depth of field defocus soft' },
+    { id: 'blurAmount', label: 'Blur amount', type: 'slider', section: 'Focus', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'blurUnsung', when: (t) => t.blurUnsung },
+    { id: 'blurPreviewLines', label: 'Keep upcoming lines sharp', type: 'slider', section: 'Focus', min: 0, max: 5, step: 1, unit: ' lines', parent: 'blurUnsung', when: (t) => t.blurUnsung, hint: 'How many lines ahead stay readable through the blur.' },
+    { id: 'blurProgressive', label: 'Ramp blur with distance', type: 'toggle', section: 'Focus', parent: 'blurUnsung', when: (t) => t.blurUnsung, hint: 'Lines near the active one blur gently and further ones blur fully, instead of everything blurring equally.', keywords: 'gradual depth falloff distance' },
+    { id: 'blurSungWords', label: 'Fade words as they pass', type: 'toggle', section: 'Focus', hint: 'Blurs each word of the active line once it has been sung.', keywords: 'karaoke word blur trail' },
+    { id: 'blurSungWordsAmount', label: 'Word blur amount', type: 'slider', section: 'Focus', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'blurSungWords', when: (t) => t.blurSungWords },
+    { id: 'blurSungWordsOpacity', label: 'Word opacity', type: 'slider', section: 'Focus', min: 0.05, max: 1.0, step: 0.05, parent: 'blurSungWords', when: (t) => t.blurSungWords },
+    { id: 'lineWindowEnabled', label: 'Limit visible lines', type: 'toggle', section: 'Focus', hint: 'Hides everything outside a window around the active line.', keywords: 'window hide crop few lines' },
+    { id: 'lineWindowSungLines', label: 'Sung lines shown', type: 'slider', section: 'Focus', min: 0, max: 10, step: 1, unit: ' lines', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled },
+    { id: 'lineWindowUnsungLines', label: 'Upcoming lines shown', type: 'slider', section: 'Focus', min: 0, max: 10, step: 1, unit: ' lines', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled },
+
+    { id: 'disableHighlight', label: 'Flat colour mode', type: 'toggle', section: 'Motion', hint: 'Turns off the sweeping karaoke fill — every line uses one solid colour.', keywords: 'no karaoke disable highlight solid' },
+    { id: 'highlightColor', label: 'Flat colour', type: 'color', section: 'Motion', parent: 'disableHighlight', when: (t) => t.disableHighlight },
+    { id: 'wordEffect', label: 'Word animation', type: 'dropdown', section: 'Motion', options: [
         { value: 'none', text: 'None' },
         { value: 'pop', text: 'Pop' },
         { value: 'wave', text: 'Wave' },
-    ] },
-    { id: 'popScale', label: 'Pop scale', type: 'slider', section: 'Effects', min: 1.0, max: 1.3, step: 0.01, unit: 'x', when: (t) => t.wordEffect === 'pop' },
-    { id: 'popDuration', label: 'Pop duration', type: 'slider', section: 'Effects', min: 0.1, max: 0.6, step: 0.05, unit: 's', when: (t) => t.wordEffect === 'pop' },
-    { id: 'waveIntensity', label: 'Wave intensity', type: 'slider', section: 'Effects', min: 1, max: 10, step: 1, unit: 'px', when: (t) => t.wordEffect === 'wave' },
-    { id: 'waveSpeed', label: 'Wave speed', type: 'slider', section: 'Effects', min: 0.3, max: 2.0, step: 0.1, unit: 's', when: (t) => t.wordEffect === 'wave' },
-    { id: 'scaleActive', label: 'Active line scale', type: 'slider', section: 'Effects', min: 0.95, max: 1.12, step: 0.01, unit: 'x' },
-    { id: 'scaleInEffect', label: 'Active line scale-in', type: 'toggle', section: 'Effects' },
-    { id: 'scaleInFrom', label: 'Scale-in start', type: 'slider', section: 'Effects', min: 0.85, max: 1.05, step: 0.01, unit: 'x', when: (t) => t.scaleInEffect },
-    { id: 'scaleInDuration', label: 'Scale-in duration', type: 'slider', section: 'Effects', min: 0.1, max: 1.0, step: 0.05, unit: 's', when: (t) => t.scaleInEffect },
-    { id: 'animationSpeed', label: 'Animation speed', type: 'slider', section: 'Effects', min: 0.3, max: 3.0, step: 0.1, unit: 'x' },
-    { id: 'lineWindowEnabled', label: 'Limit visible lines', type: 'toggle', section: 'Lyrics Window' },
-    { id: 'lineWindowSungLines', label: 'Sung lines shown', type: 'slider', section: 'Lyrics Window', min: 0, max: 10, step: 1, unit: ' lines', when: (t) => t.lineWindowEnabled },
-    { id: 'lineWindowUnsungLines', label: 'Upcoming lines shown', type: 'slider', section: 'Lyrics Window', min: 0, max: 10, step: 1, unit: ' lines', when: (t) => t.lineWindowEnabled },
-    { id: 'pageBgOverlay', label: 'Page background overlay', type: 'toggle', section: 'Background' },
-    { id: 'pageBgColor', label: 'Overlay color', type: 'color', section: 'Background', when: (t) => t.pageBgOverlay },
-    { id: 'pageBgOpacity', label: 'Overlay opacity', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, when: (t) => t.pageBgOverlay },
-    { id: 'playerStylingEnabled', label: 'Customize player', type: 'toggle', section: 'Player' },
-    { id: 'playerArtRadius', label: 'Album art roundness', type: 'slider', section: 'Player', min: 0, max: 50, step: 1, unit: '%', when: (t) => t.playerStylingEnabled },
-    { id: 'playerProgressThickness', label: 'Progress bar thickness', type: 'slider', section: 'Player', min: 0.5, max: 5, step: 0.5, unit: 'x', when: (t) => t.playerStylingEnabled },
-    { id: 'playerControlsAnimation', label: 'Animate control buttons', type: 'toggle', section: 'Player', when: (t) => t.playerStylingEnabled },
-    { id: 'playerHideShuffle', label: 'Hide shuffle button', type: 'toggle', section: 'Player', when: (t) => t.playerStylingEnabled },
-    { id: 'playerHideRepeat', label: 'Hide repeat button', type: 'toggle', section: 'Player', when: (t) => t.playerStylingEnabled },
-    { id: 'playerHideLike', label: 'Hide like (heart) button', type: 'toggle', section: 'Player', when: (t) => t.playerStylingEnabled },
-    { id: 'eqEnabled', label: 'Song title equalizer', type: 'toggle', section: 'Equalizer' },
-    { id: 'eqStyle', label: 'Equalizer style', type: 'dropdown', section: 'Equalizer', options: [
+    ], hint: 'Animates individual words in the active line.', keywords: 'bounce pop wave animate' },
+    { id: 'popScale', label: 'Pop scale', type: 'slider', section: 'Motion', min: 1.0, max: 1.3, step: 0.01, unit: 'x', parent: 'wordEffect', when: (t) => t.wordEffect === 'pop' },
+    { id: 'popDuration', label: 'Pop duration', type: 'slider', section: 'Motion', min: 0.1, max: 0.6, step: 0.05, unit: 's', parent: 'wordEffect', when: (t) => t.wordEffect === 'pop' },
+    { id: 'waveIntensity', label: 'Wave height', type: 'slider', section: 'Motion', min: 1, max: 10, step: 1, unit: 'px', parent: 'wordEffect', when: (t) => t.wordEffect === 'wave' },
+    { id: 'waveSpeed', label: 'Wave speed', type: 'slider', section: 'Motion', min: 0.3, max: 2.0, step: 0.1, unit: 's', parent: 'wordEffect', when: (t) => t.wordEffect === 'wave' },
+    { id: 'scaleActive', label: 'Active line zoom', type: 'slider', section: 'Motion', min: 0.95, max: 1.12, step: 0.01, unit: 'x', keywords: 'scale grow size' },
+    { id: 'scaleInEffect', label: 'Zoom in on arrival', type: 'toggle', section: 'Motion', hint: 'Animates each line up to its zoom level as it becomes active.', keywords: 'scale in entrance animate' },
+    { id: 'scaleInFrom', label: 'Starting scale', type: 'slider', section: 'Motion', min: 0.85, max: 1.05, step: 0.01, unit: 'x', parent: 'scaleInEffect', when: (t) => t.scaleInEffect },
+    { id: 'scaleInDuration', label: 'Zoom duration', type: 'slider', section: 'Motion', min: 0.1, max: 1.0, step: 0.05, unit: 's', parent: 'scaleInEffect', when: (t) => t.scaleInEffect },
+    { id: 'animationSpeed', label: 'Overall animation speed', type: 'slider', section: 'Motion', min: 0.3, max: 3.0, step: 0.1, unit: 'x', hint: 'Scales every lyric transition. Higher is snappier.', keywords: 'transition tempo fast slow' },
+
+    { id: 'pageBgOverlay', label: 'Background tint', type: 'toggle', section: 'Background', hint: 'Lays a coloured wash over the album-art background to calm it down.', keywords: 'overlay dim darken tint' },
+    { id: 'pageBgColor', label: 'Tint colour', type: 'color', section: 'Background', parent: 'pageBgOverlay', when: (t) => t.pageBgOverlay },
+    { id: 'pageBgOpacity', label: 'Tint strength', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'pageBgOverlay', when: (t) => t.pageBgOverlay },
+    { id: 'musicVideoEnabled', label: 'Synced music videos', type: 'toggle', section: 'Background', hint: 'Plays the track’s music video behind the lyrics when one is available.', keywords: 'video clip mv youtube background' },
+    { id: 'musicVideoCompact', label: 'Also in compact player', type: 'toggle', section: 'Background', parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled },
+    { id: 'musicVideoDim', label: 'Video dimming', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled, hint: 'Darkens the video so lyrics stay readable.' },
+
+    { id: 'playerStylingEnabled', label: 'Restyle the player', type: 'toggle', section: 'Now Playing bar', hint: 'Unlocks the controls below for the Spicy Lyrics player bar.', keywords: 'nowbar controls player' },
+    { id: 'playerArtRadius', label: 'Album art roundness', type: 'slider', section: 'Now Playing bar', min: 0, max: 50, step: 1, unit: '%', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'corner radius rounded' },
+    { id: 'playerProgressThickness', label: 'Progress bar thickness', type: 'slider', section: 'Now Playing bar', min: 0.5, max: 5, step: 0.5, unit: 'x', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'seek bar height' },
+    { id: 'playerAccentEnabled', label: 'Custom progress colour', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, hint: 'Overrides the accent colour on the progress and volume bars.', keywords: 'accent seek volume colour' },
+    { id: 'playerAccentColor', label: 'Progress colour', type: 'color', section: 'Now Playing bar', parent: 'playerAccentEnabled', when: (t) => t.playerStylingEnabled && t.playerAccentEnabled },
+    { id: 'playerControlsAnimation', label: 'Animate control buttons', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'hover bounce buttons' },
+    { id: 'playerHideShuffle', label: 'Hide shuffle', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled },
+    { id: 'playerHideRepeat', label: 'Hide repeat', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled },
+    { id: 'playerHideLike', label: 'Hide like (heart)', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled },
+
+    { id: 'eqEnabled', label: 'Song title equalizer', type: 'toggle', section: 'Equalizer', hint: 'Audio-reactive bars beside the song title in the Now Playing bar.', keywords: 'visualizer spectrum bars audio reactive' },
+    { id: 'eqStyle', label: 'Style', type: 'dropdown', section: 'Equalizer', options: [
         { value: 'equalizer', text: '01 Equalizer' },
         { value: 'dotwave', text: '02 Dot Wave' },
         { value: 'signal', text: '03 Signal' },
         { value: 'orbit', text: '04 Orbit' },
         { value: 'pulsedot', text: '05 Pulse Dot' },
         { value: 'spectrumring', text: '06 Spectrum Ring' },
-    ], when: (t) => t.eqEnabled },
-    { id: 'eqPosition', label: 'Equalizer position', type: 'dropdown', section: 'Equalizer', options: [
+    ], parent: 'eqEnabled', when: (t) => t.eqEnabled },
+    { id: 'eqPosition', label: 'Position', type: 'dropdown', section: 'Equalizer', options: [
         { value: 'both', text: 'Both sides' },
-        { value: 'left', text: 'Left' },
-        { value: 'right', text: 'Right' },
-    ], when: (t) => t.eqEnabled },
-    { id: 'eqColor', label: 'Equalizer color', type: 'color', section: 'Equalizer', when: (t) => t.eqEnabled },
-    { id: 'eqSize', label: 'Equalizer size', type: 'slider', section: 'Equalizer', min: 0.4, max: 2.5, step: 0.05, unit: 'x', when: (t) => t.eqEnabled },
-    { id: 'eqSpeed', label: 'Equalizer speed', type: 'slider', section: 'Equalizer', min: 0.3, max: 3.0, step: 0.1, unit: 'x', when: (t) => t.eqEnabled },
-    { id: 'musicVideoEnabled', label: 'Synced music videos', type: 'toggle', section: 'Music Videos' },
-    { id: 'musicVideoCompact', label: 'Show in compact player', type: 'toggle', section: 'Music Videos', when: (t) => t.musicVideoEnabled },
-    { id: 'musicVideoDim', label: 'Video dim', type: 'slider', section: 'Music Videos', min: 0, max: 1, step: 0.05, when: (t) => t.musicVideoEnabled },
-    { id: 'sltStylingEnabled', label: 'Translation styling (SLT)', type: 'toggle', section: 'Translation' },
-    { id: 'sltTranslationOpacity', label: 'Translation opacity', type: 'slider', section: 'Translation', min: 0.1, max: 1.0, step: 0.05, when: (t) => t.sltStylingEnabled },
-    { id: 'sltTranslationFontSize', label: 'Translation font size', type: 'slider', section: 'Translation', min: 0.25, max: 2.0, step: 0.05, unit: 'x', when: (t) => t.sltStylingEnabled },
-    { id: 'sltTranslationFont', label: 'Translation font', type: 'dropdown', section: 'Translation', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom...' }], when: (t) => t.sltStylingEnabled },
-    { id: 'sltTranslationFont', label: 'Custom translation font', type: 'text', section: 'Translation', placeholder: "e.g. 'Inter', sans-serif", when: (t) => t.sltStylingEnabled && t.sltTranslationFont !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltTranslationFont) },
-    { id: 'sltTranslationColorEnabled', label: 'Custom translation color', type: 'toggle', section: 'Translation', when: (t) => t.sltStylingEnabled },
-    { id: 'sltTranslationColor', label: 'Translation color', type: 'color', section: 'Translation', when: (t) => t.sltStylingEnabled && t.sltTranslationColorEnabled },
-    { id: 'sltHighlightStartColor', label: 'Translation highlight start', type: 'color', section: 'Translation', when: (t) => t.sltStylingEnabled },
-    { id: 'sltHighlightEndColor', label: 'Translation highlight end', type: 'color', section: 'Translation', when: (t) => t.sltStylingEnabled },
-    { id: 'sltGlowColorEnabled', label: 'Custom translation glow color', type: 'toggle', section: 'Translation', when: (t) => t.sltStylingEnabled },
-    { id: 'sltGlowColor', label: 'Translation glow color', type: 'color', section: 'Translation', when: (t) => t.sltStylingEnabled && t.sltGlowColorEnabled },
+        { value: 'left', text: 'Left only' },
+        { value: 'right', text: 'Right only' },
+    ], parent: 'eqEnabled', when: (t) => t.eqEnabled },
+    { id: 'eqColor', label: 'Colour', type: 'color', section: 'Equalizer', parent: 'eqEnabled', when: (t) => t.eqEnabled },
+    { id: 'eqSize', label: 'Size', type: 'slider', section: 'Equalizer', min: 0.4, max: 2.5, step: 0.05, unit: 'x', parent: 'eqEnabled', when: (t) => t.eqEnabled },
+    { id: 'eqSpeed', label: 'Speed', type: 'slider', section: 'Equalizer', min: 0.3, max: 3.0, step: 0.1, unit: 'x', parent: 'eqEnabled', when: (t) => t.eqEnabled },
+
+    { id: 'sltStylingEnabled', label: 'Style translated lines', type: 'toggle', section: 'Translation', hint: 'Requires the Spicy Lyrics Translator extension. Styles the translation lines it adds.', keywords: 'slt translator subtitle' },
+    { id: 'sltTranslationFont', label: 'Font', type: 'dropdown', section: 'Translation', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
+    { id: 'sltTranslationFont', label: 'Custom font name', type: 'text', section: 'Translation', placeholder: "e.g. 'Inter', sans-serif", parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && t.sltTranslationFont !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltTranslationFont) },
+    { id: 'sltTranslationFontSize', label: 'Text size', type: 'slider', section: 'Translation', min: 0.25, max: 2.0, step: 0.05, unit: 'x', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
+    { id: 'sltTranslationOpacity', label: 'Opacity', type: 'slider', section: 'Translation', min: 0.1, max: 1.0, step: 0.05, parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
+    { id: 'sltHighlightStartColor', label: 'Highlight start', type: 'color', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
+    { id: 'sltHighlightEndColor', label: 'Highlight end', type: 'color', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
+    { id: 'sltTranslationColorEnabled', label: 'Custom base colour', type: 'toggle', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
+    { id: 'sltTranslationColor', label: 'Base colour', type: 'color', section: 'Translation', parent: 'sltTranslationColorEnabled', when: (t) => t.sltStylingEnabled && t.sltTranslationColorEnabled },
+    { id: 'sltGlowColorEnabled', label: 'Custom glow colour', type: 'toggle', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
+    { id: 'sltGlowColor', label: 'Glow colour', type: 'color', section: 'Translation', parent: 'sltGlowColorEnabled', when: (t) => t.sltStylingEnabled && t.sltGlowColorEnabled },
 ];
 
+interface FieldHandle {
+    row: HTMLElement;
+    def: FieldDef;
+    sync: () => void;
+    refreshReset: () => void;
+}
+
+let baseline: { name: string; config: ThemeConfig } = { name: 'default', config: DEFAULT_THEME };
+
+function resolveBaseline(): void {
+    if (!storage.get('active-preset')) {
+        baseline = { name: 'default', config: DEFAULT_THEME };
+        return;
+    }
+    const match = getAllPresets().find(p => p.name === themeState.activePresetName);
+    if (match) baseline = { name: match.name, config: match.config };
+}
+
 let liveContainer: HTMLElement | null = null;
-let czVisibilityFields: { row: HTMLElement; def: FieldDef }[] = [];
+let czFields: FieldHandle[] = [];
+let czGroups: { el: HTMLElement; parent: keyof ThemeConfig }[] = [];
+let syncChrome: (() => void)[] = [];
 
 export function escapeHtml(value: string): string {
     return value
@@ -309,17 +358,34 @@ function liveUpdate<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]):
     updateThemeProperty(key, value);
     injectThemeStyles();
     applyCustomizeFilter();
+    refreshResetIndicators();
+    syncChrome.forEach(fn => fn());
+}
+
+function matchesQuery(def: FieldDef, q: string): boolean {
+    if (!q) return true;
+    return `${def.label} ${def.section} ${def.hint || ''} ${def.keywords || ''}`.toLowerCase().includes(q);
 }
 
 function applyCustomizeFilter(): void {
     if (!liveContainer) return;
     const searchEl = liveContainer.querySelector<HTMLInputElement>('.st-m-cz-search');
     const q = (searchEl?.value || '').trim().toLowerCase();
+    const searching = q.length > 0;
 
-    czVisibilityFields.forEach(({ row, def }) => {
+    let hits = 0;
+    czFields.forEach(({ row, def }) => {
         const whenOk = !def.when || def.when(themeState.activeTheme);
-        const searchOk = !q || def.label.toLowerCase().includes(q) || def.section.toLowerCase().includes(q);
-        row.style.display = whenOk && searchOk ? '' : 'none';
+        const searchOk = matchesQuery(def, q);
+        const show = whenOk && searchOk;
+        row.style.display = show ? '' : 'none';
+        if (show && searching) hits++;
+    });
+
+    czGroups.forEach(({ el }) => {
+        const anyVisible = Array.from(el.querySelectorAll<HTMLElement>('.st-m-field'))
+            .some(f => f.style.display !== 'none');
+        el.style.display = anyVisible ? '' : 'none';
     });
 
     liveContainer.querySelectorAll<HTMLElement>('.st-m-cz-sections .st-m-section').forEach(sec => {
@@ -329,14 +395,30 @@ function applyCustomizeFilter(): void {
 
     liveContainer.querySelectorAll<HTMLElement>('.st-m-cz-category').forEach(cat => {
         const anyVisible = Array.from(cat.querySelectorAll<HTMLElement>('.st-m-section')).some(s => s.style.display !== 'none');
-        const show = q ? anyVisible : (cat.id === activeCategoryId && anyVisible);
+        const show = searching ? anyVisible : (cat.id === activeCategoryId && anyVisible);
         cat.style.display = show ? '' : 'none';
         const navItem = liveContainer!.querySelector<HTMLElement>(`.st-m-cz-nav-item[data-target="${cat.id}"]`);
         if (navItem) {
-            navItem.style.display = anyVisible ? '' : 'none';
-            navItem.classList.toggle('active', !q && cat.id === activeCategoryId);
+            const isActive = !searching && cat.id === activeCategoryId;
+            navItem.classList.toggle('active', isActive);
+            navItem.setAttribute('aria-selected', String(isActive));
         }
     });
+
+    const rail = liveContainer.querySelector<HTMLElement>('.st-m-cz-nav');
+    if (rail) rail.classList.toggle('st-m-cz-nav-muted', searching);
+
+    const status = liveContainer.querySelector<HTMLElement>('.st-m-cz-status');
+    if (status) {
+        status.style.display = searching ? '' : 'none';
+        status.textContent = hits === 0
+            ? `No settings match “${q}”.`
+            : `${hits} setting${hits === 1 ? '' : 's'} match “${q}”.`;
+        status.classList.toggle('st-m-cz-status-empty', hits === 0);
+    }
+
+    const clear = liveContainer.querySelector<HTMLElement>('.st-m-cz-clear');
+    if (clear) clear.style.display = searching ? '' : 'none';
 }
 
 function formatFieldValue(value: unknown, unit = ''): string {
@@ -347,7 +429,13 @@ function formatFieldValue(value: unknown, unit = ''): string {
     return `${value ?? ''}${unit}`;
 }
 
-function buildField(def: FieldDef, index: number): HTMLElement {
+const RESET_SVG = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.7-4"></path><path d="M2 2.5V6h3.5"></path></svg>';
+
+function isBaselineValue(def: FieldDef): boolean {
+    return themeState.activeTheme[def.id] === baseline.config[def.id];
+}
+
+function buildField(def: FieldDef, index: number): FieldHandle {
     const row = document.createElement('div');
     row.className = `st-m-field st-m-field-${def.type}`;
     row.dataset.stIdx = String(index);
@@ -356,10 +444,21 @@ function buildField(def: FieldDef, index: number): HTMLElement {
         row.style.display = def.when(themeState.activeTheme) ? '' : 'none';
     }
 
+    const labelBox = document.createElement('div');
+    labelBox.className = 'st-m-field-labelbox';
+
     const label = document.createElement('label');
     label.className = 'st-m-field-label';
     label.textContent = def.label;
-    row.appendChild(label);
+    labelBox.appendChild(label);
+
+    if (def.hint) {
+        const hint = document.createElement('div');
+        hint.className = 'st-m-field-hint';
+        hint.textContent = def.hint;
+        labelBox.appendChild(hint);
+    }
+    row.appendChild(labelBox);
 
     const control = document.createElement('div');
     control.className = 'st-m-field-control';
@@ -373,8 +472,10 @@ function buildField(def: FieldDef, index: number): HTMLElement {
         badge.className = 'st-m-coming-soon';
         badge.textContent = 'Coming soon';
         control.appendChild(badge);
-        return row;
+        return { row, def, sync: () => {}, refreshReset: () => {} };
     }
+
+    let sync: () => void = () => {};
 
     switch (def.type) {
         case 'toggle': {
@@ -384,6 +485,7 @@ function buildField(def: FieldDef, index: number): HTMLElement {
             const input = wrap.querySelector('input') as HTMLInputElement;
             input.addEventListener('change', () => liveUpdate(def.id, input.checked as any));
             control.appendChild(wrap);
+            sync = () => { input.checked = !!themeState.activeTheme[def.id]; };
             break;
         }
         case 'color': {
@@ -393,6 +495,7 @@ function buildField(def: FieldDef, index: number): HTMLElement {
             input.value = toColorInputValue(String(cur ?? ''));
             input.addEventListener('input', () => liveUpdate(def.id, input.value as any));
             control.appendChild(input);
+            sync = () => { input.value = toColorInputValue(String(themeState.activeTheme[def.id] ?? '')); };
             break;
         }
         case 'slider': {
@@ -416,6 +519,11 @@ function buildField(def: FieldDef, index: number): HTMLElement {
             wrap.appendChild(input);
             wrap.appendChild(value);
             control.appendChild(wrap);
+            sync = () => {
+                const v = themeState.activeTheme[def.id];
+                input.value = String(v);
+                value.textContent = formatFieldValue(v, def.unit);
+            };
             break;
         }
         case 'dropdown': {
@@ -425,13 +533,15 @@ function buildField(def: FieldDef, index: number): HTMLElement {
 
             if (def.options?.some(o => o.value === '__custom__')) {
                 const namedOptions = def.options.filter(o => o.value !== '__custom__');
-                const isCustom = !namedOptions.some(o => o.value === cur);
-                const currentVal = isCustom && cur !== '' ? '__custom__' : (cur as string);
+                const resolve = (v: unknown) => {
+                    const isCustom = !namedOptions.some(o => o.value === v);
+                    return isCustom && v !== '' ? '__custom__' : String(v);
+                };
                 opts.forEach(o => {
                     const opt = document.createElement('option');
                     opt.value = o.value;
                     opt.textContent = o.text;
-                    if (o.value === currentVal) opt.selected = true;
+                    if (o.value === resolve(cur)) opt.selected = true;
                     select.appendChild(opt);
                 });
                 select.addEventListener('change', () => {
@@ -441,6 +551,7 @@ function buildField(def: FieldDef, index: number): HTMLElement {
                         liveUpdate(def.id, select.value as any);
                     }
                 });
+                sync = () => { select.value = resolve(themeState.activeTheme[def.id]); };
             } else {
                 let matched = false;
                 opts.forEach(o => {
@@ -453,17 +564,19 @@ function buildField(def: FieldDef, index: number): HTMLElement {
                     }
                     select.appendChild(opt);
                 });
+                const isNumeric = typeof DEFAULT_THEME[def.id] === 'number';
                 if (!matched && cur !== undefined && cur !== null && String(cur) !== '') {
                     const opt = document.createElement('option');
                     opt.value = String(cur);
-                    opt.textContent = def.id === 'fontWeight' ? `Custom (${cur})` : String(cur);
+                    opt.textContent = isNumeric ? `Custom (${cur})` : String(cur);
                     opt.selected = true;
                     select.appendChild(opt);
                 }
                 select.addEventListener('change', () => {
-                    const v: any = def.id === 'fontWeight' ? parseInt(select.value, 10) : select.value;
+                    const v: any = isNumeric ? parseInt(select.value, 10) : select.value;
                     liveUpdate(def.id, v);
                 });
+                sync = () => { select.value = String(themeState.activeTheme[def.id]); };
             }
             control.appendChild(select);
             break;
@@ -477,22 +590,138 @@ function buildField(def: FieldDef, index: number): HTMLElement {
             input.placeholder = def.placeholder || 'Enter font name';
             input.addEventListener('change', () => liveUpdate(def.id, input.value as any));
             control.appendChild(input);
+            sync = () => {
+                const v = String(themeState.activeTheme[def.id] || '');
+                input.value = v === 'Custom Font' ? '' : v;
+            };
             break;
         }
     }
 
-    return row;
+    const reset = document.createElement('button');
+    reset.className = 'st-m-field-reset';
+    reset.type = 'button';
+    reset.innerHTML = RESET_SVG;
+    reset.addEventListener('click', () => {
+        liveUpdate(def.id, baseline.config[def.id]);
+        syncAllFields();
+    });
+    control.appendChild(reset);
+
+    const refreshReset = () => {
+        reset.classList.toggle('st-m-field-reset-on', !isBaselineValue(def));
+        const label = `Reset “${def.label}” to ${baseline.name === 'default' ? 'the default' : `“${baseline.name}”`}`;
+        reset.title = label;
+        reset.setAttribute('aria-label', label);
+    };
+    const handle: FieldHandle = {
+        row,
+        def,
+        refreshReset,
+        sync: () => {
+            sync();
+            refreshReset();
+        },
+    };
+    handle.sync();
+    return handle;
 }
 
-const CZ_CATEGORIES: { id: string; label: string; sections: string[]; description?: string }[] = [
-    { id: 'cz-text', label: 'Text & Color', sections: ['Colors', 'Opacity', 'Typography', 'Gradient'] },
-    { id: 'cz-effects', label: 'Glow & Effects', sections: ['Glow', 'Effects'] },
-    { id: 'cz-layout', label: 'Layout', sections: ['Lyrics Window', 'Background'] },
-    { id: 'cz-translation', label: 'Translation', sections: ['Translation'] },
-    { id: 'cz-player', label: 'Player & Media', sections: ['Player', 'Equalizer', 'Music Videos'], description: 'Styling for the Now Playing bar and the main Spicy Lyrics window.' },
+function refreshResetIndicators(): void {
+    czFields = czFields.filter(f => f.row.isConnected);
+    czFields.forEach(f => f.refreshReset());
+}
+
+function syncAllFields(): void {
+    czFields = czFields.filter(f => f.row.isConnected);
+    czFields.forEach(f => f.sync());
+    applyCustomizeFilter();
+    syncChrome.forEach(fn => fn());
+}
+
+interface CzCategory {
+    id: string;
+    label: string;
+    icon: string;
+    description: string;
+    sections: string[];
+}
+
+const CZ_CATEGORIES: CzCategory[] = [
+    {
+        id: 'cz-text',
+        label: 'Text',
+        icon: 'Aa',
+        description: 'The colour, font and size of the lyrics themselves.',
+        sections: ['Line colors', 'Gradient', 'Typography'],
+    },
+    {
+        id: 'cz-glow',
+        label: 'Glow',
+        icon: '✦',
+        description: 'Halos and shadows behind the text.',
+        sections: ['Glow'],
+    },
+    {
+        id: 'cz-focus',
+        label: 'Focus',
+        icon: '◎',
+        description: 'Draw the eye to the line being sung by softening or hiding the rest.',
+        sections: ['Focus'],
+    },
+    {
+        id: 'cz-motion',
+        label: 'Motion',
+        icon: '⟩',
+        description: 'How lines and words animate as the song plays.',
+        sections: ['Motion'],
+    },
+    {
+        id: 'cz-background',
+        label: 'Background',
+        icon: '▦',
+        description: 'What sits behind the lyrics.',
+        sections: ['Background'],
+    },
+    {
+        id: 'cz-player',
+        label: 'Player',
+        icon: '♪',
+        description: 'The Now Playing bar inside the Spicy Lyrics window.',
+        sections: ['Now Playing bar', 'Equalizer'],
+    },
+    {
+        id: 'cz-translation',
+        label: 'Translation',
+        icon: '文',
+        description: 'Styling for lines added by the Spicy Lyrics Translator extension.',
+        sections: ['Translation'],
+    },
 ];
 
 let activeCategoryId = CZ_CATEGORIES[0].id;
+
+const SEARCH_SVG = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.6" y1="10.6" x2="14" y2="14"></line></svg>';
+
+function buildSectionBody(section: HTMLElement, defs: { def: FieldDef; index: number }[]): void {
+    const groups = new Map<string, HTMLElement>();
+    const hasChildren = new Set(defs.map(d => d.def.parent).filter(Boolean) as string[]);
+
+    defs.forEach(({ def, index }) => {
+        const target = (def.parent && groups.get(def.parent)) || section;
+        const handle = buildField(def, index);
+        czFields.push(handle);
+        target.appendChild(handle.row);
+
+        if (hasChildren.has(def.id)) {
+            const group = document.createElement('div');
+            group.className = 'st-m-subgroup';
+            target.appendChild(group);
+            groups.set(def.id, group);
+            czGroups.push({ el: group, parent: def.id });
+        }
+    });
+}
 
 function buildCustomizeTab(): HTMLElement {
     const tab = document.createElement('div');
@@ -501,11 +730,25 @@ function buildCustomizeTab(): HTMLElement {
     const toolbar = document.createElement('div');
     toolbar.className = 'st-m-cz-toolbar';
     toolbar.innerHTML = `
-        <span class="st-m-cz-search-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.6" y1="10.6" x2="14" y2="14"></line></svg></span>
-        <input type="text" class="st-m-text st-m-cz-search" placeholder="Search settings…" spellcheck="false">
+        <span class="st-m-cz-search-icon" aria-hidden="true">${SEARCH_SVG}</span>
+        <input type="text" class="st-m-text st-m-cz-search" placeholder="Search all settings…" spellcheck="false" aria-label="Search settings">
+        <button type="button" class="st-m-cz-clear" style="display: none;" aria-label="Clear search">Clear</button>
     `;
     const search = toolbar.querySelector('input') as HTMLInputElement;
+    const clear = toolbar.querySelector('.st-m-cz-clear') as HTMLButtonElement;
     search.addEventListener('input', applyCustomizeFilter);
+    search.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && search.value) {
+            e.stopPropagation();
+            search.value = '';
+            applyCustomizeFilter();
+        }
+    });
+    clear.addEventListener('click', () => {
+        search.value = '';
+        applyCustomizeFilter();
+        search.focus();
+    });
 
     const body = document.createElement('div');
     body.className = 'st-m-cz-body';
@@ -515,43 +758,52 @@ function buildCustomizeTab(): HTMLElement {
 
     const nav = document.createElement('nav');
     nav.className = 'st-m-cz-nav';
+    nav.setAttribute('role', 'tablist');
 
     const sectionsCol = document.createElement('div');
     sectionsCol.className = 'st-m-cz-sections';
 
-    czVisibilityFields = [];
+    const status = document.createElement('div');
+    status.className = 'st-m-cz-status';
+    status.style.display = 'none';
+    status.setAttribute('role', 'status');
+
+    czFields = [];
+    czGroups = [];
+
+    const bySection = new Map<string, { def: FieldDef; index: number }[]>();
+    SCHEMA.forEach((def, index) => {
+        const list = bySection.get(def.section);
+        if (list) list.push({ def, index });
+        else bySection.set(def.section, [{ def, index }]);
+    });
+
     const sectionEls = new Map<string, HTMLElement>();
-    SCHEMA.forEach((def, i) => {
-        let section = sectionEls.get(def.section);
-        if (!section) {
-            section = document.createElement('div');
-            section.className = 'st-m-section';
-            section.dataset.section = def.section;
-            const header = document.createElement('div');
-            header.className = 'st-m-section-title';
-            header.textContent = def.section;
-            section.appendChild(header);
-            sectionEls.set(def.section, section);
-        }
-        const row = buildField(def, i);
-        czVisibilityFields.push({ row, def });
-        section.appendChild(row);
+    bySection.forEach((defs, name) => {
+        const section = document.createElement('div');
+        section.className = 'st-m-section';
+        section.dataset.section = name;
+        const header = document.createElement('div');
+        header.className = 'st-m-section-title';
+        header.textContent = name;
+        section.appendChild(header);
+        buildSectionBody(section, defs);
+        sectionEls.set(name, section);
     });
 
     CZ_CATEGORIES.forEach(cat => {
         const catEl = document.createElement('div');
         catEl.className = 'st-m-cz-category';
         catEl.id = cat.id;
-        const catTitle = document.createElement('div');
-        catTitle.className = 'st-m-cz-cat-title';
-        catTitle.textContent = cat.label;
-        catEl.appendChild(catTitle);
-        if (cat.description) {
-            const catDesc = document.createElement('div');
-            catDesc.className = 'st-m-cz-cat-desc';
-            catDesc.textContent = cat.description;
-            catEl.appendChild(catDesc);
-        }
+
+        const catHead = document.createElement('div');
+        catHead.className = 'st-m-cz-cat-head';
+        catHead.innerHTML = `
+            <div class="st-m-cz-cat-title">${escapeHtml(cat.label)}</div>
+            <div class="st-m-cz-cat-desc">${escapeHtml(cat.description)}</div>
+        `;
+        catEl.appendChild(catHead);
+
         cat.sections.forEach(s => {
             const el = sectionEls.get(s);
             if (el) catEl.appendChild(el);
@@ -559,9 +811,12 @@ function buildCustomizeTab(): HTMLElement {
         sectionsCol.appendChild(catEl);
 
         const navBtn = document.createElement('button');
+        navBtn.type = 'button';
         navBtn.className = `st-m-cz-nav-item${cat.id === activeCategoryId ? ' active' : ''}`;
-        navBtn.textContent = cat.label;
+        navBtn.innerHTML = `<span class="st-m-cz-nav-icon" aria-hidden="true">${escapeHtml(cat.icon)}</span><span>${escapeHtml(cat.label)}</span>`;
         navBtn.dataset.target = cat.id;
+        navBtn.setAttribute('role', 'tab');
+        navBtn.setAttribute('aria-selected', String(cat.id === activeCategoryId));
         navBtn.addEventListener('click', () => {
             activeCategoryId = cat.id;
             if (search.value) search.value = '';
@@ -580,10 +835,8 @@ function buildCustomizeTab(): HTMLElement {
     body.appendChild(rail);
     body.appendChild(sectionsCol);
     tab.appendChild(toolbar);
+    tab.appendChild(status);
     tab.appendChild(body);
-
-    applyCustomizeFilter();
-    requestAnimationFrame(() => applyCustomizeFilter());
 
     return tab;
 }
@@ -623,6 +876,7 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
         apply.disabled = isActive;
         apply.addEventListener('click', () => {
             applyPreset(preset);
+            resolveBaseline();
             injectThemeStyles();
             refresh();
         });
@@ -749,6 +1003,7 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
                     const data = await Marketplace.downloadTheme(t.id);
                     themeState.activeTheme = mergeThemeConfig(data.theme);
                     themeState.activePresetName = t.name;
+                    baseline = { name: t.name, config: { ...themeState.activeTheme } };
                     saveThemeState();
                     injectThemeStyles();
                     refresh();
@@ -874,12 +1129,18 @@ function buildAboutTab(): HTMLElement {
     tab.className = 'st-m-tab-content';
 
     const version = getCurrentVersion().text;
+    const { hash, source } = getDisplayHash();
+    const shortHash = hash ? hash.substring(0, 8) : '';
+    const hashTitle = source === 'delivered'
+        ? `SHA-256 of the loaded script — ${hash}`
+        : `Build hash — ${hash}`;
 
     tab.innerHTML = `
         <div class="st-m-section">
             <div class="st-m-about-hero">
                 <div class="st-m-about-title">Spicy Themes</div>
                 <div class="st-m-about-version">v${escapeHtml(version)}</div>
+                ${shortHash ? `<div class="st-m-about-hash" title="${escapeHtml(hashTitle)}">${escapeHtml(shortHash)}</div>` : ''}
             </div>
             <div class="st-m-about-text">Customize Spicy Lyrics with colors, glow, gradients, blur, fonts and more.</div>
         </div>
@@ -895,10 +1156,6 @@ function buildAboutTab(): HTMLElement {
             <div class="st-m-section-title">Updates</div>
             <div class="st-m-about-actions">
                 <button class="st-m-btn" id="st-m-check">Check for updates</button>
-                <label class="st-m-toggle-row">
-                    <span>Dev channel</span>
-                    <label class="st-m-toggle"><input type="checkbox" id="st-m-dev-channel" ${isDevChannel() ? 'checked' : ''}><span class="st-m-toggle-slider"></span></label>
-                </label>
             </div>
         </div>
         <div class="st-m-section">
@@ -999,27 +1256,70 @@ function buildAboutTab(): HTMLElement {
         }
     });
 
-    const devToggle = tab.querySelector('#st-m-dev-channel') as HTMLInputElement;
-    devToggle.addEventListener('change', () => {
-        if (devToggle.checked) {
-            storage.set('dev-channel', 'ST_D3V_7xeh');
-            notify('Dev channel enabled. Reload to apply');
-        } else {
-            storage.remove('dev-channel');
-            notify('Dev channel disabled. Reload to apply');
-        }
+    return tab;
+}
+
+function buildMasterBar(onChange: () => void): HTMLElement {
+    const bar = document.createElement('div');
+    bar.className = 'st-m-enabled-bar';
+    bar.innerHTML = `
+        <div class="st-m-enabled-text">
+            <div class="st-m-enabled-title">Spicy Themes</div>
+            <div class="st-m-enabled-sub"></div>
+        </div>
+        <button type="button" class="st-m-btn st-m-enabled-reset">Reset all</button>
+        <label class="st-m-toggle" title="Turn all Spicy Themes styling on or off">
+            <input type="checkbox" aria-label="Enable Spicy Themes">
+            <span class="st-m-toggle-slider"></span>
+        </label>
+    `;
+
+    const sub = bar.querySelector('.st-m-enabled-sub') as HTMLElement;
+    const input = bar.querySelector('input') as HTMLInputElement;
+    const resetBtn = bar.querySelector('.st-m-enabled-reset') as HTMLButtonElement;
+
+    const sync = () => {
+        input.checked = themeState.isEnabled;
+        bar.classList.toggle('st-m-enabled-off', !themeState.isEnabled);
+        const changed = new Set(
+            SCHEMA.filter(d => themeState.activeTheme[d.id] !== baseline.config[d.id]).map(d => d.id)
+        ).size;
+        const base = baseline.name === 'default' ? 'Default' : baseline.name;
+        sub.textContent = themeState.isEnabled
+            ? `Based on “${base}”${changed ? ` · ${changed} tweak${changed === 1 ? '' : 's'}` : ''}`
+            : 'Styling is off — Spicy Lyrics looks stock';
+    };
+
+    input.addEventListener('change', () => {
+        themeState.isEnabled = input.checked;
+        saveThemeState();
+        injectThemeStyles();
+        sync();
     });
 
-    return tab;
+    resetBtn.addEventListener('click', () => {
+        applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Default') || BUILTIN_PRESETS[0]);
+        resolveBaseline();
+        injectThemeStyles();
+        notify('Everything reset to default');
+        onChange();
+    });
+
+    syncChrome.push(sync);
+    sync();
+    return bar;
 }
 
 export function createSettingsModal(): HTMLElement {
     const container = document.createElement('div');
     container.className = 'st-modal-root';
     liveContainer = container;
+    syncChrome = [];
+    resolveBaseline();
 
     const tabBar = document.createElement('div');
     tabBar.className = 'st-m-tabbar';
+    tabBar.setAttribute('role', 'tablist');
 
     const tabContent = document.createElement('div');
     tabContent.className = 'st-m-tab-host';
@@ -1036,22 +1336,38 @@ export function createSettingsModal(): HTMLElement {
         const current = tabs.find(t => t.id === activeTab) || tabs[0];
         tabContent.innerHTML = '';
         tabContent.appendChild(current.render());
+        applyCustomizeFilter();
+        syncChrome.forEach(fn => fn());
     }
+
+    const masterBar = buildMasterBar(rerender);
 
     tabs.forEach(t => {
         const btn = document.createElement('button');
+        btn.type = 'button';
         btn.className = `st-m-tab${t.id === activeTab ? ' active' : ''}`;
         btn.textContent = t.label;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', String(t.id === activeTab));
         btn.addEventListener('click', () => {
             activeTab = t.id;
-            tabBar.querySelectorAll('.st-m-tab').forEach(b => b.classList.remove('active'));
+            tabBar.querySelectorAll('.st-m-tab').forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-selected', 'false');
+            });
             btn.classList.add('active');
+            btn.setAttribute('aria-selected', 'true');
             rerender();
         });
         tabBar.appendChild(btn);
     });
 
-    container.appendChild(tabBar);
+    const header = document.createElement('div');
+    header.className = 'st-m-header';
+    header.appendChild(masterBar);
+    header.appendChild(tabBar);
+
+    container.appendChild(header);
     container.appendChild(tabContent);
 
     rerender();
