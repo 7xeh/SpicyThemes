@@ -2348,6 +2348,7 @@ const BASE_STYLES = `
     padding: 10px 0;
     margin-bottom: 4px;
     background: transparent;
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
     backdrop-filter: blur(14px) saturate(1.3);
 }
 .st-modal-root .st-m-mp-searchbar {
