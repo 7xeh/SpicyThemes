@@ -1,6 +1,7 @@
 interface VideoBreak {
     start_ms: number;
     end_ms: number;
+    hold_ms?: number;
 }
 
 interface VideoMeta {
@@ -210,8 +211,20 @@ function normalizeMeta(raw: any, id: string): VideoMeta | null {
 
     const breaks: VideoBreak[] = Array.isArray(raw.breaks)
         ? raw.breaks
-              .map((b: any) => (b ? { start_ms: num(b.start_ms, NaN), end_ms: num(b.end_ms, NaN) } : null))
-              .filter((b: any): b is VideoBreak => !!b && isFinite(b.start_ms) && isFinite(b.end_ms) && b.end_ms > b.start_ms)
+              .map((b: any) => {
+                  if (!b) return null;
+                  const br: VideoBreak = { start_ms: num(b.start_ms, NaN), end_ms: num(b.end_ms, NaN) };
+                  const hold = num(b.hold_ms, 0);
+                  if (isFinite(hold) && hold > 0) br.hold_ms = hold;
+                  return br;
+              })
+              .filter(
+                  (b: any): b is VideoBreak =>
+                      !!b &&
+                      isFinite(b.start_ms) &&
+                      isFinite(b.end_ms) &&
+                      (b.end_ms > b.start_ms || (b.hold_ms ?? 0) > 0)
+              )
               .sort((a: VideoBreak, b: VideoBreak) => a.start_ms - b.start_ms)
         : [];
 
@@ -284,9 +297,33 @@ export function songMsToVideoMs(v: VideoMeta, songMs: number): number {
         const segLen = b.start_ms - segStart;
         if (remaining <= segLen) return segStart + remaining;
         remaining -= segLen;
-        segStart = b.end_ms;
+        if (b.hold_ms && b.hold_ms > 0) {
+            if (remaining <= b.hold_ms) return b.start_ms;
+            remaining -= b.hold_ms;
+            segStart = b.start_ms;
+        } else {
+            segStart = b.end_ms;
+        }
     }
     return Math.min(segStart + remaining, v.video_end_ms);
+}
+
+function songMsInHold(v: VideoMeta, songMs: number): boolean {
+    let remaining = Math.max(songMs, 0);
+    let segStart = v.video_start_ms;
+    for (const b of v.breaks) {
+        const segLen = b.start_ms - segStart;
+        if (remaining <= segLen) return false;
+        remaining -= segLen;
+        if (b.hold_ms && b.hold_ms > 0) {
+            if (remaining <= b.hold_ms) return true;
+            remaining -= b.hold_ms;
+            segStart = b.start_ms;
+        } else {
+            segStart = b.end_ms;
+        }
+    }
+    return false;
 }
 
 function spotifyHasOwnVideo(): boolean {
@@ -749,8 +786,11 @@ function tick(ts: number): void {
 
     let actualVideoMs = getVideoMs();
 
+    const holding = songMsInHold(v, songMs);
+
     if (isFinite(actualVideoMs)) {
         for (const b of v.breaks) {
+            if (b.hold_ms && b.hold_ms > 0) continue;
             if (actualVideoMs >= b.start_ms && actualVideoMs < b.end_ms) {
                 seekVideo(b.end_ms, ts);
                 actualVideoMs = b.end_ms;
@@ -763,7 +803,7 @@ function tick(ts: number): void {
         seekVideo(targetVideoMs, ts);
     }
 
-    setMediaPlaying(playing, ts);
+    setMediaPlaying(playing && !holding, ts);
 }
 
 function onSongChange(): void {
