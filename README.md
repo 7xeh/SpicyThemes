@@ -32,7 +32,6 @@
 - [Translator support](#translator-support)
 - [Performance](#performance)
 - [Troubleshooting](#troubleshooting)
-- [Building from source](#building-from-source)
 - [Support and links](#support-and-links)
 
 ---
@@ -93,10 +92,6 @@ spicetify apply
 ```
 
 4. Restart Spotify.
-
-### Option 3 — Windows installer script
-
-`installer/install-spicetify-ST.cmd` installs Spicetify if it's missing, copies `dist/spicy-themes.js` into your Extensions folder, and runs `spicetify apply`. Build first with `npm run build`, then run the script. If the extension doesn't appear afterwards, register it once with `spicetify config extensions spicy-themes.js`.
 
 ---
 
@@ -314,53 +309,6 @@ To tune by hand, the costliest settings, roughly in order:
 | Stuck on an old version | Open the modal's **About** tab to see your version and build hash, then use **Check for Updates**. |
 
 Still stuck? [Ask in the Discord](https://discord.gg/fXK34DeDW5) — include your Spicetify version, Spotify version, and the build hash from the About tab.
-
----
-
-## Building from source
-
-```bash
-npm install
-```
-
-```bash
-npm run build
-```
-
-| Script | Does |
-|---|---|
-| `npm run build` | Type-checks with `tsc --noEmit`, bundles `src/app.ts` to `dist/spicy-themes.js` with esbuild, then stamps the build's own SHA-256 into it. |
-| `npm run build:watch` | Incremental rebuilds with inline sourcemaps and no type check. |
-| `npm run deploy` | Build, copy to `%APPDATA%\spicetify\Extensions`, and apply. Windows only. |
-| `npm run release` | Build and copy to `builds/`. |
-
-The build syncs `manifest.json`'s version from `package.json`, so bump the version in one place only.
-
-### Layout
-
-```
-src/
-  app.ts              entry point
-  utils/
-    themeEngine.ts    generates and injects the CSS for every setting
-    state.ts          theme config, defaults, built-in presets, persistence
-    settingsModal.ts  the tabbed modal, and SCHEMA — the source of truth for settings
-    settings.ts       the Spotify settings-page section
-    marketplace.ts    marketplace API client
-    musicVideo.ts     synced video backgrounds
-    eqAudio.ts        audio analysis for the equalizer
-    updater.ts        version checks and self-update
-    connectivity.ts   offline detection and degradation
-    core.ts           palette button and lyrics-view wiring
-loader/ST-loader.js   published entry point: fetches, verifies, and caches the build
-installer/            Windows install script
-```
-
-Adding a setting means adding a field to `SCHEMA` in `settingsModal.ts`, a default in `state.ts`, and the CSS it drives in `themeEngine.ts`. Both settings surfaces render from `SCHEMA`, so neither needs separate wiring.
-
-### How updates work
-
-`ST-loader.js` is what Spicetify actually loads. On startup it asks `7xeh.dev` for the current version (falling back to the GitHub releases API), downloads the matching build, verifies its SHA-256, and caches it. It re-checks periodically so hotfixes land without a reinstall. The version and build hash you're running are shown in the modal's **About** tab.
 
 ---
 
