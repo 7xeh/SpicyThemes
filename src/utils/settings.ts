@@ -12,14 +12,22 @@ const MODAL_SETTINGS_ID = 'spicy-themes-modal-settings';
 const SETTINGS_WATCHER_FLAG = '__spicyThemesSettingsWatcherRegistered';
 const MENU_REGISTERED_FLAG = '__spicyThemesMenuRegistered';
 
-function nativeSettingsClass(selector: string, fallback: string): string {
+const EXTENSION_SECTION_SELECTOR = `#${SETTINGS_ID}, #${MODAL_SETTINGS_ID}, .spicy-themes-settings, #spicy-lyrics-settings, #spicy-lyrics-dev-settings, #spicy-lyric-translator-settings`;
+const SIBLING_EXTENSION_IDS = ['spicy-lyric-translator-settings', 'spicy-lyrics-dev-settings', 'spicy-lyrics-settings'];
+
+function nativeElements(root: ParentNode, selector: string): HTMLElement[] {
     try {
-        const candidates = document.querySelectorAll<HTMLElement>(selector);
-        for (const el of Array.from(candidates)) {
-            if (el.closest(`#${SETTINGS_ID}, #spicy-lyrics-settings, #spicy-lyrics-dev-settings, #spicy-lyric-translator-settings`)) continue;
-            if (typeof el.className === 'string' && el.className.trim()) return el.className;
-        }
-    } catch (e) {}
+        return Array.from(root.querySelectorAll<HTMLElement>(selector))
+            .filter(el => !el.closest(EXTENSION_SECTION_SELECTOR));
+    } catch (e) {
+        return [];
+    }
+}
+
+function nativeSettingsClass(selector: string, fallback: string): string {
+    for (const el of nativeElements(document, selector)) {
+        if (typeof el.className === 'string' && el.className.trim()) return el.className;
+    }
     return fallback;
 }
 
@@ -565,10 +573,61 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     return section;
 }
 
+function settingsPageContainer(): HTMLElement | null {
+    return (document.querySelector('.x-settings-container') ||
+            document.querySelector('[data-testid="settings-page"]')) as HTMLElement | null;
+}
+
+/**
+ * Spotify's settings page keeps its own content inside absolutely positioned
+ * wrappers. Appending to the container itself drops the section into an empty
+ * flow that spans the whole main view and overlaps the native rows, so descend
+ * past any wrapper whose children are all out of flow.
+ */
+function inFlowHost(container: HTMLElement, section: HTMLElement): HTMLElement {
+    let host = container;
+
+    for (let depth = 0; depth < 4; depth++) {
+        const children = (Array.from(host.children) as HTMLElement[]).filter(child => child !== section);
+        if (children.length === 0) break;
+
+        const allOutOfFlow = children.every(child => {
+            const position = getComputedStyle(child).position;
+            return position === 'absolute' || position === 'fixed';
+        });
+        if (!allOutOfFlow) break;
+
+        host = children[children.length - 1];
+    }
+
+    return host;
+}
+
+function placeSettingsSection(container: HTMLElement, section: HTMLElement): void {
+    const nativeSection = nativeElements(container, '.x-settings-section').pop() ||
+                          nativeElements(container, 'section').pop() ||
+                          null;
+
+    // Without a native section to sit beside, the section provides its own
+    // column width instead of stretching across the full main view.
+    section.classList.toggle('st-standalone', !nativeSection);
+
+    const host = nativeSection?.parentElement || inFlowHost(container, section);
+    if (section.parentElement === host) return;
+
+    for (const id of SIBLING_EXTENSION_IDS) {
+        const anchor = document.getElementById(id);
+        if (anchor && anchor.parentElement === host) {
+            anchor.after(section);
+            return;
+        }
+    }
+
+    host.appendChild(section);
+}
+
 function injectSettingsIntoPage(): void {
-    const settingsContainer = document.querySelector('.x-settings-container') ||
-                              document.querySelector('[data-testid="settings-page"]') ||
-                              document.querySelector('main.x-settings-container');
+    const settingsContainer = settingsPageContainer();
     if (!settingsContainer) {
         return;
     }
@@ -583,52 +642,26 @@ function injectSettingsIntoPage(): void {
         }
     }
 
-    const alreadyInContainer = !!existingSection && settingsContainer.contains(existingSection);
-    if (alreadyInContainer) return;
+    placeSettingsSection(settingsContainer, existingSection || createSettingsSection());
+}
 
-    const settingsSection = existingSection || createSettingsSection();
-
-    const sltSettings = document.getElementById('spicy-lyric-translator-settings');
-    const spicyLyricsSettings = document.getElementById('spicy-lyrics-settings');
-    const spicyLyricsDevSettings = document.getElementById('spicy-lyrics-dev-settings');
-
-    if (sltSettings) {
-        sltSettings.after(settingsSection);
-    } else if (spicyLyricsDevSettings) {
-        spicyLyricsDevSettings.after(settingsSection);
-    } else if (spicyLyricsSettings) {
-        spicyLyricsSettings.after(settingsSection);
-    } else {
-        const pageSections = settingsContainer.querySelectorAll('.x-settings-section');
-        if (pageSections.length > 0) {
-            const lastSection = pageSections[pageSections.length - 1];
-            const lastSectionParent = lastSection.closest('div:not(.x-settings-section):not(.x-settings-container)') || lastSection;
-            lastSectionParent.after(settingsSection);
-        } else {
-            settingsContainer.appendChild(settingsSection);
-        }
+function removeInjectedSettings(): void {
+    for (const section of Array.from(document.querySelectorAll(`#${SETTINGS_ID}`))) {
+        section.remove();
     }
 }
 
-function isOnSettingsPage(): boolean {
-    const hasSettingsContainer = !!document.querySelector('.x-settings-container');
-    const hasSettingsTestId = !!document.querySelector('[data-testid="settings-page"]');
-    const pathCheck = window.location.pathname.includes('preferences') ||
-                      window.location.pathname.includes('settings') ||
-                      window.location.href.includes('preferences') ||
-                      window.location.href.includes('settings');
-
-    let historyCheck = false;
+function currentRoutePath(): string {
     try {
-        const location = Spicetify.Platform?.History?.location;
-        if (location) {
-            historyCheck = location.pathname?.includes('preferences') ||
-                          location.pathname?.includes('settings') ||
-                          false;
-        }
+        const path = Spicetify.Platform?.History?.location?.pathname;
+        if (typeof path === 'string') return path;
     } catch (e) {}
+    return window.location.pathname || '';
+}
 
-    return hasSettingsContainer || hasSettingsTestId || pathCheck || historyCheck;
+function isOnSettingsPage(): boolean {
+    if (settingsPageContainer()) return true;
+    return /(^|\/)(preferences|settings)(\/|$)/.test(currentRoutePath());
 }
 
 function watchForSettingsPage(): void {
@@ -649,6 +682,8 @@ function watchForSettingsPage(): void {
                     setTimeout(injectSettingsIntoPage, 100);
                     setTimeout(injectSettingsIntoPage, 300);
                     setTimeout(injectSettingsIntoPage, 500);
+                } else {
+                    removeInjectedSettings();
                 }
             });
         }
@@ -656,14 +691,28 @@ function watchForSettingsPage(): void {
     }
 
     let settingsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = (task: () => void) => {
+        if (settingsDebounceTimer) clearTimeout(settingsDebounceTimer);
+        settingsDebounceTimer = setTimeout(() => {
+            settingsDebounceTimer = null;
+            task();
+        }, 150);
+    };
+
     const observer = new MutationObserver(() => {
-        if (!document.getElementById(SETTINGS_ID) && isOnSettingsPage()) {
-            if (settingsDebounceTimer) clearTimeout(settingsDebounceTimer);
-            settingsDebounceTimer = setTimeout(() => {
-                injectSettingsIntoPage();
-                settingsDebounceTimer = null;
-            }, 150);
+        const existing = document.getElementById(SETTINGS_ID);
+
+        // The settings page unmounts without taking the injected section with
+        // it, which is how it ended up stranded on pages like the Marketplace.
+        if (!isOnSettingsPage()) {
+            if (existing) schedule(removeInjectedSettings);
+            return;
         }
+
+        const container = settingsPageContainer();
+        if (existing && container && container.contains(existing)) return;
+
+        schedule(injectSettingsIntoPage);
     });
     observer.observe(document.body, { childList: true, subtree: true });
 }

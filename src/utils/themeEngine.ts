@@ -1446,6 +1446,48 @@ export function injectBaseStyles(): void {
 }
 
 const BASE_STYLES = `
+.spicy-themes-settings {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.spicy-themes-settings.st-standalone {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 0 16px 24px;
+}
+
+.spicy-themes-settings .x-settings-section {
+    width: 100%;
+}
+
+.spicy-themes-settings .x-settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    padding: 6px 0;
+    box-sizing: border-box;
+}
+
+.spicy-themes-settings .x-settings-firstColumn {
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.spicy-themes-settings .x-settings-secondColumn {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
 .spicy-themes-settings .st-color-swatch {
     width: 28px;
     height: 28px;
