@@ -1,5 +1,49 @@
 import { storage } from './storage';
 
+export type WordEffectTrigger = 'word' | 'line' | 'loop';
+
+export interface WordEffectMeta {
+    id: string;
+    label: string;
+    group: string;
+    defaultTrigger: WordEffectTrigger;
+    triggers: WordEffectTrigger[];
+}
+
+export const WORD_EFFECTS: WordEffectMeta[] = [
+    { id: 'pop', label: 'Pop', group: 'Classic', defaultTrigger: 'word', triggers: ['word', 'line'] },
+    { id: 'wave', label: 'Wave', group: 'Classic', defaultTrigger: 'loop', triggers: ['loop', 'word', 'line'] },
+
+    { id: 'bounce', label: 'Bounce', group: 'Energetic', defaultTrigger: 'word', triggers: ['word', 'line'] },
+    { id: 'stamp', label: 'Stamp', group: 'Energetic', defaultTrigger: 'word', triggers: ['word', 'line'] },
+    { id: 'shake', label: 'Shake', group: 'Energetic', defaultTrigger: 'word', triggers: ['word', 'line', 'loop'] },
+    { id: 'glitch', label: 'Glitch', group: 'Energetic', defaultTrigger: 'word', triggers: ['word', 'line', 'loop'] },
+
+    { id: 'rise', label: 'Rise', group: 'Smooth', defaultTrigger: 'word', triggers: ['word', 'line'] },
+    { id: 'sway', label: 'Sway', group: 'Smooth', defaultTrigger: 'loop', triggers: ['loop', 'word', 'line'] },
+    { id: 'focus', label: 'Focus', group: 'Smooth', defaultTrigger: 'word', triggers: ['word', 'line'] },
+    { id: 'swell', label: 'Swell', group: 'Smooth', defaultTrigger: 'loop', triggers: ['loop', 'word', 'line'] },
+
+    { id: 'flip', label: 'Flip', group: 'Dimensional', defaultTrigger: 'word', triggers: ['word', 'line'] },
+    { id: 'depth', label: 'Depth', group: 'Dimensional', defaultTrigger: 'word', triggers: ['word', 'line', 'loop'] },
+    { id: 'lean', label: 'Lean', group: 'Dimensional', defaultTrigger: 'word', triggers: ['word', 'line'] },
+];
+
+export const WORD_EFFECT_IDS = WORD_EFFECTS.map(e => e.id);
+
+export function wordEffectMeta(id: string): WordEffectMeta | null {
+    return WORD_EFFECTS.find(e => e.id === id) || null;
+}
+
+export function resolveWordTrigger(effect: string, trigger: string): WordEffectTrigger {
+    const meta = wordEffectMeta(effect);
+    if (!meta) return 'word';
+    if (trigger !== 'auto' && meta.triggers.includes(trigger as WordEffectTrigger)) {
+        return trigger as WordEffectTrigger;
+    }
+    return meta.defaultTrigger;
+}
+
 export interface ThemeConfig {
     activeLineColor: string;
     sungLineColor: string;
@@ -72,6 +116,10 @@ export interface ThemeConfig {
     disableHighlight: boolean;
     highlightColor: string;
     wordEffect: string;
+    wordEffectTrigger: string;
+    wordEffectIntensity: number;
+    wordEffectSpeed: number;
+    wordEffectStagger: number;
     popEffect: boolean;
     popScale: number;
     popDuration: number;
@@ -79,6 +127,16 @@ export interface ThemeConfig {
     waveEffect: boolean;
     waveIntensity: number;
     waveSpeed: number;
+
+    textStrokeEnabled: boolean;
+    textStrokeColor: string;
+    textStrokeWidth: number;
+
+    gradientFeather: number;
+    wordSpacing: number;
+    fontStyle: string;
+    textAlign: string;
+    maxLineWidth: number;
 
     playerStylingEnabled: boolean;
     playerArtRadius: number;
@@ -180,6 +238,10 @@ export const DEFAULT_THEME: ThemeConfig = {
     disableHighlight: false,
     highlightColor: '#ffffff',
     wordEffect: 'none',
+    wordEffectTrigger: 'auto',
+    wordEffectIntensity: 1.0,
+    wordEffectSpeed: 1.0,
+    wordEffectStagger: 55,
     popEffect: false,
     popScale: 1.05,
     popDuration: 0.3,
@@ -187,6 +249,16 @@ export const DEFAULT_THEME: ThemeConfig = {
     waveEffect: false,
     waveIntensity: 4,
     waveSpeed: 0.8,
+
+    textStrokeEnabled: false,
+    textStrokeColor: '#000000',
+    textStrokeWidth: 0.6,
+
+    gradientFeather: 20,
+    wordSpacing: 0,
+    fontStyle: 'normal',
+    textAlign: 'default',
+    maxLineWidth: 0,
 
     playerStylingEnabled: false,
     playerArtRadius: 12,
@@ -323,7 +395,10 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             bgGlowEnabled: true,
             bgGlowColor: '#ff2e97',
             bgGlowIntensity: 20,
-            wordEffect: 'pop',
+            wordEffect: 'stamp',
+            wordEffectTrigger: 'word',
+            wordEffectIntensity: 1.15,
+            wordEffectSpeed: 1.5,
             popScale: 1.12,
             popDuration: 0.22,
             eqEnabled: true,
@@ -441,6 +516,9 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             glowColor: '#7fd4ff',
             glowIntensity: 3,
             wordEffect: 'wave',
+            wordEffectTrigger: 'loop',
+            wordEffectIntensity: 0.35,
+            wordEffectSpeed: 0.95,
             waveIntensity: 2,
             waveSpeed: 1.2,
             blurUnsung: true,
@@ -486,7 +564,10 @@ export const BUILTIN_PRESETS: ThemePreset[] = [
             bgGlowEnabled: true,
             bgGlowColor: '#9d7bff',
             bgGlowIntensity: 22,
-            wordEffect: 'wave',
+            wordEffect: 'sway',
+            wordEffectTrigger: 'loop',
+            wordEffectIntensity: 0.6,
+            wordEffectSpeed: 0.7,
             waveIntensity: 3,
             waveSpeed: 1.4,
             eqEnabled: true,
@@ -584,6 +665,13 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     popDuration: [0.1, 0.6],
     waveIntensity: [1, 10],
     waveSpeed: [0.3, 2.0],
+    wordEffectIntensity: [0.1, 2.0],
+    wordEffectSpeed: [0.3, 3.0],
+    wordEffectStagger: [0, 150],
+    textStrokeWidth: [0, 3],
+    gradientFeather: [0, 60],
+    wordSpacing: [-0.1, 1.0],
+    maxLineWidth: [0, 100],
     lineHeight: [1.0, 2.5],
     letterSpacing: [-0.1, 0.3],
     lyricsScale: [0.25, 2.0],
@@ -602,6 +690,7 @@ const COLOR_KEYS: (keyof ThemeConfig)[] = [
     'textShadowColor', 'pageBgColor',
     'sltTranslationColor', 'sltHighlightStartColor', 'sltHighlightEndColor', 'sltGlowColor',
     'bgGlowColor', 'highlightColor', 'eqColor', 'playerAccentColor',
+    'textStrokeColor',
 ];
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
@@ -646,7 +735,7 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         normalized.eqStyle = 'equalizer';
     }
 
-    if (normalized.wordEffect !== 'pop' && normalized.wordEffect !== 'wave') {
+    if (!WORD_EFFECT_IDS.includes(normalized.wordEffect)) {
         normalized.wordEffect = 'none';
     }
     if (normalized.wordEffect === 'none' && (normalized.popEffect || normalized.waveEffect)) {
@@ -654,6 +743,19 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
     }
     normalized.popEffect = normalized.wordEffect === 'pop';
     normalized.waveEffect = normalized.wordEffect === 'wave';
+
+    const meta = wordEffectMeta(normalized.wordEffect);
+    if (!meta || (normalized.wordEffectTrigger !== 'auto' && !meta.triggers.includes(normalized.wordEffectTrigger as WordEffectTrigger))) {
+        normalized.wordEffectTrigger = 'auto';
+    }
+
+    if (!['normal', 'italic', 'oblique'].includes(normalized.fontStyle)) {
+        normalized.fontStyle = 'normal';
+    }
+
+    if (!['default', 'left', 'center', 'right'].includes(normalized.textAlign)) {
+        normalized.textAlign = 'default';
+    }
 
     for (const key of COLOR_KEYS) {
         (normalized as any)[key] = sanitizeColor((normalized as any)[key], (DEFAULT_THEME as any)[key]);
@@ -665,7 +767,7 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         normalized.eqPosition = 'both';
     }
 
-    if (!['auto', 'horizontal', 'vertical', 'diagonal'].includes(normalized.gradientDirection)) {
+    if (!['auto', 'horizontal', 'vertical', 'diagonal', 'custom'].includes(normalized.gradientDirection)) {
         normalized.gradientDirection = 'auto';
     }
 
@@ -677,11 +779,39 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
     return normalized;
 }
 
+const POP_BASE_SCALE_DELTA = 0.10;
+const POP_BASE_DURATION = 0.34;
+const WAVE_BASE_HEIGHT = 6;
+const WAVE_BASE_DURATION = 1.1;
+
 export function mergeThemeConfig(raw: Partial<ThemeConfig> | null | undefined): ThemeConfig {
     const merged = { ...DEFAULT_THEME, ...(raw || {}) };
-    if (raw && (raw as any).wordEffect === undefined) {
+    const source = (raw || {}) as Partial<ThemeConfig>;
+
+    if (raw && source.wordEffect === undefined) {
         merged.wordEffect = merged.popEffect ? 'pop' : merged.waveEffect ? 'wave' : 'none';
     }
+
+    if (raw && source.wordEffectIntensity === undefined) {
+        if (merged.wordEffect === 'pop' && typeof source.popScale === 'number') {
+            merged.wordEffectIntensity = (source.popScale - 1) / POP_BASE_SCALE_DELTA;
+        } else if (merged.wordEffect === 'wave' && typeof source.waveIntensity === 'number') {
+            merged.wordEffectIntensity = source.waveIntensity / WAVE_BASE_HEIGHT;
+        }
+    }
+
+    if (raw && source.wordEffectSpeed === undefined) {
+        if (merged.wordEffect === 'pop' && typeof source.popDuration === 'number' && source.popDuration > 0) {
+            merged.wordEffectSpeed = POP_BASE_DURATION / source.popDuration;
+        } else if (merged.wordEffect === 'wave' && typeof source.waveSpeed === 'number' && source.waveSpeed > 0) {
+            merged.wordEffectSpeed = WAVE_BASE_DURATION / source.waveSpeed;
+        }
+    }
+
+    if (raw && source.wordEffectTrigger === undefined && merged.wordEffect === 'pop') {
+        merged.wordEffectTrigger = 'line';
+    }
+
     return normalizeThemeConfig(merged);
 }
 
@@ -769,6 +899,11 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
     if (key === 'wordEffect') {
         themeState.activeTheme.popEffect = value === 'pop';
         themeState.activeTheme.waveEffect = value === 'wave';
+        const meta = wordEffectMeta(String(value));
+        const trigger = themeState.activeTheme.wordEffectTrigger;
+        if (!meta || (trigger !== 'auto' && !meta.triggers.includes(trigger as WordEffectTrigger))) {
+            themeState.activeTheme.wordEffectTrigger = 'auto';
+        }
     }
     if (key === 'popEffect') {
         themeState.activeTheme.waveEffect = value === true ? false : themeState.activeTheme.waveEffect;

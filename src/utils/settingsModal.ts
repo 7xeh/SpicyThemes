@@ -10,6 +10,8 @@ import {
     mergeThemeConfig,
     DEFAULT_THEME,
     BUILTIN_PRESETS,
+    WORD_EFFECTS,
+    resolveWordTrigger,
     ThemeConfig,
     ThemePreset,
 } from './state';
@@ -83,6 +85,11 @@ export const WEIGHT_OPTIONS = [
     { value: '900', text: 'Black (900)' },
 ];
 
+const WORD_EFFECT_OPTIONS = [
+    { value: 'none', text: 'None' },
+    ...WORD_EFFECTS.map(e => ({ value: e.id, text: `${e.group} — ${e.label}` })),
+];
+
 export const SCHEMA: FieldDef[] = [
     { id: 'activeLineColor', label: 'Active line', type: 'color', section: 'Line colors', when: (t) => !t.gradientEnabled, hint: 'The line currently being sung. Replaced by the gradient when gradient text is on.', keywords: 'current karaoke highlight' },
     { id: 'sungLineColor', label: 'Already sung', type: 'color', section: 'Line colors', keywords: 'past previous' },
@@ -99,7 +106,10 @@ export const SCHEMA: FieldDef[] = [
         { value: 'horizontal', text: 'Horizontal' },
         { value: 'vertical', text: 'Vertical' },
         { value: 'diagonal', text: 'Diagonal' },
-    ], hint: 'Which way the karaoke fill travels. Horizontal and diagonal flip automatically for right-to-left lyrics.', keywords: 'angle direction karaoke sweep fill' },
+        { value: 'custom', text: 'Custom angle' },
+    ], hint: 'Which way the karaoke fill travels. Horizontal, diagonal and custom flip automatically for right-to-left lyrics.', keywords: 'angle direction karaoke sweep fill' },
+    { id: 'gradientAngle', label: 'Sweep angle', type: 'slider', section: 'Gradient', min: 0, max: 360, step: 5, unit: '°', parent: 'gradientEnabled', when: (t) => t.gradientEnabled && t.gradientDirection === 'custom', hint: '0° sweeps upward, 90° to the right, 180° downward.', keywords: 'degrees rotation direction' },
+    { id: 'gradientFeather', label: 'Fill softness', type: 'slider', section: 'Gradient', min: 0, max: 60, step: 1, unit: '%', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, hint: 'The length of the blend between the sung and upcoming colours. 0% is a hard wipe, higher values trail a long fade behind the karaoke position.', keywords: 'blend fade edge transition sharpness feather' },
 
     { id: 'fontFamily', label: 'Font', type: 'dropdown', section: 'Typography', options: [...FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], keywords: 'typeface family' },
     { id: 'fontFamily', label: 'Custom font name', type: 'text', section: 'Typography', placeholder: "e.g. 'Inter', sans-serif", when: (t) => t.fontFamily !== '' && !FONT_OPTIONS.some(o => o.value === t.fontFamily) },
@@ -111,9 +121,22 @@ export const SCHEMA: FieldDef[] = [
         { value: 'lowercase', text: 'lowercase' },
         { value: 'capitalize', text: 'Title Case' },
     ], keywords: 'uppercase lowercase caps case' },
+    { id: 'fontStyle', label: 'Style', type: 'dropdown', section: 'Typography', options: [
+        { value: 'normal', text: 'Upright' },
+        { value: 'italic', text: 'Italic' },
+        { value: 'oblique', text: 'Oblique (slanted)' },
+    ], hint: 'Italic uses the font’s own italic cut if it ships one; oblique slants the upright cut mathematically.', keywords: 'italic slant oblique cursive' },
     { id: 'lyricsScale', label: 'Text size', type: 'slider', section: 'Typography', min: 0.25, max: 2.0, step: 0.05, unit: 'x', keywords: 'scale bigger smaller font size' },
     { id: 'letterSpacing', label: 'Letter spacing', type: 'slider', section: 'Typography', min: -0.1, max: 0.3, step: 0.01, unit: 'em', keywords: 'tracking kerning' },
+    { id: 'wordSpacing', label: 'Word spacing', type: 'slider', section: 'Typography', min: -0.1, max: 1.0, step: 0.02, unit: 'em', hint: 'Widens the gaps between words without touching the letters inside them.', keywords: 'gap space between words' },
     { id: 'lineHeight', label: 'Line spacing', type: 'slider', section: 'Typography', min: 1.0, max: 2.5, step: 0.01, keywords: 'leading gap' },
+    { id: 'textAlign', label: 'Alignment', type: 'dropdown', section: 'Typography', options: [
+        { value: 'default', text: 'Follow Spicy Lyrics' },
+        { value: 'left', text: 'Left' },
+        { value: 'center', text: 'Centre' },
+        { value: 'right', text: 'Right' },
+    ], hint: 'Overrides Spicy Lyrics’ own alignment, including its per-vocalist opposite alignment.', keywords: 'align left right centre centered justify' },
+    { id: 'maxLineWidth', label: 'Max line width', type: 'slider', section: 'Typography', min: 0, max: 100, step: 5, unit: '%', hint: 'Caps how wide a line can get before it wraps. 0% leaves it uncapped — lower values keep lines readable on wide screens.', keywords: 'measure wrap width narrow column readability' },
 
     { id: 'glowEnabled', label: 'Line glow', type: 'toggle', section: 'Glow', hint: 'Adds a soft halo around every lyric line.', keywords: 'halo neon shine bloom' },
     { id: 'activeGlowColor', label: 'Active line colour', type: 'color', section: 'Glow', parent: 'glowEnabled', when: (t) => t.glowEnabled },
@@ -131,6 +154,9 @@ export const SCHEMA: FieldDef[] = [
     { id: 'textShadowBlur', label: 'Shadow blur', type: 'slider', section: 'Glow', min: 0, max: 20, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
     { id: 'textShadowOffsetX', label: 'Shadow offset X', type: 'slider', section: 'Glow', min: -10, max: 10, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
     { id: 'textShadowOffsetY', label: 'Shadow offset Y', type: 'slider', section: 'Glow', min: -10, max: 10, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
+    { id: 'textStrokeEnabled', label: 'Text outline', type: 'toggle', section: 'Glow', hint: 'Draws a hard outline around every glyph. Holds up over busy backgrounds and music video better than a shadow does, and sits outside the karaoke gradient so the fill still shows through.', keywords: 'stroke border outline edge contour readability' },
+    { id: 'textStrokeColor', label: 'Outline colour', type: 'color', section: 'Glow', parent: 'textStrokeEnabled', when: (t) => t.textStrokeEnabled },
+    { id: 'textStrokeWidth', label: 'Outline width', type: 'slider', section: 'Glow', min: 0, max: 3, step: 0.1, unit: 'px', parent: 'textStrokeEnabled', when: (t) => t.textStrokeEnabled, hint: 'Above roughly 1.5px the outline starts eating into thin letterforms.' },
 
     { id: 'blurUnsung', label: 'Blur other lines', type: 'toggle', section: 'Focus', hint: 'Softens every line except the one being sung, so the eye lands on the right place.', keywords: 'depth of field defocus soft' },
     { id: 'blurAmount', label: 'Blur amount', type: 'slider', section: 'Focus', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'blurUnsung', when: (t) => t.blurUnsung },
@@ -145,15 +171,16 @@ export const SCHEMA: FieldDef[] = [
 
     { id: 'disableHighlight', label: 'Flat colour mode', type: 'toggle', section: 'Motion', hint: 'Turns off the sweeping karaoke fill — every line uses one solid colour.', keywords: 'no karaoke disable highlight solid' },
     { id: 'highlightColor', label: 'Flat colour', type: 'color', section: 'Motion', parent: 'disableHighlight', when: (t) => t.disableHighlight },
-    { id: 'wordEffect', label: 'Word animation', type: 'dropdown', section: 'Motion', options: [
-        { value: 'none', text: 'None' },
-        { value: 'pop', text: 'Pop' },
-        { value: 'wave', text: 'Wave' },
-    ], hint: 'Animates individual words in the active line.', keywords: 'bounce pop wave animate' },
-    { id: 'popScale', label: 'Pop scale', type: 'slider', section: 'Motion', min: 1.0, max: 1.3, step: 0.01, unit: 'x', parent: 'wordEffect', when: (t) => t.wordEffect === 'pop' },
-    { id: 'popDuration', label: 'Pop duration', type: 'slider', section: 'Motion', min: 0.1, max: 0.6, step: 0.05, unit: 's', parent: 'wordEffect', when: (t) => t.wordEffect === 'pop' },
-    { id: 'waveIntensity', label: 'Wave height', type: 'slider', section: 'Motion', min: 1, max: 10, step: 1, unit: 'px', parent: 'wordEffect', when: (t) => t.wordEffect === 'wave' },
-    { id: 'waveSpeed', label: 'Wave speed', type: 'slider', section: 'Motion', min: 0.3, max: 2.0, step: 0.1, unit: 's', parent: 'wordEffect', when: (t) => t.wordEffect === 'wave' },
+    { id: 'wordEffect', label: 'Word animation', type: 'dropdown', section: 'Motion', options: WORD_EFFECT_OPTIONS, hint: 'Animates individual words in the active line. Grouped by feel — Classic is subtle, Energetic is punchy, Smooth is understated, Dimensional uses 3D.', keywords: 'bounce pop wave stamp shake glitch rise sway focus swell flip depth lean animate word' },
+    { id: 'wordEffectTrigger', label: 'Fires', type: 'dropdown', section: 'Motion', options: [
+        { value: 'auto', text: 'Recommended for this animation' },
+        { value: 'word', text: 'As each word is sung' },
+        { value: 'line', text: 'When the line starts' },
+        { value: 'loop', text: 'Continuously' },
+    ], parent: 'wordEffect', when: (t) => t.wordEffect !== 'none', hint: 'Per-word keeps the animation in time with the karaoke. Only the options an animation can actually do are accepted.', keywords: 'trigger timing sync karaoke per word' },
+    { id: 'wordEffectIntensity', label: 'Intensity', type: 'slider', section: 'Motion', min: 0.1, max: 2.0, step: 0.05, unit: 'x', parent: 'wordEffect', when: (t) => t.wordEffect !== 'none', hint: 'How far the animation travels. Scales with text size, so it stays proportional.', keywords: 'strength amount size distance' },
+    { id: 'wordEffectSpeed', label: 'Speed', type: 'slider', section: 'Motion', min: 0.3, max: 3.0, step: 0.05, unit: 'x', parent: 'wordEffect', when: (t) => t.wordEffect !== 'none', hint: 'Higher is faster. Applies to whichever animation is selected.', keywords: 'duration fast slow tempo' },
+    { id: 'wordEffectStagger', label: 'Stagger between words', type: 'slider', section: 'Motion', min: 0, max: 150, step: 5, unit: 'ms', parent: 'wordEffect', when: (t) => t.wordEffect !== 'none' && resolveWordTrigger(t.wordEffect, t.wordEffectTrigger) !== 'word', hint: 'Offsets each word so the animation ripples along the line instead of firing all at once.', keywords: 'delay ripple cascade offset sequence' },
     { id: 'scaleActive', label: 'Active line zoom', type: 'slider', section: 'Motion', min: 0.95, max: 1.12, step: 0.01, unit: 'x', keywords: 'scale grow size' },
     { id: 'scaleInEffect', label: 'Zoom in on arrival', type: 'toggle', section: 'Motion', hint: 'Animates each line up to its zoom level as it becomes active.', keywords: 'scale in entrance animate' },
     { id: 'scaleInFrom', label: 'Starting scale', type: 'slider', section: 'Motion', min: 0.85, max: 1.05, step: 0.01, unit: 'x', parent: 'scaleInEffect', when: (t) => t.scaleInEffect },
@@ -287,6 +314,17 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
         line.style.fontWeight = fontWeight;
         line.style.letterSpacing = letterSpacing;
         line.style.lineHeight = lineHeight;
+        line.style.fontStyle = t.fontStyle === 'normal' ? '' : t.fontStyle;
+        line.style.wordSpacing = t.wordSpacing ? `${t.wordSpacing}em` : '';
+        line.style.textAlign = t.textAlign === 'default' ? '' : t.textAlign;
+        line.style.maxWidth = t.maxLineWidth > 0 ? `${t.maxLineWidth}%` : '';
+        line.style.marginInline = t.maxLineWidth > 0
+            ? (t.textAlign === 'center' ? 'auto' : t.textAlign === 'right' ? 'auto 0' : '0 auto')
+            : '';
+        (line.style as any).webkitTextStroke = t.textStrokeEnabled && t.textStrokeWidth > 0
+            ? `${t.textStrokeWidth}px ${t.textStrokeColor}`
+            : '';
+        (line.style as any).paintOrder = t.textStrokeEnabled ? 'stroke fill' : '';
         line.style.background = '';
         line.style.backgroundClip = '';
         line.style.webkitBackgroundClip = '';
@@ -306,7 +344,10 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
         active.style.opacity = String(t.activeLineOpacity);
         active.style.transform = `scale(${t.scaleActive})`;
         if (t.gradientEnabled) {
-            active.style.background = `linear-gradient(${t.gradientAngle}deg, ${t.gradientStartColor}, ${t.gradientEndColor})`;
+            const DIRECTION_ANGLES: Record<string, number> = { horizontal: 90, vertical: 180, diagonal: 135 };
+            const angle = DIRECTION_ANGLES[t.gradientDirection] ?? t.gradientAngle;
+            const feather = Math.min(Math.max(t.gradientFeather, 0), 60);
+            active.style.background = `linear-gradient(${angle}deg, ${t.gradientStartColor} ${Math.max(0, 50 - feather / 2)}%, ${t.gradientEndColor} ${Math.min(100, 50 + feather / 2)}%)`;
             active.style.backgroundClip = 'text';
             active.style.webkitBackgroundClip = 'text';
             (active.style as any).webkitTextFillColor = 'transparent';
@@ -821,6 +862,8 @@ function buildCustomizeTab(): HTMLElement {
             activeCategoryId = cat.id;
             if (search.value) search.value = '';
             applyCustomizeFilter();
+            const host = liveContainer?.querySelector('.st-m-tab-host') as HTMLElement | null;
+            if (host) host.scrollTop = 0;
             if (liveContainer) liveContainer.scrollTop = 0;
             liveContainer?.closest('.sl-modal-content')?.scrollTo?.(0, 0);
         });

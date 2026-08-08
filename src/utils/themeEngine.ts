@@ -1,4 +1,4 @@
-import { themeState, ThemeConfig } from './state';
+import { themeState, ThemeConfig, WordEffectTrigger, resolveWordTrigger } from './state';
 import { startEqAudio, stopEqAudio } from './eqAudio';
 import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer, setMusicVideoCompactAllowed } from './musicVideo';
 
@@ -43,12 +43,12 @@ function readableOn(color: string): string {
     return (r * 0.299 + g * 0.587 + b * 0.114) > 150 ? 'rgba(0, 0, 0, 0.68)' : '#fff';
 }
 
-function gradientRule(r: number, g: number, b: number, r2?: number, g2?: number, b2?: number): string {
+function gradientRule(r: number, g: number, b: number, r2?: number, g2?: number, b2?: number, feather = 20): string {
     const er = r2 ?? r, eg = g2 ?? g, eb = b2 ?? b;
     return `background-image: linear-gradient(
         var(--gradient-degrees, 180deg),
         rgba(${r}, ${g}, ${b}, var(--gradient-alpha, 1)) var(--gradient-position, 0%),
-        rgba(${er}, ${eg}, ${eb}, var(--gradient-alpha-end, 1)) calc(var(--gradient-position, 0%) + 20% + var(--gradient-offset, 0%))
+        rgba(${er}, ${eg}, ${eb}, var(--gradient-alpha-end, 1)) calc(var(--gradient-position, 0%) + ${feather}% + var(--gradient-offset, 0%))
     ) !important;
     background-size: 100% 100% !important;
     background-repeat: no-repeat !important;
@@ -98,6 +98,235 @@ ${variant('.rtl.OppositeAligned')} {
 `;
 }
 
+function round(value: number, digits = 3): number {
+    const f = 10 ** digits;
+    return Math.round(value * f) / f;
+}
+
+function clamp(value: number, min: number, max: number): number {
+    return Math.min(Math.max(value, min), max);
+}
+
+interface WordAnimSpec {
+    duration: number;
+    easing: string;
+    origin?: string;
+    perspective?: boolean;
+    frames: (intensity: number, baseShadow: string) => string;
+}
+
+const WORD_ANIMS: Record<string, WordAnimSpec> = {
+    pop: {
+        duration: 0.34,
+        easing: 'cubic-bezier(0.2, 0.85, 0.25, 1)',
+        frames: (i) => `
+    0% { scale: 1; }
+    38% { scale: ${round(1 + 0.1 * i)}; }
+    100% { scale: 1; }`,
+    },
+
+    wave: {
+        duration: 1.1,
+        easing: 'ease-in-out',
+        frames: (i) => `
+    0%, 100% { translate: 0 0; }
+    50% { translate: 0 -${round(0.14 * i)}em; }`,
+    },
+
+    bounce: {
+        duration: 0.62,
+        easing: 'cubic-bezier(0.28, 0.84, 0.42, 1)',
+        origin: '50% 90%',
+        frames: (i) => {
+            const squash = round(0.06 * i);
+            return `
+    0% { translate: 0 0; scale: 1 1; }
+    22% { translate: 0 -${round(0.22 * i)}em; scale: ${round(1 - squash * 0.6)} ${round(1 + squash)}; }
+    52% { translate: 0 ${round(0.07 * i)}em; scale: ${round(1 + squash)} ${round(1 - squash)}; }
+    76% { translate: 0 -${round(0.07 * i)}em; scale: 1 1; }
+    100% { translate: 0 0; scale: 1 1; }`;
+        },
+    },
+
+    stamp: {
+        duration: 0.42,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        frames: (i) => `
+    0% { scale: ${round(1 + 0.55 * i)}; opacity: 0.3; filter: blur(${round(2.4 * i)}px); }
+    48% { opacity: 1; }
+    100% { scale: 1; opacity: 1; filter: blur(0px); }`,
+    },
+
+    shake: {
+        duration: 0.42,
+        easing: 'cubic-bezier(0.36, 0.07, 0.19, 0.97)',
+        frames: (i) => `
+    0%, 100% { translate: 0 0; }
+    12% { translate: -${round(0.055 * i)}em 0; }
+    28% { translate: ${round(0.055 * i)}em 0; }
+    44% { translate: -${round(0.038 * i)}em 0; }
+    60% { translate: ${round(0.038 * i)}em 0; }
+    80% { translate: -${round(0.018 * i)}em 0; }`,
+    },
+
+    glitch: {
+        duration: 0.45,
+        easing: 'steps(1, end)',
+        frames: (i, baseShadow) => {
+            const tail = baseShadow ? `, ${baseShadow}` : '';
+            const rest = baseShadow || 'none';
+            const chroma = (offset: number) =>
+                `${round(offset)}em 0 rgba(255, 0, 92, 0.72), ${round(-offset)}em 0 rgba(0, 232, 255, 0.72)${tail}`;
+            return `
+    0% { translate: 0 0; opacity: 1; text-shadow: ${rest}; }
+    14% { translate: -${round(0.07 * i)}em 0; opacity: 1; text-shadow: ${chroma(0.05 * i)}; }
+    26% { translate: ${round(0.055 * i)}em 0; opacity: 0.78; text-shadow: ${chroma(-0.05 * i)}; }
+    38% { translate: -${round(0.03 * i)}em 0; opacity: 1; text-shadow: ${chroma(0.028 * i)}; }
+    54% { translate: ${round(0.03 * i)}em 0; opacity: 0.9; text-shadow: ${chroma(-0.028 * i)}; }
+    70% { translate: -${round(0.014 * i)}em 0; opacity: 1; text-shadow: ${rest}; }
+    100% { translate: 0 0; opacity: 1; text-shadow: ${rest}; }`;
+        },
+    },
+
+    rise: {
+        duration: 0.46,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        frames: (i) => `
+    0% { translate: 0 ${round(0.38 * i)}em; opacity: 0.35; }
+    100% { translate: 0 0; opacity: 1; }`,
+    },
+
+    sway: {
+        duration: 2.4,
+        easing: 'ease-in-out',
+        origin: '50% 80%',
+        frames: (i) => `
+    0%, 100% { rotate: -${round(2.4 * i)}deg; }
+    50% { rotate: ${round(2.4 * i)}deg; }`,
+    },
+
+    focus: {
+        duration: 0.42,
+        easing: 'ease-out',
+        frames: (i) => `
+    0% { filter: blur(${round(3.2 * i)}px); opacity: 0.35; }
+    100% { filter: blur(0px); opacity: 1; }`,
+    },
+
+    swell: {
+        duration: 2.2,
+        easing: 'ease-in-out',
+        frames: (i) => `
+    0%, 100% { scale: 1; }
+    50% { scale: ${round(1 + 0.05 * i)}; }`,
+    },
+
+    flip: {
+        duration: 0.5,
+        easing: 'cubic-bezier(0.2, 0.9, 0.25, 1)',
+        origin: '50% 80%',
+        perspective: true,
+        frames: (i) => `
+    0% { rotate: x ${round(72 * i)}deg; opacity: 0.4; }
+    55% { opacity: 1; }
+    100% { rotate: x 0deg; opacity: 1; }`,
+    },
+
+    depth: {
+        duration: 0.55,
+        easing: 'cubic-bezier(0.25, 0.8, 0.3, 1)',
+        perspective: true,
+        frames: (i) => `
+    0% { translate: 0 0 0; }
+    40% { translate: 0 0 ${round(70 * i)}px; }
+    100% { translate: 0 0 0; }`,
+    },
+
+    lean: {
+        duration: 0.48,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        origin: '50% 90%',
+        frames: (i) => `
+    0% { rotate: -${round(7 * i)}deg; scale: 1 ${round(1 + 0.09 * i)}; opacity: 0.3; }
+    100% { rotate: 0deg; scale: 1 1; opacity: 1; }`,
+    },
+};
+
+const WORD_STAGGER_DEPTH = 48;
+
+export function wordEffectTrigger(config: ThemeConfig): WordEffectTrigger | null {
+    if (!WORD_ANIMS[config.wordEffect]) return null;
+    return resolveWordTrigger(config.wordEffect, config.wordEffectTrigger);
+}
+
+function wordEffectCSS(config: ThemeConfig, bases: string[], baseShadow: string): string[] {
+    const spec = WORD_ANIMS[config.wordEffect];
+    if (!spec) return [];
+
+    const trigger = resolveWordTrigger(config.wordEffect, config.wordEffectTrigger);
+    const intensity = clamp(config.wordEffectIntensity, 0.1, 2);
+    const speed = clamp(config.wordEffectSpeed, 0.3, 3);
+    const stagger = clamp(config.wordEffectStagger, 0, 150) / 1000;
+    const duration = round(spec.duration / speed, 4);
+    const name = `st-word-${config.wordEffect}`;
+    const scope = `:is(${bases.join(', ')})`;
+    const gate = trigger === 'word' ? '.st-word-live' : '';
+
+    const targets = (root: string, nth: string) => [
+        `${root} .line.Active :is(.word, .letterGroup)${nth}${gate}`,
+        `.slt-interleaved-translation.Active .slt-sync-word${nth}${gate}`,
+        `.slt-replace-line.Active .slt-replace-word${nth}${gate}`,
+    ].join(',\n');
+
+    const iterations = trigger === 'loop' ? 'infinite' : '1';
+    const fill = trigger === 'line' ? 'backwards' : 'none';
+    const out: string[] = [];
+
+    out.push(`
+@keyframes ${name} {${spec.frames(intensity, baseShadow)}
+}
+${targets(scope, '')} {
+    ${buildProps(
+        'display: inline-block !important;',
+        `animation: ${name} ${duration}s ${spec.easing} ${iterations} ${fill} !important;`,
+        spec.origin && `transform-origin: ${spec.origin} !important;`,
+        trigger === 'loop' && 'will-change: transform, opacity !important;',
+        'backface-visibility: hidden !important;',
+    )}
+}
+`);
+
+    if (spec.perspective) {
+        out.push(`
+${scope} .line.Active,
+.slt-interleaved-translation.Active,
+.slt-replace-line.Active {
+    perspective: 640px !important;
+    transform-style: preserve-3d !important;
+}
+`);
+    }
+
+    if (trigger !== 'word' && stagger > 0) {
+        const sign = trigger === 'loop' ? '-' : '';
+        const delays: string[] = [];
+        for (let n = 1; n <= WORD_STAGGER_DEPTH; n++) {
+            delays.push(`${targets('#SpicyLyricsPage', `:nth-child(${n})`)} {\n    animation-delay: ${sign}${round((n - 1) * stagger, 4)}s !important;\n}`);
+        }
+        out.push(delays.join('\n'));
+    }
+
+    out.push(`
+@media (prefers-reduced-motion: reduce) {
+    ${targets('#SpicyLyricsPage', '')} {
+        animation: none !important;
+    }
+}
+`);
+
+    return out;
+}
+
 export function generateThemeCSS(config: ThemeConfig): string {
     const css: string[] = [];
 
@@ -122,8 +351,9 @@ export function generateThemeCSS(config: ThemeConfig): string {
     ];
     const ALL = [...BASES, ...PIP];
 
+    const gradientFeather = round(clamp(config.gradientFeather, 0, 60), 2);
     const activeGrad = config.gradientEnabled
-        ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b)
+        ? gradientRule(gradStartRgb.r, gradStartRgb.g, gradStartRgb.b, gradEndRgb.r, gradEndRgb.g, gradEndRgb.b, gradientFeather)
         : colorRule(config.activeLineColor);
     const sungGrad = colorRule(config.sungLineColor);
     const notSungGrad = colorRule(config.notSungLineColor);
@@ -148,6 +378,10 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const bgGlowDecl = config.bgGlowEnabled
         ? `text-shadow: 0 0 ${clampedBgGlow}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1))${shadowSuffix} !important;`
         : '';
+    const wordBaseShadow = [
+        config.bgGlowEnabled && `0 0 ${clampedBgGlow}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1))`,
+        dropShadow,
+    ].filter(Boolean).join(', ');
     const lyricTransitionMs = Math.max(8.333, 110 / config.animationSpeed).toFixed(3);
     const lyricSnapMs = Math.max(8.333, 56 / config.animationSpeed).toFixed(3);
 
@@ -201,6 +435,8 @@ ${sel(ALL, '.line')} {
         `font-weight: ${config.fontWeight} !important;`,
         config.lyricsScale !== 1.0 && `font-size: calc(1em * ${config.lyricsScale}) !important;`,
         config.letterSpacing !== 0 && `letter-spacing: ${config.letterSpacing}em !important;`,
+        config.wordSpacing !== 0 && `word-spacing: ${round(clamp(config.wordSpacing, -0.1, 1), 3)}em !important;`,
+        config.fontStyle !== 'normal' && `font-style: ${config.fontStyle} !important;`,
         config.lineHeight !== 1.1818181818 && `--lyrics-line-height: ${config.lineHeight} !important;`,
     )}
     transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
@@ -235,6 +471,24 @@ ${ALL.map(b => `${b} .line`).join(',\n')} {
 `);
     }
 
+    if (config.textAlign !== 'default' || config.maxLineWidth > 0) {
+        const width = round(clamp(config.maxLineWidth, 0, 100), 2);
+        const inlineMargin: Record<string, string> = {
+            center: 'margin-inline: auto !important;',
+            right: 'margin-inline: auto 0 !important;',
+            left: 'margin-inline: 0 auto !important;',
+        };
+        css.push(`
+${ALL.map(b => `${b} .line`).join(',\n')} {
+    ${buildProps(
+        config.textAlign !== 'default' && `text-align: ${config.textAlign} !important;`,
+        width > 0 && `max-width: ${width}% !important;`,
+        width > 0 && (inlineMargin[config.textAlign] || 'margin-inline: 0 auto !important;'),
+    )}
+}
+`);
+    }
+
     if (config.activeLineWeight > 0) {
         css.push(`
 ${ALL.flatMap(b => [
@@ -249,10 +503,12 @@ ${ALL.flatMap(b => [
     }
 
     if (config.gradientEnabled && config.gradientDirection !== 'auto') {
+        const custom = clamp(Math.round(config.gradientAngle), 0, 360);
         const DIRECTIONS: Record<string, [number, number]> = {
             horizontal: [90, -90],
             vertical: [180, 180],
             diagonal: [135, -135],
+            custom: [custom, -custom],
         };
         const [ltr, rtl] = DIRECTIONS[config.gradientDirection] || DIRECTIONS.horizontal;
         const paints = (base: string, prefix: string) => [
@@ -431,6 +687,26 @@ ${shadowTargets} {
 `);
     }
 
+    if (config.textStrokeEnabled && config.textStrokeWidth > 0) {
+        const strokeWidth = round(clamp(config.textStrokeWidth, 0, 3), 2);
+        const strokeTargets = [
+            ...ALL.flatMap(b => [
+                `${b} .line`,
+                `${b} .line :is(.word, .letter, .letterGroup)`,
+            ]),
+            '.slt-replace-line',
+            '.slt-replace-line .slt-replace-word',
+            '.slt-interleaved-translation',
+            '.slt-interleaved-translation .slt-sync-word',
+        ].join(',\n');
+        css.push(`
+${strokeTargets} {
+    -webkit-text-stroke: ${strokeWidth}px ${config.textStrokeColor} !important;
+    paint-order: stroke fill !important;
+}
+`);
+    }
+
     if (config.lineWindowEnabled) {
         const sungN = Math.min(Math.max(Math.round(config.lineWindowSungLines), 0), 10);
         const unsungN = Math.min(Math.max(Math.round(config.lineWindowUnsungLines), 0), 10);
@@ -565,7 +841,7 @@ ${highlightTargets} {
     }
     const sltHlStartRgb = hexToRgb(config.sltHighlightStartColor);
     const sltHlEndRgb = hexToRgb(config.sltHighlightEndColor);
-    const sltHlGrad = gradientRule(sltHlStartRgb.r, sltHlStartRgb.g, sltHlStartRgb.b, sltHlEndRgb.r, sltHlEndRgb.g, sltHlEndRgb.b);
+    const sltHlGrad = gradientRule(sltHlStartRgb.r, sltHlStartRgb.g, sltHlStartRgb.b, sltHlEndRgb.r, sltHlEndRgb.g, sltHlEndRgb.b, gradientFeather);
     const activeGrad = sltHlGrad;
     const sungGrad = sltHlGrad;
     const notSungGrad = colorRule(sltBaseColor);
@@ -744,63 +1020,7 @@ ${highlightTargets} {
 `);
     }
 
-    if (config.popEffect) {
-        const popActiveTargets = [
-            ...ALL.flatMap(b => [
-                `${b} .line.Active .word`,
-                `${b} .line.Active .letterGroup`,
-            ]),
-            '.slt-sync-word.slt-word-active',
-            '.slt-replace-word.word-active',
-        ].join(',\n');
-        css.push(`
-@keyframes st-word-pop {
-    0% { transform: scale3d(1, 1, 1); }
-    40% { transform: scale3d(${config.popScale}, ${config.popScale}, 1); }
-    100% { transform: scale3d(1, 1, 1); }
-}
-${popActiveTargets} {
-    display: inline-block !important;
-    animation: st-word-pop ${config.popDuration}s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
-    will-change: transform, opacity !important;
-    backface-visibility: hidden !important;
-}
-`);
-    }
-
-    if (config.waveEffect) {
-        const waveTargets = [
-            ...ALL.flatMap(b => [
-                `${b} .line.Active .word`,
-                `${b} .line.Active .letterGroup`,
-            ]),
-            '.slt-interleaved-translation.Active .slt-sync-word',
-            '.slt-replace-line.Active .slt-replace-word',
-        ].join(',\n');
-        css.push(`
-@keyframes st-word-wave {
-    0%, 100% { transform: translate3d(0, 0, 0); }
-    50% { transform: translate3d(0, -${config.waveIntensity}px, 0); }
-}
-${waveTargets} {
-    display: inline-block !important;
-    animation: st-word-wave ${config.waveSpeed}s ease-in-out infinite !important;
-    will-change: transform, opacity !important;
-    backface-visibility: hidden !important;
-}
-`);
-        const waveDelays: string[] = [];
-        for (let i = 0; i < 20; i++) {
-            const nth = `:nth-child(${i + 1})`;
-            const nthTargets = [
-                ...ALL.map(b => `${b} .line.Active :is(.word, .letterGroup)${nth}`),
-                `.slt-interleaved-translation.Active .slt-sync-word${nth}`,
-                `.slt-replace-line.Active .slt-replace-word${nth}`,
-            ].join(',\n');
-            waveDelays.push(`${nthTargets} {\n    animation-delay: ${(i * 0.08).toFixed(2)}s !important;\n}`);
-        }
-        css.push(waveDelays.join('\n'));
-    }
+    css.push(...wordEffectCSS(config, ALL, wordBaseShadow));
 
     if (config.scaleInEffect) {
         const scaleInTargets = [
@@ -1263,49 +1483,96 @@ function removeMusicVideo(): void {
     stopMusicVideo();
 }
 
-let sungWordTimer: ReturnType<typeof setInterval> | null = null;
+const WORD_TAG_CLASSES = ['st-sung-word', 'st-word-live'];
+const NOT_STARTED = -19.5;
+const FINISHED = 99;
 
-function tagSungWordsIn(doc: Document): void {
-    doc.querySelectorAll('#SpicyLyricsPage .line.Active').forEach(line => {
-        line.querySelectorAll<HTMLElement>('.word, .letterGroup').forEach(el => {
-            const probe = el.classList.contains('letterGroup')
-                ? (el.querySelector<HTMLElement>('.letter:last-child') || el)
-                : el;
-            const raw = probe.style.getPropertyValue('--gradient-position')
-                || probe.style.getPropertyValue('--SLM_GradientPosition');
-            const v = parseFloat(raw);
-            const sung = !Number.isNaN(v) && v >= 99;
-            if (el.classList.contains('st-sung-word') !== sung) {
-                el.classList.toggle('st-sung-word', sung);
-            }
-        });
-    });
-    doc.querySelectorAll('#SpicyLyricsPage .line:not(.Active) .st-sung-word').forEach(el => {
-        el.classList.remove('st-sung-word');
+let wordTagFrame: number | null = null;
+let wordTagSung = false;
+let wordTagLive = false;
+const activeLineCache = new Map<Document, HTMLElement[]>();
+
+function gradientPos(el: HTMLElement): number {
+    const raw = el.style.getPropertyValue('--gradient-position')
+        || el.style.getPropertyValue('--SLM_GradientPosition');
+    const v = parseFloat(raw);
+    return Number.isNaN(v) ? Number.NEGATIVE_INFINITY : v;
+}
+
+function clearWordTags(root: ParentNode, classes: string[] = WORD_TAG_CLASSES): void {
+    root.querySelectorAll(classes.map(c => `.${c}`).join(',')).forEach(el => {
+        el.classList.remove(...classes);
     });
 }
 
-function tagSungWords(): void {
+function clearLiveTags(): void {
     try {
-        tagSungWordsIn(document);
+        clearWordTags(document, ['st-word-live']);
         const pipWindow = getPIPWindow();
-        if (pipWindow) tagSungWordsIn(pipWindow.document);
+        if (pipWindow) clearWordTags(pipWindow.document, ['st-word-live']);
     } catch (e) {}
 }
 
-function startSungWordTagger(): void {
-    if (sungWordTimer) return;
-    sungWordTimer = setInterval(tagSungWords, 120);
+function tagWordsIn(doc: Document): void {
+    const active = Array.from(doc.querySelectorAll<HTMLElement>('#SpicyLyricsPage .line.Active'));
+    const previous = activeLineCache.get(doc) || [];
+
+    previous.forEach(line => {
+        if (!active.includes(line)) clearWordTags(line);
+    });
+    activeLineCache.set(doc, active);
+
+    active.forEach(line => {
+        line.querySelectorAll<HTMLElement>('.word, .letterGroup').forEach(el => {
+            const isGroup = el.classList.contains('letterGroup');
+
+            if (wordTagLive && !el.classList.contains('st-word-live')) {
+                const head = isGroup ? (el.querySelector<HTMLElement>('.letter') || el) : el;
+                if (gradientPos(head) > NOT_STARTED) el.classList.add('st-word-live');
+            }
+
+            if (wordTagSung) {
+                const tail = isGroup ? (el.querySelector<HTMLElement>('.letter:last-child') || el) : el;
+                const sung = gradientPos(tail) >= FINISHED;
+                if (el.classList.contains('st-sung-word') !== sung) {
+                    el.classList.toggle('st-sung-word', sung);
+                }
+            }
+        });
+    });
+}
+
+function tagWords(): void {
+    try {
+        tagWordsIn(document);
+        const pipWindow = getPIPWindow();
+        if (pipWindow) tagWordsIn(pipWindow.document);
+    } catch (e) {}
+}
+
+function wordTagLoop(): void {
+    tagWords();
+    wordTagFrame = requestAnimationFrame(wordTagLoop);
+}
+
+function startWordTagger(sung: boolean, live: boolean): void {
+    wordTagSung = sung;
+    wordTagLive = live;
+    if (wordTagFrame !== null) return;
+    wordTagFrame = requestAnimationFrame(wordTagLoop);
 }
 
 export function stopSungWordTagger(): void {
-    if (sungWordTimer) {
-        clearInterval(sungWordTimer);
-        sungWordTimer = null;
+    if (wordTagFrame !== null) {
+        cancelAnimationFrame(wordTagFrame);
+        wordTagFrame = null;
     }
-    document.querySelectorAll('.st-sung-word').forEach(el => el.classList.remove('st-sung-word'));
+    wordTagSung = false;
+    wordTagLive = false;
+    activeLineCache.clear();
+    clearWordTags(document);
     const pipWindow = getPIPWindow();
-    if (pipWindow) pipWindow.document.querySelectorAll('.st-sung-word').forEach(el => el.classList.remove('st-sung-word'));
+    if (pipWindow) clearWordTags(pipWindow.document);
 }
 
 type BlurPreviewWatch = { target: Element; observer: MutationObserver };
@@ -1411,8 +1678,11 @@ export function injectThemeStyles(): void {
 
     updateEqualizer();
     updateMusicVideo();
-    if (themeState.activeTheme.blurSungWords) {
-        startSungWordTagger();
+    const needSung = themeState.activeTheme.blurSungWords;
+    const needLive = wordEffectTrigger(themeState.activeTheme) === 'word';
+    if (needSung || needLive) {
+        if (!needLive) clearLiveTags();
+        startWordTagger(needSung, needLive);
     } else {
         stopSungWordTagger();
     }
@@ -1672,15 +1942,15 @@ const BASE_STYLES = `
     width: min(980px, calc(100vw - 48px));
     max-width: 100%;
     max-height: min(78vh, 760px);
-    overflow-y: auto;
-    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     box-sizing: border-box;
     padding: 14px;
     color: var(--st-text);
     font-size: 13px;
     line-height: 1.35;
     animation: st-modal-in 0.34s cubic-bezier(0.16, 1, 0.3, 1);
-    scrollbar-gutter: stable;
 }
 
 .st-modal-root *,
@@ -1690,12 +1960,7 @@ const BASE_STYLES = `
 }
 
 .st-modal-root .st-m-header {
-    position: sticky;
-    top: -14px;
-    z-index: 8;
-    padding-top: 14px;
-    margin-top: -14px;
-    background: transparent;
+    flex: 0 0 auto;
 }
 
 .st-modal-root .st-m-enabled-bar {
@@ -1817,7 +2082,11 @@ const BASE_STYLES = `
 }
 
 .st-modal-root .st-m-tab-host {
-    min-height: 200px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
 }
 
 .st-modal-root .st-m-tab-content {
@@ -1870,7 +2139,7 @@ const BASE_STYLES = `
 }
 .st-modal-root .st-m-cz-rail {
     position: sticky;
-    top: 104px;
+    top: 0;
     display: flex;
     flex-direction: column;
     gap: 6px;
