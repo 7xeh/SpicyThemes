@@ -1,4 +1,4 @@
-import { themeState } from './state';
+import { themeState, EQ_STYLES } from './state';
 
 interface EqSegment {
     start: number;
@@ -21,33 +21,52 @@ interface EqAnalysis {
     beats: EqBeat[];
     min: number;
     max: number;
-    t1min: number;
-    t1max: number;
+    timbreMean: number[];
+    timbreDev: number[];
     beatDur: number;
 }
 
 const BAND_COUNT = 10;
-const BAR_BINS = [[0], [1], [2], [3], [4], [5], [6], [7], [8, 9], [10, 11]];
-const BAR_POS = Array.from({ length: BAND_COUNT }, (_, k) => k / (BAND_COUNT - 1));
+const BAND_LO = 40;
+const BAND_HI = 16000;
+const BAND_OCTAVES = Math.log2(BAND_HI / BAND_LO);
+const BAND_EDGE = Array.from({ length: BAND_COUNT + 1 }, (_, k) => BAND_LO * 2 ** ((BAND_OCTAVES * k) / BAND_COUNT));
+const BAND_POS = Array.from({ length: BAND_COUNT }, (_, k) => (k + 0.5) / BAND_COUNT);
+const TIMBRE_BASIS_COUNT = 4;
+const TIMBRE_BASIS = Array.from({ length: TIMBRE_BASIS_COUNT }, (_, c) =>
+    BAND_POS.map(x => (c === 0 ? -1 : 1) * Math.cos(Math.PI * (c + 1) * x)));
+const TIMBRE_WEIGHT = [0.85, 0.5, 0.34, 0.24];
+const CHROMA_WEIGHT = buildChromaWeights();
 const PULSE_WEIGHT = [1, 0.85, 0.7, 0.55, 0.45, 0.36, 0.28, 0.22, 0.16, 0.12];
+const BAND_ATTACK = [56, 62, 70, 78, 84, 90, 96, 104, 112, 120];
+const BAND_RELEASE = [7, 8, 9, 10.5, 12, 13.5, 15.5, 17.5, 20, 23];
+const PEAK_HOLD = 0.32;
+const PEAK_FALL = 0.9;
+const OUTPUT_LATENCY = 0.05;
+const SEEK_THRESHOLD = 0.35;
+const CLOCK_CATCHUP = 12;
+const CLOCK_EASE = 2;
+const BAND_KNEE = 0.75;
 
-const EQ_WIDTH_FACTOR: Record<string, number> = {
-    equalizer: 8.3,
-    dotwave: 8.1,
-    signal: 5.9,
-    orbit: 5.3,
-    pulsedot: 3.6,
-    spectrumring: 4.7,
-};
+function buildChromaWeights(): number[][] {
+    const weights = Array.from({ length: BAND_COUNT }, () => new Array(12).fill(0));
+    for (let pc = 0; pc < 12; pc++) {
+        for (let octave = 0; octave <= 10; octave++) {
+            const freq = 16.3516 * 2 ** octave * 2 ** (pc / 12);
+            if (freq < BAND_EDGE[0] || freq >= BAND_EDGE[BAND_COUNT]) continue;
+            let k = BAND_COUNT - 1;
+            while (k > 0 && freq < BAND_EDGE[k]) k--;
+            weights[k][pc] += 1;
+        }
+    }
+    return weights.map(row => {
+        const total = row.reduce((a, b) => a + b, 0);
+        return total > 0 ? row.map(v => v / total) : row.map(() => 1 / 12);
+    });
+}
 
-const EQ_HEIGHT_FACTOR: Record<string, number> = {
-    equalizer: 3.6,
-    dotwave: 2.1,
-    signal: 2.4,
-    orbit: 5.3,
-    pulsedot: 3.6,
-    spectrumring: 4.7,
-};
+const EQ_SIZING = new Map(EQ_STYLES.map(s => [s.id, s]));
+const EQ_PEAK_STYLES = new Set(EQ_STYLES.filter(s => s.peaks).map(s => s.id));
 
 let analysis: EqAnalysis | null = null;
 let analysisUri: string | null = null;
@@ -58,14 +77,25 @@ let rafId: number | null = null;
 let lastTick = 0;
 let overall = 0;
 const levels = new Array(BAND_COUNT).fill(0);
+const peaks = new Array(BAND_COUNT).fill(0);
+const holds = new Array(BAND_COUNT).fill(0);
+let pulse = 0;
+let phase = 0;
 let segIdx = 0;
 let beatIdx = 0;
 let agcMin = -40;
 let agcMax = 0;
 let lastRawProgress = -1;
 let lastRawAt = 0;
+let progressEst = -1;
 let lastMeasure = 0;
 let songChangeHooked = false;
+let cachedEls: HTMLElement[] = [];
+let lastCollect = 0;
+let sizeObserver: ResizeObserver | null = null;
+let observed: Element[] = [];
+let measureQueued = true;
+let idleWritten = false;
 
 function positionEq(el: HTMLElement): void {
     const meta = el.parentElement;
@@ -77,8 +107,9 @@ function positionEq(el: HTMLElement): void {
     }
     const config = themeState.activeTheme;
     const style = el.getAttribute('data-style') || 'equalizer';
-    const wf = EQ_WIDTH_FACTOR[style] ?? 8.3;
-    const hf = EQ_HEIGHT_FACTOR[style] ?? 4.4;
+    const sizing = EQ_SIZING.get(style);
+    const wf = sizing?.width ?? 8.3;
+    const hf = sizing?.height ?? 3.6;
     const isLeft = el.classList.contains('st-eq-left');
 
     const song = meta.querySelector('.SongName');
@@ -125,11 +156,41 @@ function getPIPWindow(): Window | null {
     return null;
 }
 
-function collectEls(): HTMLElement[] {
+function watchTargets(els: HTMLElement[]): void {
+    if (typeof ResizeObserver === 'undefined') return;
+    const targets: Element[] = [];
+    els.forEach(el => {
+        const meta = el.parentElement;
+        if (!meta) return;
+        if (!targets.includes(meta)) targets.push(meta);
+        const song = meta.querySelector('.SongName');
+        if (song && !targets.includes(song)) targets.push(song);
+    });
+    if (targets.length === observed.length && targets.every((t, i) => t === observed[i])) return;
+    if (!sizeObserver) sizeObserver = new ResizeObserver(() => { measureQueued = true; });
+    sizeObserver.disconnect();
+    targets.forEach(t => sizeObserver!.observe(t));
+    observed = targets;
+    measureQueued = true;
+}
+
+function collectEls(ts: number): HTMLElement[] {
+    if (cachedEls.length > 0 && cachedEls.every(el => el.isConnected)) return cachedEls;
+    if (cachedEls.length === 0 && lastCollect && ts - lastCollect < 400) return cachedEls;
+    lastCollect = ts;
     const els = Array.from(document.querySelectorAll<HTMLElement>('.st-eq'));
     const pipWindow = getPIPWindow();
     if (pipWindow) els.push(...Array.from(pipWindow.document.querySelectorAll<HTMLElement>('.st-eq')));
+    cachedEls = els;
+    idleWritten = false;
+    watchTargets(els);
     return els;
+}
+
+export function refreshEqElements(): void {
+    cachedEls = [];
+    lastCollect = 0;
+    idleWritten = false;
 }
 
 function currentTrackUri(): string | null {
@@ -165,15 +226,18 @@ async function fetchAnalysis(): Promise<void> {
     if (Array.isArray(segs) && segs.length > 0) {
         let min = Infinity;
         let max = -Infinity;
-        let t1min = Infinity;
-        let t1max = -Infinity;
+        const sum = new Array(TIMBRE_BASIS_COUNT).fill(0);
+        const sumSq = new Array(TIMBRE_BASIS_COUNT).fill(0);
+        const seen = new Array(TIMBRE_BASIS_COUNT).fill(0);
         for (const s of segs) {
             if (typeof s.loudness_max === 'number') max = Math.max(max, s.loudness_max);
             if (typeof s.loudness_start === 'number') min = Math.min(min, s.loudness_start);
-            const t1 = s.timbre?.[1];
-            if (typeof t1 === 'number') {
-                t1max = Math.max(t1max, t1);
-                t1min = Math.min(t1min, t1);
+            for (let c = 0; c < TIMBRE_BASIS_COUNT; c++) {
+                const v = s.timbre?.[c + 1];
+                if (typeof v !== 'number' || !isFinite(v)) continue;
+                sum[c] += v;
+                sumSq[c] += v * v;
+                seen[c]++;
             }
         }
         if (!isFinite(min) || !isFinite(max) || max - min < 1) {
@@ -181,9 +245,13 @@ async function fetchAnalysis(): Promise<void> {
             max = 0;
         }
         min = Math.max(min, max - 40);
-        if (!isFinite(t1min) || !isFinite(t1max) || t1max - t1min < 1) {
-            t1min = 0;
-            t1max = 1;
+        const timbreMean = new Array(TIMBRE_BASIS_COUNT).fill(0);
+        const timbreDev = new Array(TIMBRE_BASIS_COUNT).fill(1);
+        for (let c = 0; c < TIMBRE_BASIS_COUNT; c++) {
+            if (seen[c] < 8) continue;
+            const mean = sum[c] / seen[c];
+            timbreMean[c] = mean;
+            timbreDev[c] = Math.max(Math.sqrt(Math.max(sumSq[c] / seen[c] - mean * mean, 0)), 1);
         }
         const beats: EqBeat[] = Array.isArray(data?.beats) ? data.beats : [];
         let tempo = data?.track?.tempo;
@@ -195,7 +263,7 @@ async function fetchAnalysis(): Promise<void> {
             }
         }
         const beatDur = Math.min(Math.max(60 / tempo, 0.24), 1.5);
-        analysis = { segments: segs, beats, min, max, t1min, t1max, beatDur };
+        analysis = { segments: segs, beats, min, max, timbreMean, timbreDev, beatDur };
         agcMin = min;
         agcMax = max;
         ok = true;
@@ -221,6 +289,12 @@ function onSongChange(): void {
     analysis = null;
     analysisUri = null;
     lastRawProgress = -1;
+    progressEst = -1;
+    measureQueued = true;
+    for (let k = 0; k < BAND_COUNT; k++) {
+        peaks[k] = 0;
+        holds[k] = 0;
+    }
     if (retryTimer) {
         clearTimeout(retryTimer);
         retryTimer = null;
@@ -243,6 +317,55 @@ function advanceIndex(arr: { start: number }[], t: number, cur: number): number 
     }
     while (cur + 1 < arr.length && arr[cur + 1].start <= t) cur++;
     return cur;
+}
+
+const envelope = new Array(BAND_COUNT).fill(1);
+
+function spectralEnvelope(timbre: number[] | undefined, a: EqAnalysis): void {
+    for (let k = 0; k < BAND_COUNT; k++) envelope[k] = 0;
+    if (timbre) {
+        for (let c = 0; c < TIMBRE_BASIS_COUNT; c++) {
+            const v = timbre[c + 1];
+            if (typeof v !== 'number' || !isFinite(v)) continue;
+            const n = Math.min(Math.max((v - a.timbreMean[c]) / (2 * a.timbreDev[c]), -1), 1) * TIMBRE_WEIGHT[c];
+            const basis = TIMBRE_BASIS[c];
+            for (let k = 0; k < BAND_COUNT; k++) envelope[k] += n * basis[k];
+        }
+    }
+    let total = 0;
+    for (let k = 0; k < BAND_COUNT; k++) {
+        envelope[k] = Math.exp(envelope[k]);
+        total += envelope[k];
+    }
+    const mean = total / BAND_COUNT;
+    for (let k = 0; k < BAND_COUNT; k++) envelope[k] /= mean;
+}
+
+function trackProgress(ts: number, dt: number, playing: boolean, rawMs: number, rate: number): number {
+    if (rawMs !== lastRawProgress) {
+        lastRawProgress = rawMs;
+        lastRawAt = ts;
+    }
+    const reported = lastRawProgress / 1000 + (playing ? ((ts - lastRawAt) / 1000) * rate : 0) + OUTPUT_LATENCY;
+    const drift = reported - progressEst;
+    if (!playing || progressEst < 0 || Math.abs(drift) > SEEK_THRESHOLD) {
+        progressEst = reported;
+    } else {
+        progressEst += dt * rate + drift * (1 - Math.exp(-dt * (drift > 0 ? CLOCK_CATCHUP : CLOCK_EASE)));
+    }
+    return progressEst;
+}
+
+function softClip(x: number): number {
+    if (x <= BAND_KNEE) return Math.max(x, 0);
+    return 1 - (1 - BAND_KNEE) * Math.exp(-(x - BAND_KNEE) / (1 - BAND_KNEE));
+}
+
+function chromaEnergy(pitches: number[], k: number): number {
+    const w = CHROMA_WEIGHT[k];
+    let sum = 0;
+    for (let pc = 0; pc < 12; pc++) sum += w[pc] * (pitches[pc] ?? 0.5);
+    return sum;
 }
 
 function analysisLevels(progress: number, dt: number, targets: number[]): number {
@@ -269,43 +392,41 @@ function analysisLevels(progress: number, dt: number, targets: number[]): number
     const ampGlobal = Math.min(Math.max((db - a.min) / (a.max - a.min), 0), 1);
     const amp = Math.pow(0.25 * ampLocal + 0.75 * ampGlobal, 1.25);
 
-    let pulse = 0;
+    let beatPulse = 0;
     if (a.beats.length > 0) {
         beatIdx = advanceIndex(a.beats, progress, beatIdx);
         const beat = a.beats[beatIdx];
-        const phase = Math.max(progress - beat.start, 0) / Math.max(beat.duration, 0.1);
+        const p = Math.min(Math.max(progress - beat.start, 0) / Math.max(beat.duration, 0.1), 1);
         const conf = typeof beat.confidence === 'number' ? beat.confidence : 0.5;
-        pulse = Math.exp(-phase * 8) * (0.4 + 0.6 * conf);
+        beatPulse = Math.exp(-p * 8) * (0.4 + 0.6 * conf);
+        phase = p;
+    } else {
+        phase = (phase + dt / Math.max(a.beatDur, 0.1)) % 1;
     }
 
-    const t1 = seg.timbre?.[1];
-    const bright = typeof t1 === 'number'
-        ? Math.min(Math.max((t1 - a.t1min) / (a.t1max - a.t1min), 0), 1)
-        : 0.5;
-
+    spectralEnvelope(seg.timbre, a);
     const pitches = seg.pitches || [];
-    BAR_BINS.forEach((bins, k) => {
-        let c = 0;
-        bins.forEach(b => { c += pitches[b] ?? 0.5; });
-        c /= bins.length;
-        const d = BAR_POS[k] - bright;
-        const tilt = Math.exp(-(d * d) / 0.22);
-        targets[k] = Math.min(amp * (0.12 + 0.66 * tilt + 0.22 * c) + pulse * 0.45 * PULSE_WEIGHT[k] * amp, 1);
-    });
-    return Math.min(amp * (0.8 + 0.45 * pulse), 1);
+    for (let k = 0; k < BAND_COUNT; k++) {
+        const body = amp * 0.78 * envelope[k] * (0.72 + 0.28 * chromaEnergy(pitches, k));
+        targets[k] = softClip(body + beatPulse * 0.22 * PULSE_WEIGHT[k] * amp);
+    }
+    pulse = beatPulse;
+    return Math.min(amp * (0.8 + 0.45 * beatPulse), 1);
 }
 
 function syntheticLevels(ts: number, speed: number, targets: number[]): number {
     const t = (ts / 1000) * speed;
-    const pulse = Math.exp(-((t % 0.5) / 0.5) * 5);
+    phase = (t % 0.5) / 0.5;
+    const beatPulse = Math.exp(-phase * 5);
     const bright = 0.5 + 0.4 * Math.sin(t * 0.7);
     for (let k = 0; k < BAND_COUNT; k++) {
-        const d = BAR_POS[k] - bright;
+        const d = BAND_POS[k] - bright;
         const tilt = Math.exp(-(d * d) / 0.22);
         const wave = 0.3 + 0.3 * Math.sin(t * (1.6 + k * 0.43) + k * 1.7);
-        targets[k] = Math.min(Math.max(wave * tilt + 0.2 + pulse * 0.35 * PULSE_WEIGHT[k], 0), 1);
+        targets[k] = Math.min(Math.max(wave * tilt + 0.2 + beatPulse * 0.35 * PULSE_WEIGHT[k], 0), 1);
     }
-    return Math.min(Math.max(0.5 + 0.25 * Math.sin(t * 2.1) * Math.sin(t * 0.9) + 0.25 * pulse, 0), 1);
+    pulse = beatPulse;
+    return Math.min(Math.max(0.5 + 0.25 * Math.sin(t * 2.1) * Math.sin(t * 0.9) + 0.25 * beatPulse, 0), 1);
 }
 
 function tick(ts: number): void {
@@ -315,10 +436,11 @@ function tick(ts: number): void {
     if (dt < 0.008) return;
     lastTick = ts;
 
-    const els = collectEls();
+    const els = collectEls(ts);
     if (els.length === 0) return;
 
-    if (ts - lastMeasure > 500 || els.some(el => !el.style.getPropertyValue('--st-eq-u'))) {
+    if (measureQueued || ts - lastMeasure > 1000 || els.some(el => !el.style.getPropertyValue('--st-eq-u'))) {
+        measureQueued = false;
         lastMeasure = ts;
         els.forEach(positionEq);
     }
@@ -334,13 +456,8 @@ function tick(ts: number): void {
             const d = player.data;
             playing = !(d?.isPaused ?? d?.is_paused ?? true);
         }
-        const raw = player.getProgress?.() || 0;
-        if (raw !== lastRawProgress) {
-            lastRawProgress = raw;
-            lastRawAt = ts;
-        }
-        progress = lastRawProgress / 1000;
-        if (playing) progress += (ts - lastRawAt) / 1000 + 0.05;
+        const rate = Number(player.data?.playbackSpeed) || 1;
+        progress = trackProgress(ts, dt, playing, player.getProgress?.() || 0, rate);
     } catch (e) {}
 
     const uri = currentTrackUri();
@@ -350,21 +467,50 @@ function tick(ts: number): void {
     let overallTarget = 0;
     if (playing) {
         overallTarget = analysis ? analysisLevels(progress, dt, targets) : syntheticLevels(ts, speed, targets);
+    } else {
+        pulse = 0;
     }
 
     const attack = 1 - Math.exp(-dt * 90 * speed);
     const release = 1 - Math.exp(-dt * 14 * speed);
     overall += (overallTarget - overall) * (overallTarget > overall ? attack : release);
+
+    const wantPeaks = EQ_PEAK_STYLES.has(themeState.activeTheme.eqStyle);
     for (let k = 0; k < BAND_COUNT; k++) {
-        levels[k] += (targets[k] - levels[k]) * (targets[k] > levels[k] ? attack : release);
+        const up = 1 - Math.exp(-dt * BAND_ATTACK[k] * speed);
+        const down = 1 - Math.exp(-dt * BAND_RELEASE[k] * speed);
+        levels[k] += (targets[k] - levels[k]) * (targets[k] > levels[k] ? up : down);
+        if (!wantPeaks) {
+            peaks[k] = 0;
+            continue;
+        }
+        if (levels[k] >= peaks[k]) {
+            peaks[k] = levels[k];
+            holds[k] = PEAK_HOLD;
+        } else if (holds[k] > 0) {
+            holds[k] -= dt;
+        } else {
+            peaks[k] = Math.max(levels[k], peaks[k] - dt * PEAK_FALL * speed);
+        }
     }
+
+    let settled = !playing && overall < 0.002 && pulse < 0.002;
+    for (let k = 0; settled && k < BAND_COUNT; k++) {
+        if (levels[k] > 0.002 || peaks[k] > 0.002) settled = false;
+    }
+    if (settled && idleWritten) return;
+    idleWritten = settled;
 
     const beatStr = `${(analysis ? analysis.beatDur : 0.5).toFixed(3)}s`;
     els.forEach(el => {
         el.classList.toggle('st-eq-paused', !playing);
         el.style.setProperty('--st-eq-level', overall.toFixed(3));
+        el.style.setProperty('--st-eq-pulse', pulse.toFixed(3));
+        el.style.setProperty('--st-eq-phase', phase.toFixed(3));
+        el.style.setProperty('--st-eq-phase2', ((phase + 0.5) % 1).toFixed(3));
         for (let k = 0; k < BAND_COUNT; k++) {
             el.style.setProperty(`--st-eq-b${k + 1}`, levels[k].toFixed(3));
+            if (wantPeaks) el.style.setProperty(`--st-eq-p${k + 1}`, peaks[k].toFixed(3));
         }
         if (el.style.getPropertyValue('--st-eq-beat') !== beatStr) {
             el.style.setProperty('--st-eq-beat', beatStr);
@@ -383,6 +529,7 @@ export function startEqAudio(): void {
     }
     fetchAnalysis();
     lastTick = 0;
+    refreshEqElements();
     rafId = requestAnimationFrame(tick);
 }
 
@@ -396,4 +543,9 @@ export function stopEqAudio(): void {
         clearTimeout(retryTimer);
         retryTimer = null;
     }
+    if (sizeObserver) {
+        sizeObserver.disconnect();
+        observed = [];
+    }
+    refreshEqElements();
 }

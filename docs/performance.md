@@ -15,6 +15,8 @@ To tune by hand, the costliest settings, roughly in order:
 
 Turning off a parent toggle disables everything under it, so switching **Line glow** off costs nothing extra to re-enable later — your colors and strengths are remembered.
 
+Within the equalizer, the cost is mostly the same whichever style you pick — one animation frame drives them all. **Breathe** is the exception: its halos are blurred, which is the one genuinely expensive part. The equalizer also stops updating entirely while playback is paused, so leaving it on costs nothing when you are not listening.
+
 ---
 
 See also: [Presets](presets.md) · [Settings reference](settings.md)

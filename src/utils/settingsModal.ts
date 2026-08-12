@@ -11,6 +11,7 @@ import {
     DEFAULT_THEME,
     BUILTIN_PRESETS,
     WORD_EFFECTS,
+    EQ_STYLES,
     resolveWordTrigger,
     ThemeConfig,
     ThemePreset,
@@ -89,6 +90,8 @@ const WORD_EFFECT_OPTIONS = [
     { value: 'none', text: 'None' },
     ...WORD_EFFECTS.map(e => ({ value: e.id, text: `${e.group} — ${e.label}` })),
 ];
+
+const EQ_STYLE_OPTIONS = EQ_STYLES.map(s => ({ value: s.id, text: `${s.group} — ${s.label}` }));
 
 export const SCHEMA: FieldDef[] = [
     { id: 'activeLineColor', label: 'Active line', type: 'color', section: 'Line colors', when: (t) => !t.gradientEnabled, hint: 'The line currently being sung. Replaced by the gradient when gradient text is on.', keywords: 'current karaoke highlight' },
@@ -205,14 +208,7 @@ export const SCHEMA: FieldDef[] = [
     { id: 'playerHideLike', label: 'Hide like (heart)', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled },
 
     { id: 'eqEnabled', label: 'Song title equalizer', type: 'toggle', section: 'Equalizer', hint: 'Audio-reactive bars beside the song title in the Now Playing bar.', keywords: 'visualizer spectrum bars audio reactive' },
-    { id: 'eqStyle', label: 'Style', type: 'dropdown', section: 'Equalizer', options: [
-        { value: 'equalizer', text: '01 Equalizer' },
-        { value: 'dotwave', text: '02 Dot Wave' },
-        { value: 'signal', text: '03 Signal' },
-        { value: 'orbit', text: '04 Orbit' },
-        { value: 'pulsedot', text: '05 Pulse Dot' },
-        { value: 'spectrumring', text: '06 Spectrum Ring' },
-    ], parent: 'eqEnabled', when: (t) => t.eqEnabled },
+    { id: 'eqStyle', label: 'Style', type: 'dropdown', section: 'Equalizer', options: EQ_STYLE_OPTIONS, parent: 'eqEnabled', when: (t) => t.eqEnabled, hint: 'Grouped by feel, the same way word animations are — Classic reads as a meter, Energetic hits on the beat, Smooth drifts, Dimensional works in 3D.', keywords: 'equalizer dot wave waveform ladder bounce glitch pulse signal breathe sway orbit spectrum ring helix' },
     { id: 'eqPosition', label: 'Position', type: 'dropdown', section: 'Equalizer', options: [
         { value: 'both', text: 'Both sides' },
         { value: 'left', text: 'Left only' },

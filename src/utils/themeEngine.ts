@@ -1,5 +1,5 @@
-import { themeState, ThemeConfig, WordEffectTrigger, resolveWordTrigger } from './state';
-import { startEqAudio, stopEqAudio } from './eqAudio';
+import { themeState, ThemeConfig, WordEffectTrigger, resolveWordTrigger, eqStyleMeta, eqStyleBands } from './state';
+import { startEqAudio, stopEqAudio, refreshEqElements } from './eqAudio';
 import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer, setMusicVideoCompactAllowed } from './musicVideo';
 
 
@@ -1232,8 +1232,16 @@ ${compactScopes.flatMap(c => [
     if (config.eqEnabled) {
         const eqU = (6 * config.eqSize).toFixed(2);
         const beatCalc = (n: number) => `calc(var(--st-eq-beat, 0.5s) * ${(n / config.eqSpeed).toFixed(3)})`;
-        const barRule = (style: string, bands: number[], decl: (v: number) => string) =>
-            bands.map((b, i) => `.st-eq[data-style="${style}"] i:nth-child(${i + 1}) { ${decl(b)} }`).join('\n');
+        const u = (n: number) => `calc(var(--st-eq-u) * ${round(n)})`;
+        const styleRule = (style: string, suffix: string, decl: (band: number, i: number) => string) => {
+            const meta = eqStyleMeta(style);
+            return eqStyleBands(meta ? meta.count : 10)
+                .map((band, i) => `.st-eq[data-style="${style}"] i:nth-child(${i + 1})${suffix} { ${decl(band, i)} }`)
+                .join('\n');
+        };
+        const bandVars = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        const glitchBar = 'scaleY(calc(0.12 + 0.88 * var(--st-eq-amp)))';
+        const swayBar = 'scaleY(calc(0.5 + 0.65 * var(--st-eq-amp)))';
         css.push(`
 ${METADATA_SELECTOR} {
     position: relative;
@@ -1241,22 +1249,28 @@ ${METADATA_SELECTOR} {
 .st-eq {
     --st-eq-u: ${eqU}cqh;
     --st-eq-level: 0;
-${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(v => `    --st-eq-b${v}: 0;`).join('\n')}
+    --st-eq-pulse: 0;
+    --st-eq-phase: 0;
+    --st-eq-phase2: 0.5;
+${bandVars.map(v => `    --st-eq-b${v}: 0;`).join('\n')}
+${bandVars.map(v => `    --st-eq-p${v}: 0;`).join('\n')}
     position: absolute;
     top: 30cqh;
     translate: 0 -50%;
     display: flex;
     align-items: center;
-    gap: calc(var(--st-eq-u) * 0.45);
+    justify-content: center;
+    gap: ${u(0.45)};
     pointer-events: none;
     z-index: 5;
     color: ${config.eqColor};
     opacity: 0.92;
     visibility: hidden;
 }
-.st-eq-left { left: 2cqw; }
+.st-eq-left { left: 2cqw; flex-direction: row-reverse; }
 .st-eq-right { right: 2cqw; }
 .st-eq i {
+    --st-eq-amp: 0;
     display: block;
     background: currentColor;
 }
@@ -1264,122 +1278,337 @@ ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(v => `    --st-eq-b${v}: 0;`).join('\n')}
 .st-eq.st-eq-paused i {
     animation-play-state: paused;
 }
-
+@media (prefers-reduced-motion: reduce) {
+    .st-eq,
+    .st-eq i {
+        animation: none;
+    }
+}
+`);
+        const blocks: Record<string, string> = {};
+        blocks.equalizer = `
 .st-eq[data-style="equalizer"] {
-    gap: calc(var(--st-eq-u) * 0.3);
+    gap: ${u(0.3)};
 }
 .st-eq[data-style="equalizer"] i {
-    width: calc(var(--st-eq-u) * 0.55);
-    height: calc(var(--st-eq-u) * 3.6);
-    border-radius: calc(var(--st-eq-u) * 0.28);
+    position: relative;
+    width: ${u(0.55)};
+    height: ${u(3.6)};
+    background: none;
+}
+.st-eq[data-style="equalizer"] i::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: ${u(0.28)};
+    background: currentColor;
     will-change: transform;
 }
-${barRule('equalizer', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], v => `transform: scaleY(calc(0.15 + 0.85 * var(--st-eq-b${v})));`)}
+.st-eq[data-style="equalizer"] i::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: max(1px, ${u(0.12)});
+    margin-top: ${u(-0.06)};
+    border-radius: ${u(0.06)};
+    background: currentColor;
+    opacity: 0.5;
+    will-change: transform;
+}
+${styleRule('equalizer', '::before', b => `transform: scaleY(calc(0.14 + 0.86 * var(--st-eq-b${b}))); opacity: calc(0.62 + 0.38 * var(--st-eq-b${b}));`)}
+${styleRule('equalizer', '::after', b => `transform: translateY(calc(var(--st-eq-u) * -1.74 * var(--st-eq-p${b})));`)}
 
+`;
+        blocks.dotwave = `
 .st-eq[data-style="dotwave"] {
-    gap: calc(var(--st-eq-u) * 0.28);
+    gap: ${u(0.28)};
 }
 .st-eq[data-style="dotwave"] i {
-    width: calc(var(--st-eq-u) * 0.55);
-    height: calc(var(--st-eq-u) * 0.55);
+    width: ${u(0.55)};
+    height: ${u(0.55)};
     border-radius: 50%;
     will-change: transform, opacity;
 }
-${barRule('dotwave', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], v => `transform: translateY(calc(var(--st-eq-u) * (0.45 - 1.35 * var(--st-eq-b${v})))); opacity: calc(0.45 + 0.55 * var(--st-eq-b${v}));`)}
+${styleRule('dotwave', '', b => `transform: translateY(calc(var(--st-eq-u) * (0.45 - 1.35 * var(--st-eq-b${b})))) scale(calc(0.72 + 0.5 * var(--st-eq-b${b}))); opacity: calc(0.42 + 0.58 * var(--st-eq-b${b}));`)}
 
-.st-eq[data-style="orbit"] {
-    width: calc(var(--st-eq-u) * 4);
-    height: calc(var(--st-eq-u) * 4);
+`;
+        blocks.waveform = `
+.st-eq[data-style="waveform"] {
+    gap: ${u(0.32)};
+}
+.st-eq[data-style="waveform"] i {
+    position: relative;
+    width: ${u(0.4)};
+    height: ${u(3.4)};
+    background: none;
+}
+.st-eq[data-style="waveform"] i::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: ${u(0.2)};
+    background: currentColor;
+    will-change: transform;
+}
+.st-eq[data-style="waveform"] i::after {
+    content: '';
+    position: absolute;
+    left: ${u(-0.05)};
+    right: ${u(-0.05)};
+    top: 50%;
+    height: max(1px, ${u(0.1)});
+    margin-top: ${u(-0.05)};
+    border-radius: ${u(0.05)};
+    background: currentColor;
+    opacity: 0.42;
+    will-change: transform, box-shadow;
+}
+${styleRule('waveform', '::before', b => `transform: scaleY(calc(0.05 + 0.95 * var(--st-eq-b${b})));`)}
+${styleRule('waveform', '::after', b => `transform: translateY(calc(var(--st-eq-u) * -1.7 * var(--st-eq-p${b}))); box-shadow: 0 calc(var(--st-eq-u) * 3.4 * var(--st-eq-p${b})) 0 0 currentColor;`)}
+
+`;
+        blocks.ladder = `
+.st-eq[data-style="ladder"] {
+    flex-direction: column-reverse;
+    gap: ${u(0.1)};
+    transform: scaleY(calc(1 + 0.05 * var(--st-eq-pulse)));
+}
+.st-eq[data-style="ladder"] i {
+    width: ${u(1.6)};
+    height: ${u(0.22)};
+    border-radius: ${u(0.07)};
+    will-change: transform, opacity;
+}
+${styleRule('ladder', '', (b, i) => {
+    const t = round((i + 0.4) / 12, 4);
+    const lit = `(var(--st-eq-level) - ${t}) * 9`;
+    return `opacity: clamp(0.12, calc(${lit}), 1); transform: scaleX(clamp(0.6, calc(0.6 + ${lit}), 1));`;
+})}
+
+`;
+        blocks.bounce = `
+.st-eq[data-style="bounce"] {
+    gap: ${u(0.42)};
+}
+.st-eq[data-style="bounce"] i {
+    width: ${u(0.7)};
+    height: ${u(0.7)};
+    border-radius: 50%;
+    transform-origin: 50% 100%;
+    animation: st-eq-bounce ${beatCalc(1)} cubic-bezier(0.3, 0, 0.25, 1) infinite;
+    will-change: transform;
+}
+${styleRule('bounce', '', (b, i) => `--st-eq-amp: var(--st-eq-b${b}); animation-delay: ${beatCalc(-0.14 * i)}; opacity: calc(0.55 + 0.45 * var(--st-eq-b${b}));`)}
+@keyframes st-eq-bounce {
+    0% { transform: translateY(0) scale(1.16, 0.82); }
+    38% { transform: translateY(calc(var(--st-eq-u) * -1 * (0.3 + 1.5 * var(--st-eq-amp)))) scale(0.9, 1.12); }
+    74% { transform: translateY(0) scale(1.12, 0.86); }
+    100% { transform: translateY(0) scale(1, 1); }
+}
+
+`;
+        blocks.glitch = `
+.st-eq[data-style="glitch"] {
+    gap: ${u(0.32)};
+}
+.st-eq[data-style="glitch"] i {
+    width: ${u(0.5)};
+    height: ${u(3.4)};
+    border-radius: ${u(0.07)};
+    animation: st-eq-glitch ${beatCalc(2)} steps(1, end) infinite;
+    will-change: transform, opacity;
+}
+${styleRule('glitch', '', (b, i) => `--st-eq-amp: var(--st-eq-b${b}); animation-delay: ${beatCalc(-0.21 * i)};`)}
+@keyframes st-eq-glitch {
+    0%, 100% { transform: translate(0, 0) ${glitchBar}; opacity: 1; }
+    16% { transform: translate(${u(0.3)}, ${u(-0.16)}) ${glitchBar}; opacity: 0.5; }
+    28% { transform: translate(${u(-0.34)}, ${u(0.12)}) ${glitchBar}; opacity: 1; }
+    42% { transform: translate(${u(0.18)}, 0) ${glitchBar}; opacity: 0.78; }
+    56% { transform: translate(${u(-0.1)}, ${u(-0.06)}) ${glitchBar}; opacity: 1; }
+    70% { transform: translate(0, 0) ${glitchBar}; opacity: 0.88; }
+}
+
+`;
+        blocks.pulsedot = `
+.st-eq[data-style="pulsedot"] {
+    width: ${u(3.4)};
+    height: ${u(3.4)};
+}
+.st-eq[data-style="pulsedot"] i:first-child {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: ${u(1.1)};
+    height: ${u(1.1)};
+    margin: ${u(-0.55)} 0 0 ${u(-0.55)};
+    border-radius: 50%;
+    transform: scale(calc(0.5 + 0.5 * var(--st-eq-b1) + 0.35 * var(--st-eq-pulse)));
+    will-change: transform;
+}
+.st-eq[data-style="pulsedot"] i:nth-child(n+2) {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    border: ${u(0.16)} solid currentColor;
+    border-radius: 50%;
+    will-change: transform, opacity;
+}
+.st-eq[data-style="pulsedot"] i:nth-child(2) {
+    transform: scale(calc(0.32 + 0.68 * var(--st-eq-phase)));
+    opacity: calc((1 - var(--st-eq-phase)) * (0.3 + 0.7 * var(--st-eq-level)));
+}
+.st-eq[data-style="pulsedot"] i:nth-child(3) {
+    transform: scale(calc(0.32 + 0.68 * var(--st-eq-phase2)));
+    opacity: calc((1 - var(--st-eq-phase2)) * (0.2 + 0.5 * var(--st-eq-level)));
+}
+
+`;
+        blocks.signal = `
+.st-eq[data-style="signal"] {
+    gap: ${u(0.26)};
+}
+.st-eq[data-style="signal"] i {
+    width: ${u(0.34)};
+    height: ${u(0.9)};
+    border-radius: ${u(0.17)};
+    will-change: transform, opacity;
+}
+${styleRule('signal', '', b => `transform: translateY(calc(var(--st-eq-u) * (0.7 - 1.4 * var(--st-eq-b${b})))) scaleY(calc(0.7 + 0.9 * var(--st-eq-b${b}))); opacity: calc(0.45 + 0.55 * var(--st-eq-b${b}));`)}
+
+`;
+        blocks.breathe = `
+.st-eq[data-style="breathe"] {
+    width: ${u(3.8)};
+    height: ${u(3.8)};
+}
+.st-eq[data-style="breathe"] i {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    will-change: transform, opacity;
+}
+.st-eq[data-style="breathe"] i:nth-child(1) {
+    width: ${u(1)};
+    height: ${u(1)};
+    margin: ${u(-0.5)} 0 0 ${u(-0.5)};
+    transform: scale(calc(0.68 + 0.55 * var(--st-eq-level)));
+    opacity: calc(0.7 + 0.3 * var(--st-eq-level));
+}
+.st-eq[data-style="breathe"] i:nth-child(2) {
+    width: ${u(2)};
+    height: ${u(2)};
+    margin: ${u(-1)} 0 0 ${u(-1)};
+    filter: blur(${u(0.22)});
     transform: scale(calc(0.7 + 0.5 * var(--st-eq-level)));
-    transition: transform 80ms ease-out;
+    opacity: calc(0.16 + 0.3 * var(--st-eq-level));
+}
+.st-eq[data-style="breathe"] i:nth-child(3) {
+    width: ${u(3.4)};
+    height: ${u(3.4)};
+    margin: ${u(-1.7)} 0 0 ${u(-1.7)};
+    filter: blur(${u(0.45)});
+    transform: scale(calc(0.7 + 0.4 * var(--st-eq-level)));
+    opacity: calc(0.06 + 0.14 * var(--st-eq-level) + 0.16 * var(--st-eq-pulse));
+}
+
+`;
+        blocks.sway = `
+.st-eq[data-style="sway"] {
+    gap: ${u(0.5)};
+}
+.st-eq[data-style="sway"] i {
+    width: ${u(0.3)};
+    height: ${u(2.2)};
+    border-radius: ${u(0.15)};
+    transform-origin: 50% 100%;
+    animation: st-eq-sway ${beatCalc(4)} ease-in-out infinite;
+    will-change: transform;
+}
+${styleRule('sway', '', (b, i) => `--st-eq-amp: var(--st-eq-b${b}); animation-delay: ${beatCalc(-0.3 * i)}; opacity: calc(0.5 + 0.5 * var(--st-eq-b${b}));`)}
+@keyframes st-eq-sway {
+    0%, 100% { transform: rotate(calc(-13deg * (0.25 + 0.75 * var(--st-eq-level)))) ${swayBar}; }
+    50% { transform: rotate(calc(13deg * (0.25 + 0.75 * var(--st-eq-level)))) ${swayBar}; }
+}
+
+`;
+        blocks.orbit = `
+.st-eq[data-style="orbit"] {
+    width: ${u(4)};
+    height: ${u(4)};
+    transform: scale(calc(0.7 + 0.5 * var(--st-eq-level)));
+    will-change: transform;
 }
 .st-eq[data-style="orbit"] i {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: calc(var(--st-eq-u) * 0.7);
-    height: calc(var(--st-eq-u) * 0.7);
-    margin: calc(var(--st-eq-u) * -0.35) 0 0 calc(var(--st-eq-u) * -0.35);
+    width: ${u(0.7)};
+    height: ${u(0.7)};
+    margin: ${u(-0.35)} 0 0 ${u(-0.35)};
     border-radius: 50%;
     animation: st-eq-orbit ${beatCalc(4)} linear infinite;
     will-change: transform, scale;
 }
-${[0, 1, 2].map(i => `.st-eq[data-style="orbit"] i:nth-child(${i + 1}) { animation-delay: ${beatCalc(-i * 4 / 3)}; scale: calc(0.55 + 0.85 * var(--st-eq-b${[1, 5, 10][i]})); }`).join('\n')}
+${[0, 1, 2].map(i => `.st-eq[data-style="orbit"] i:nth-child(${i + 1}) { animation-delay: ${beatCalc(-i * 4 / 3)}; scale: calc(0.55 + 0.85 * var(--st-eq-b${[1, 5, 10][i]})); opacity: calc(0.5 + 0.5 * var(--st-eq-b${[1, 5, 10][i]})); }`).join('\n')}
 .st-eq[data-style="orbit"] i:nth-child(4) {
-    width: calc(var(--st-eq-u) * 0.9);
-    height: calc(var(--st-eq-u) * 0.9);
-    margin: calc(var(--st-eq-u) * -0.45) 0 0 calc(var(--st-eq-u) * -0.45);
+    width: ${u(0.9)};
+    height: ${u(0.9)};
+    margin: ${u(-0.45)} 0 0 ${u(-0.45)};
     animation: none;
     scale: calc(0.6 + 0.9 * var(--st-eq-b1));
 }
 @keyframes st-eq-orbit {
-    from { transform: rotate(0deg) translateX(calc(var(--st-eq-u) * 1.5)); }
-    to { transform: rotate(360deg) translateX(calc(var(--st-eq-u) * 1.5)); }
+    from { transform: rotate(0deg) translateX(calc(var(--st-eq-u) * (1.15 + 0.5 * var(--st-eq-level)))); }
+    to { transform: rotate(360deg) translateX(calc(var(--st-eq-u) * (1.15 + 0.5 * var(--st-eq-level)))); }
 }
 
+`;
+        blocks.spectrumring = `
 .st-eq[data-style="spectrumring"] {
-    width: calc(var(--st-eq-u) * 4);
-    height: calc(var(--st-eq-u) * 4);
+    width: ${u(5.2)};
+    height: ${u(5.2)};
     animation: st-eq-slow-spin ${beatCalc(16)} linear infinite;
 }
 .st-eq[data-style="spectrumring"] i {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: calc(var(--st-eq-u) * 0.55);
-    height: calc(var(--st-eq-u) * 0.55);
-    margin: calc(var(--st-eq-u) * -0.275) 0 0 calc(var(--st-eq-u) * -0.275);
-    border-radius: 50%;
-    will-change: scale;
+    width: ${u(0.24)};
+    height: ${u(1.05)};
+    margin: ${u(-1.05)} 0 0 ${u(-0.12)};
+    border-radius: ${u(0.12)};
+    transform-origin: 50% 100%;
+    will-change: transform, opacity;
 }
-${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => `.st-eq[data-style="spectrumring"] i:nth-child(${i + 1}) { transform: rotate(${i * 36}deg) translateX(calc(var(--st-eq-u) * 1.5)); scale: calc(0.35 + 1.05 * var(--st-eq-b${i + 1})); }`).join('\n')}
+${styleRule('spectrumring', '', (b, i) => `transform: rotate(${round(i * 18)}deg) translateY(${u(-1.1)}) scaleY(calc(0.22 + 1.2 * var(--st-eq-b${b}))); opacity: calc(0.4 + 0.6 * var(--st-eq-b${b}));`)}
 @keyframes st-eq-slow-spin {
     from { rotate: 0deg; }
     to { rotate: 360deg; }
 }
 
-.st-eq[data-style="signal"] {
-    gap: calc(var(--st-eq-u) * 0.26);
+`;
+        blocks.helix = `
+.st-eq[data-style="helix"] {
+    gap: ${u(0.38)};
+    perspective: ${u(9)};
 }
-.st-eq[data-style="signal"] i {
-    width: calc(var(--st-eq-u) * 0.34);
-    height: calc(var(--st-eq-u) * 0.9);
-    border-radius: calc(var(--st-eq-u) * 0.17);
-    will-change: transform;
+.st-eq[data-style="helix"] i {
+    width: ${u(0.5)};
+    height: ${u(2.6)};
+    border-radius: ${u(0.1)};
+    animation: st-eq-helix ${beatCalc(4)} linear infinite;
+    will-change: transform, opacity;
 }
-${barRule('signal', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], v => `transform: translateY(calc(var(--st-eq-u) * (0.7 - 1.4 * var(--st-eq-b${v}))));`)}
-
-.st-eq[data-style="pulsedot"] {
-    width: calc(var(--st-eq-u) * 3.4);
-    height: calc(var(--st-eq-u) * 3.4);
+${styleRule('helix', '', (b, i) => `--st-eq-amp: var(--st-eq-b${b}); animation-delay: ${beatCalc(-0.5 * i)}; opacity: calc(0.45 + 0.55 * var(--st-eq-b${b}));`)}
+@keyframes st-eq-helix {
+    from { transform: rotateY(0deg) scaleY(calc(0.3 + 0.9 * var(--st-eq-amp))); }
+    to { transform: rotateY(360deg) scaleY(calc(0.3 + 0.9 * var(--st-eq-amp))); }
 }
-.st-eq[data-style="pulsedot"] i:first-child {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: calc(var(--st-eq-u) * 1.1);
-    height: calc(var(--st-eq-u) * 1.1);
-    margin: calc(var(--st-eq-u) * -0.55) 0 0 calc(var(--st-eq-u) * -0.55);
-    border-radius: 50%;
-    transform: scale(calc(0.55 + 0.8 * var(--st-eq-b1)));
-    transition: transform 60ms ease-out;
-}
-.st-eq[data-style="pulsedot"] i:nth-child(n+2) {
-    position: absolute;
-    inset: 0;
-    background: transparent;
-    border: calc(var(--st-eq-u) * 0.16) solid currentColor;
-    border-radius: 50%;
-    animation: st-eq-ring ${beatCalc(2)} ease-out infinite;
-}
-.st-eq[data-style="pulsedot"] i:nth-child(3) {
-    animation-delay: ${beatCalc(-1)};
-}
-@keyframes st-eq-ring {
-    from { transform: scale(0.35); opacity: 1; }
-    to { transform: scale(1); opacity: 0; }
-}
-`);
+`;
+        css.push(blocks[config.eqStyle] || blocks.equalizer);
     }
 
     return css.join('\n');
@@ -1406,15 +1635,6 @@ function injectIntoPIPDocument(css: string): void {
     style.textContent = css;
 }
 
-const EQ_CHILD_COUNT: Record<string, number> = {
-    equalizer: 10,
-    dotwave: 10,
-    signal: 10,
-    orbit: 4,
-    pulsedot: 3,
-    spectrumring: 10,
-};
-
 function updateEqualizerIn(doc: Document): void {
     const config = themeState.activeTheme;
     const enabled = themeState.isEnabled && config.eqEnabled;
@@ -1427,7 +1647,7 @@ function updateEqualizerIn(doc: Document): void {
     }
 
     const sides = config.eqPosition === 'both' ? ['left', 'right'] : [config.eqPosition];
-    const count = EQ_CHILD_COUNT[config.eqStyle] ?? 5;
+    const count = eqStyleMeta(config.eqStyle)?.count ?? 10;
     existing.forEach(el => {
         const side = el.classList.contains('st-eq-left') ? 'left' : 'right';
         if (!sides.includes(side) || el.parentElement !== metadata || el.getAttribute('data-style') !== config.eqStyle || el.children.length !== count) {
@@ -1452,6 +1672,7 @@ export function updateEqualizer(): void {
         updateEqualizerIn(document);
         const pipWindow = getPIPWindow();
         if (pipWindow) updateEqualizerIn(pipWindow.document);
+        refreshEqElements();
         if (themeState.isEnabled && themeState.activeTheme.eqEnabled) {
             startEqAudio();
         } else {

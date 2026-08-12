@@ -90,7 +90,7 @@ Every setting below lives in the **Customize** tab of the settings modal, groupe
 | Setting | What it does |
 |---|---|
 | Song title equalizer | Audio-reactive bars beside the song title in the Now Playing bar. |
-| Style | Equalizer, Dot Wave, Signal, Orbit, Pulse Dot, or Spectrum Ring. |
+| Style | Thirteen styles, grouped by feel the same way word animations are — **Classic**: Equalizer, Dot Wave, Waveform, Ladder. **Energetic**: Bounce, Glitch, Pulse Dot. **Smooth**: Signal, Breathe, Sway. **Dimensional**: Orbit, Spectrum Ring, Helix. |
 | Position | Both sides, left only, or right only. |
 | Colour / Size / Speed | Color, 0.4x – 2.5x scale, 0.3x – 3x speed. |
 

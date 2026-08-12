@@ -31,6 +31,48 @@ export const WORD_EFFECTS: WordEffectMeta[] = [
 
 export const WORD_EFFECT_IDS = WORD_EFFECTS.map(e => e.id);
 
+export interface EqStyleMeta {
+    id: string;
+    label: string;
+    group: string;
+    count: number;
+    width: number;
+    height: number;
+    peaks?: boolean;
+}
+
+export const EQ_STYLES: EqStyleMeta[] = [
+    { id: 'equalizer', label: 'Equalizer', group: 'Classic', count: 10, width: 8.3, height: 3.6, peaks: true },
+    { id: 'dotwave', label: 'Dot Wave', group: 'Classic', count: 10, width: 8.1, height: 2.4 },
+    { id: 'waveform', label: 'Waveform', group: 'Classic', count: 12, width: 8.4, height: 3.6, peaks: true },
+    { id: 'ladder', label: 'Ladder', group: 'Classic', count: 12, width: 2.0, height: 3.9 },
+
+    { id: 'bounce', label: 'Bounce', group: 'Energetic', count: 5, width: 5.3, height: 3.0 },
+    { id: 'glitch', label: 'Glitch', group: 'Energetic', count: 8, width: 6.6, height: 3.6 },
+    { id: 'pulsedot', label: 'Pulse Dot', group: 'Energetic', count: 3, width: 3.6, height: 3.6 },
+
+    { id: 'signal', label: 'Signal', group: 'Smooth', count: 10, width: 5.9, height: 2.9 },
+    { id: 'breathe', label: 'Breathe', group: 'Smooth', count: 3, width: 3.8, height: 3.8 },
+    { id: 'sway', label: 'Sway', group: 'Smooth', count: 7, width: 6.2, height: 2.7 },
+
+    { id: 'orbit', label: 'Orbit', group: 'Dimensional', count: 4, width: 5.3, height: 5.3 },
+    { id: 'spectrumring', label: 'Spectrum Ring', group: 'Dimensional', count: 20, width: 5.3, height: 5.3 },
+    { id: 'helix', label: 'Helix', group: 'Dimensional', count: 8, width: 6.8, height: 3.4 },
+];
+
+export const EQ_STYLE_IDS = EQ_STYLES.map(s => s.id);
+
+export function eqStyleMeta(id: string): EqStyleMeta | null {
+    return EQ_STYLES.find(s => s.id === id) || null;
+}
+
+export function eqStyleBands(count: number): number[] {
+    if (count === 12) return [10, 8, 6, 4, 2, 1, 1, 2, 4, 6, 8, 10];
+    if (count === 20) return Array.from({ length: 20 }, (_, i) => (i < 10 ? i + 1 : 20 - i));
+    if (count === 1) return [1];
+    return Array.from({ length: count }, (_, i) => Math.round(1 + (i * 9) / (count - 1)));
+}
+
 export function wordEffectMeta(id: string): WordEffectMeta | null {
     return WORD_EFFECTS.find(e => e.id === id) || null;
 }
@@ -730,8 +772,7 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         }
     }
 
-    const eqStyles = ['equalizer', 'dotwave', 'signal', 'orbit', 'pulsedot', 'spectrumring'];
-    if (!eqStyles.includes(normalized.eqStyle)) {
+    if (!EQ_STYLE_IDS.includes(normalized.eqStyle)) {
         normalized.eqStyle = 'equalizer';
     }
 

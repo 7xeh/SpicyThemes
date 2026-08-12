@@ -32,7 +32,7 @@ Spicy Lyrics gives you synced, word-by-word lyrics in Spotify. Spicy Themes give
 | **Motion** | Pop and Wave word animations, active-line zoom, zoom-in on arrival, global animation speed, and a flat-color mode that turns the karaoke sweep off entirely. |
 | **Background** | Color tint over the album-art background, plus synced music videos playing behind the lyrics with adjustable dimming. |
 | **Now Playing bar** | Rounded album art, progress bar thickness, custom accent color, animated controls, and toggles to hide shuffle / repeat / like. |
-| **Equalizer** | Six audio-reactive visualizer styles beside the song title, with color, size, speed, and placement. |
+| **Equalizer** | Thirteen audio-reactive visualizer styles beside the song title — grouped Classic / Energetic / Smooth / Dimensional to match the word animations — with color, size, speed, and placement. |
 | **Translation** | Dedicated styling for [Spicy Lyric Translator](https://github.com/7xeh/SpicyLyricTranslator) lines — own font, size, opacity, base color, highlight, and glow. |
 | **Presets** | 8 built-in presets, unlimited custom presets, plus a community marketplace you can browse and apply without leaving Spotify. |
 
