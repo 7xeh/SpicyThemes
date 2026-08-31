@@ -37,7 +37,8 @@ const MAX_SOURCE_ATTEMPTS = 2;
 const MODE_CHECK_MS = 400;
 const YTMODULE_COOLDOWN_MS = 10 * 60 * 1000;
 const YTMODULE_FAIL_LIMIT = 2;
-const YTMODULE_VIDEO_ERRORS = ['unavailable', 'embed_disabled'];
+const YTMODULE_VIDEO_ERRORS = ['unavailable'];
+const YTMODULE_STALL_MS = 4000;
 
 const videoCache = new Map<string, VideoMeta | null>();
 const failCounts = new Map<string, number>();
@@ -62,6 +63,8 @@ let buildToken = 0;
 
 let ytModuleFails = 0;
 let ytModuleBlockedUntil = 0;
+let ytModuleLastSample = -1;
+let ytModuleStallDeadline = 0;
 
 let ytApiLoading = false;
 const ytApiCallbacks: Array<() => void> = [];
@@ -461,6 +464,11 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
                 player.setVolume(0);
                 if (currentMeta) player.seekTo(songMsToVideoMs(currentMeta, currentSongMs()) / 1000);
                 player.playVideo();
+                ytModuleLastSample = -1;
+                ytModuleStallDeadline = performance.now() + YTMODULE_STALL_MS;
+            },
+            onCommandError: detail => {
+                debug('music video: yt module command rejected', detail);
             },
             onError: (code, message, player) => {
                 if (token !== buildToken || ytModulePlayer !== player) return;
@@ -498,6 +506,8 @@ function fallbackToIframeApi(videoFault = false): void {
     lastSeekAt = 0;
     lastPlayAttempt = 0;
     lastStatePlayAttempt = 0;
+    ytModuleLastSample = -1;
+    ytModuleStallDeadline = 0;
     loadDeadline = performance.now() + LOAD_TIMEOUT_MS;
     setPageActive(false);
 
@@ -616,6 +626,8 @@ function buildSource(id: string, meta: VideoMeta): void {
     lastSeekAt = 0;
     lastPlayAttempt = 0;
     lastStatePlayAttempt = 0;
+    ytModuleLastSample = -1;
+    ytModuleStallDeadline = 0;
     loadDeadline = performance.now() + LOAD_TIMEOUT_MS;
 
     if (meta.source_type === 'mp4_url') {
@@ -895,6 +907,18 @@ function tick(ts: number): void {
     if (!isMediaReady()) {
         if (activeSource === 'mp4_url') setMediaPlaying(songIsPlaying(), ts);
         return;
+    }
+
+    if (ytEngine === 'ytmodule' && ytModulePlayer) {
+        const sample = ytModulePlayer.getSampleTime();
+        if (sample !== ytModuleLastSample || !mediaPlaying) {
+            ytModuleLastSample = sample;
+            ytModuleStallDeadline = ts + YTMODULE_STALL_MS;
+        } else if (ts > ytModuleStallDeadline) {
+            debug('music video: yt module stalled, falling back');
+            fallbackToIframeApi();
+            return;
+        }
     }
 
     if (activeSource === 'youtube') {

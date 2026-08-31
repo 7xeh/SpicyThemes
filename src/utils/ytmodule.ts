@@ -22,6 +22,7 @@ export interface YtModuleOptions {
     onReady?: (player: YtModulePlayer) => void;
     onStateChange?: (state: number, player: YtModulePlayer) => void;
     onError?: (code: string, message: string | undefined, player: YtModulePlayer) => void;
+    onCommandError?: (detail: any, player: YtModulePlayer) => void;
 }
 
 type StateName = keyof typeof YTMODULE_STATE;
@@ -109,6 +110,8 @@ export class YtModulePlayer {
             this.secAt = performance.now();
             if (next === YTMODULE_STATE.playing && !wasPlaying) this.poll();
             this.opts.onStateChange?.(next, this);
+        } else if (d.event === 'cmderror') {
+            this.opts.onCommandError?.(d, this);
         } else if (d.event === 'error') {
             this.clearReadyTimer();
             this.opts.onError?.(String(d.code || 'unknown'), d.message, this);
@@ -139,6 +142,10 @@ export class YtModulePlayer {
         if (this.state !== YTMODULE_STATE.playing) return this.sec;
         const elapsed = Math.min(performance.now() - this.secAt, MAX_EXTRAPOLATION_MS);
         return this.sec + Math.max(elapsed, 0) / 1000;
+    }
+
+    getSampleTime(): number {
+        return this.sec;
     }
 
     getDuration(): number {
