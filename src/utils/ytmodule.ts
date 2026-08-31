@@ -22,7 +22,8 @@ export interface YtModuleOptions {
     onReady?: (player: YtModulePlayer) => void;
     onStateChange?: (state: number, player: YtModulePlayer) => void;
     onError?: (code: string, message: string | undefined, player: YtModulePlayer) => void;
-    onCommandError?: (detail: any, player: YtModulePlayer) => void;
+    onCommandError?: (cmd: string, message: string | undefined, player: YtModulePlayer) => void;
+    onCaptionsChange?: (showing: number, tracks: number, player: YtModulePlayer) => void;
 }
 
 type StateName = keyof typeof YTMODULE_STATE;
@@ -59,6 +60,8 @@ export class YtModulePlayer {
     private state: number = YTMODULE_STATE.unstarted;
     private ready = false;
     private muted = false;
+    private capShowing = 0;
+    private capTracks = 0;
 
     constructor(container: HTMLElement, opts: YtModuleOptions) {
         this.opts = opts;
@@ -96,6 +99,8 @@ export class YtModulePlayer {
             this.clearReadyTimer();
             this.ready = true;
             this.dur = typeof d.duration === 'number' && isFinite(d.duration) ? d.duration : 0;
+            this.capShowing = typeof d.showing === 'number' ? d.showing : 0;
+            this.capTracks = typeof d.tracks === 'number' ? d.tracks : 0;
             this.opts.onReady?.(this);
         } else if (d.event === 'time') {
             if (typeof d.sec === 'number' && isFinite(d.sec)) {
@@ -110,8 +115,12 @@ export class YtModulePlayer {
             this.secAt = performance.now();
             if (next === YTMODULE_STATE.playing && !wasPlaying) this.poll();
             this.opts.onStateChange?.(next, this);
+        } else if (d.event === 'captions') {
+            this.capShowing = typeof d.showing === 'number' ? d.showing : 0;
+            this.capTracks = typeof d.tracks === 'number' ? d.tracks : 0;
+            this.opts.onCaptionsChange?.(this.capShowing, this.capTracks, this);
         } else if (d.event === 'cmderror') {
-            this.opts.onCommandError?.(d, this);
+            this.opts.onCommandError?.(String(d.cmd || 'unknown'), d.message, this);
         } else if (d.event === 'error') {
             this.clearReadyTimer();
             this.opts.onError?.(String(d.code || 'unknown'), d.message, this);
@@ -142,6 +151,18 @@ export class YtModulePlayer {
         if (this.state !== YTMODULE_STATE.playing) return this.sec;
         const elapsed = Math.min(performance.now() - this.secAt, MAX_EXTRAPOLATION_MS);
         return this.sec + Math.max(elapsed, 0) / 1000;
+    }
+
+    getCaptionsShowing(): number {
+        return this.capShowing;
+    }
+
+    getCaptionsTracks(): number {
+        return this.capTracks;
+    }
+
+    setCaptions(on: boolean): void {
+        this.send('captions', { on: !!on });
     }
 
     getSampleTime(): number {

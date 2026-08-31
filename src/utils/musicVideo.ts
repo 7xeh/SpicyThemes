@@ -464,11 +464,18 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
                 player.setVolume(0);
                 if (currentMeta) player.seekTo(songMsToVideoMs(currentMeta, currentSongMs()) / 1000);
                 player.playVideo();
+                if (player.getCaptionsShowing() > 0) {
+                    debug('music video: captions showing despite captions=0, forcing off');
+                    player.setCaptions(false);
+                }
                 ytModuleLastSample = -1;
                 ytModuleStallDeadline = performance.now() + YTMODULE_STALL_MS;
             },
-            onCommandError: detail => {
-                debug('music video: yt module command rejected', detail);
+            onCaptionsChange: (showing, tracks) => {
+                debug('music video: yt module captions', showing, 'of', tracks);
+            },
+            onCommandError: (cmd, message) => {
+                debug('music video: yt module command rejected', cmd, message);
             },
             onError: (code, message, player) => {
                 if (token !== buildToken || ytModulePlayer !== player) return;
