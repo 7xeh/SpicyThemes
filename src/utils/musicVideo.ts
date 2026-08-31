@@ -1,3 +1,6 @@
+import { YtModulePlayer, YTMODULE_STATE, ytModuleParentOrigin } from './ytmodule';
+import { debug } from './debug';
+
 interface VideoBreak {
     start_ms: number;
     end_ms: number;
@@ -32,6 +35,9 @@ const SEEK_COOLDOWN_MS = 400;
 const PLAY_RETRY_MS = 400;
 const MAX_SOURCE_ATTEMPTS = 2;
 const MODE_CHECK_MS = 400;
+const YTMODULE_COOLDOWN_MS = 10 * 60 * 1000;
+const YTMODULE_FAIL_LIMIT = 2;
+const YTMODULE_VIDEO_ERRORS = ['unavailable', 'embed_disabled'];
 
 const videoCache = new Map<string, VideoMeta | null>();
 const failCounts = new Map<string, number>();
@@ -49,8 +55,13 @@ let officialForId: string | null = null;
 
 let mp4El: HTMLVideoElement | null = null;
 let ytPlayer: any = null;
+let ytModulePlayer: YtModulePlayer | null = null;
+let ytEngine: 'ytmodule' | 'iframe_api' | null = null;
 let ytReady = false;
 let buildToken = 0;
+
+let ytModuleFails = 0;
+let ytModuleBlockedUntil = 0;
 
 let ytApiLoading = false;
 const ytApiCallbacks: Array<() => void> = [];
@@ -65,6 +76,7 @@ let lastOfficialCheck = 0;
 let lastSeekAt = 0;
 let lastPlayAttempt = 0;
 let lastModeCheck = 0;
+let lastStatePlayAttempt = 0;
 let allowCompact = false;
 let compactBlocked = false;
 
@@ -420,6 +432,83 @@ function disableYtCaptions(player: any): void {
     } catch (e) {}
 }
 
+function ytModuleAvailable(): boolean {
+    if (ytModuleBlockedUntil && Date.now() >= ytModuleBlockedUntil) {
+        ytModuleBlockedUntil = 0;
+        ytModuleFails = 0;
+    }
+    return ytModuleBlockedUntil === 0;
+}
+
+function createYtModulePlayer(container: HTMLElement, videoId: string): void {
+    if (!running || activeSource !== 'youtube' || currentMeta?.source_ref !== videoId) return;
+    ytReady = false;
+    const token = buildToken;
+    const startSec = Math.max(0, Math.floor(songMsToVideoMs(currentMeta, currentSongMs()) / 1000));
+    debug('music video: yt module embed', videoId, 'parent origin', ytModuleParentOrigin());
+    try {
+        ytModulePlayer = new YtModulePlayer(container, {
+            videoId,
+            start: startSec,
+            autoplay: true,
+            controls: false,
+            className: 'st-mv-yt',
+            onReady: player => {
+                if (token !== buildToken || ytModulePlayer !== player) return;
+                ytModuleFails = 0;
+                ytReady = true;
+                player.mute();
+                player.setVolume(0);
+                if (currentMeta) player.seekTo(songMsToVideoMs(currentMeta, currentSongMs()) / 1000);
+                player.playVideo();
+            },
+            onError: (code, message, player) => {
+                if (token !== buildToken || ytModulePlayer !== player) return;
+                debug('music video: yt module error', code, message);
+                const videoFault = YTMODULE_VIDEO_ERRORS.indexOf(code) !== -1;
+                setTimeout(() => {
+                    if (token === buildToken) fallbackToIframeApi(videoFault);
+                }, 0);
+            },
+        });
+    } catch (e) {
+        fallbackToIframeApi();
+    }
+}
+
+function fallbackToIframeApi(videoFault = false): void {
+    if (!running || activeSource !== 'youtube' || ytEngine !== 'ytmodule') return;
+    const meta = currentMeta;
+    const container = document.getElementById(CONTAINER_ID);
+    if (!meta || !container) return;
+
+    if (!videoFault) {
+        ytModuleFails++;
+        if (ytModuleFails >= YTMODULE_FAIL_LIMIT) {
+            ytModuleBlockedUntil = Date.now() + YTMODULE_COOLDOWN_MS;
+        }
+    }
+
+    destroyPlayers();
+    container.innerHTML = '';
+    mediaPlaying = false;
+    mediaVisible = false;
+    adActive = false;
+    adSignalCount = 0;
+    lastSeekAt = 0;
+    lastPlayAttempt = 0;
+    lastStatePlayAttempt = 0;
+    loadDeadline = performance.now() + LOAD_TIMEOUT_MS;
+    setPageActive(false);
+
+    ytEngine = 'iframe_api';
+    const token = buildToken;
+    loadYouTubeAPI(() => {
+        if (token !== buildToken) return;
+        createYtPlayer(container, meta.source_ref);
+    });
+}
+
 function createYtPlayer(container: HTMLElement, videoId: string): void {
     if (!running || activeSource !== 'youtube' || currentMeta?.source_ref !== videoId) return;
     const host = document.createElement('div');
@@ -526,11 +615,16 @@ function buildSource(id: string, meta: VideoMeta): void {
     lastOfficialCheck = 0;
     lastSeekAt = 0;
     lastPlayAttempt = 0;
+    lastStatePlayAttempt = 0;
     loadDeadline = performance.now() + LOAD_TIMEOUT_MS;
 
     if (meta.source_type === 'mp4_url') {
         attachMp4(container, meta);
+    } else if (ytModuleAvailable()) {
+        ytEngine = 'ytmodule';
+        createYtModulePlayer(container, meta.source_ref);
     } else {
+        ytEngine = 'iframe_api';
         const token = buildToken;
         loadYouTubeAPI(() => {
             if (token !== buildToken) return;
@@ -539,8 +633,7 @@ function buildSource(id: string, meta: VideoMeta): void {
     }
 }
 
-function teardownSource(): void {
-    buildToken++;
+function destroyPlayers(): void {
     if (mp4El) {
         const el = mp4El;
         mp4El = null;
@@ -550,6 +643,16 @@ function teardownSource(): void {
             el.load();
         } catch (e) {}
         el.remove();
+    }
+    if (ytModulePlayer) {
+        const p = ytModulePlayer;
+        ytModulePlayer = null;
+        try {
+            p.pauseVideo();
+        } catch (e) {}
+        try {
+            p.destroy();
+        } catch (e) {}
     }
     if (ytPlayer) {
         const p = ytPlayer;
@@ -562,6 +665,12 @@ function teardownSource(): void {
         } catch (e) {}
     }
     ytReady = false;
+}
+
+function teardownSource(): void {
+    buildToken++;
+    destroyPlayers();
+    ytEngine = null;
     mediaPlaying = false;
     mediaVisible = false;
     adActive = false;
@@ -589,19 +698,29 @@ function failSource(): void {
 
 function isMediaReady(): boolean {
     if (activeSource === 'mp4_url') return !!mp4El && mp4El.readyState >= 2;
-    if (activeSource === 'youtube') return ytReady && !!ytPlayer;
+    if (activeSource === 'youtube') return ytReady && (!!ytPlayer || !!ytModulePlayer);
     return false;
 }
 
 function hasRenderableFrame(): boolean {
     try {
         if (activeSource === 'mp4_url') return !!mp4El && mp4El.readyState >= 2 && mp4El.videoWidth > 0;
-        if (activeSource === 'youtube') return ytReady && !!ytPlayer && (ytPlayer.getDuration?.() || 0) > 0;
+        if (activeSource === 'youtube') {
+            if (ytModulePlayer) {
+                return (
+                    ytReady &&
+                    (ytModulePlayer.getDuration() > 0 ||
+                        ytModulePlayer.getPlayerState() === YTMODULE_STATE.playing)
+                );
+            }
+            return ytReady && !!ytPlayer && (ytPlayer.getDuration?.() || 0) > 0;
+        }
     } catch (e) {}
     return false;
 }
 
 function isYtAdPlaying(): boolean {
+    if (ytEngine === 'ytmodule') return false;
     if (activeSource !== 'youtube' || !ytReady || !ytPlayer || !currentMeta) return false;
     try {
         const data = ytPlayer.getVideoData?.();
@@ -628,7 +747,10 @@ function songIsPlaying(): boolean {
 function getVideoMs(): number {
     try {
         if (activeSource === 'mp4_url' && mp4El) return mp4El.currentTime * 1000;
-        if (activeSource === 'youtube' && ytPlayer?.getCurrentTime) return ytPlayer.getCurrentTime() * 1000;
+        if (activeSource === 'youtube') {
+            if (ytModulePlayer) return ytModulePlayer.getCurrentTime() * 1000;
+            if (ytPlayer?.getCurrentTime) return ytPlayer.getCurrentTime() * 1000;
+        }
     } catch (e) {}
     return NaN;
 }
@@ -639,6 +761,8 @@ function seekVideo(ms: number, ts: number): void {
         if (activeSource === 'mp4_url' && mp4El) {
             if (mp4El.seeking) return;
             mp4El.currentTime = ms / 1000;
+        } else if (activeSource === 'youtube' && ytModulePlayer) {
+            ytModulePlayer.seekTo(ms / 1000);
         } else if (activeSource === 'youtube' && ytPlayer?.seekTo) {
             ytPlayer.seekTo(ms / 1000, true);
         } else {
@@ -659,6 +783,22 @@ function setMediaPlaying(play: boolean, ts: number): void {
                 mp4El.play().catch(() => {});
             } else if (!play && !paused) {
                 mp4El.pause();
+            }
+            return;
+        }
+        if (activeSource === 'youtube' && ytModulePlayer) {
+            const p = ytModulePlayer;
+            const state = p.getPlayerState();
+            const active = state === YTMODULE_STATE.playing || state === YTMODULE_STATE.buffering;
+            mediaPlaying = play;
+            if (play) {
+                if (!active && ts - lastStatePlayAttempt >= PLAY_RETRY_MS) {
+                    lastStatePlayAttempt = ts;
+                    p.mute();
+                    p.playVideo();
+                }
+            } else if (active) {
+                p.pauseVideo();
             }
             return;
         }
