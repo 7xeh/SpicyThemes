@@ -31,6 +31,7 @@ const PREFETCH_COUNT = 5;
 const AD_CONFIRM_TICKS = 3;
 const AD_DURATION_MARGIN_MS = 1500;
 const LOAD_TIMEOUT_MS = 9000;
+const YTMODULE_LOAD_TIMEOUT_MS = 14000;
 const SEEK_COOLDOWN_MS = 400;
 const PLAY_RETRY_MS = 400;
 const MAX_SOURCE_ATTEMPTS = 2;
@@ -80,6 +81,7 @@ let lastSeekAt = 0;
 let lastPlayAttempt = 0;
 let lastModeCheck = 0;
 let lastStatePlayAttempt = 0;
+let lastStatePauseAttempt = 0;
 let allowCompact = false;
 let compactBlocked = false;
 
@@ -513,6 +515,7 @@ function fallbackToIframeApi(videoFault = false): void {
     lastSeekAt = 0;
     lastPlayAttempt = 0;
     lastStatePlayAttempt = 0;
+    lastStatePauseAttempt = 0;
     ytModuleLastSample = -1;
     ytModuleStallDeadline = 0;
     loadDeadline = performance.now() + LOAD_TIMEOUT_MS;
@@ -633,6 +636,7 @@ function buildSource(id: string, meta: VideoMeta): void {
     lastSeekAt = 0;
     lastPlayAttempt = 0;
     lastStatePlayAttempt = 0;
+    lastStatePauseAttempt = 0;
     ytModuleLastSample = -1;
     ytModuleStallDeadline = 0;
     loadDeadline = performance.now() + LOAD_TIMEOUT_MS;
@@ -641,6 +645,7 @@ function buildSource(id: string, meta: VideoMeta): void {
         attachMp4(container, meta);
     } else if (ytModuleAvailable()) {
         ytEngine = 'ytmodule';
+        loadDeadline = performance.now() + YTMODULE_LOAD_TIMEOUT_MS;
         createYtModulePlayer(container, meta.source_ref);
     } else {
         ytEngine = 'iframe_api';
@@ -781,6 +786,7 @@ function seekVideo(ms: number, ts: number): void {
             if (mp4El.seeking) return;
             mp4El.currentTime = ms / 1000;
         } else if (activeSource === 'youtube' && ytModulePlayer) {
+            if (ytModulePlayer.getPlayerState() === YTMODULE_STATE.buffering) return;
             ytModulePlayer.seekTo(ms / 1000);
         } else if (activeSource === 'youtube' && ytPlayer?.seekTo) {
             ytPlayer.seekTo(ms / 1000, true);
@@ -816,7 +822,8 @@ function setMediaPlaying(play: boolean, ts: number): void {
                     p.mute();
                     p.playVideo();
                 }
-            } else if (active) {
+            } else if (active && ts - lastStatePauseAttempt >= PLAY_RETRY_MS) {
+                lastStatePauseAttempt = ts;
                 p.pauseVideo();
             }
             return;

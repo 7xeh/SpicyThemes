@@ -9,7 +9,7 @@ export const YTMODULE_STATE = {
     cued: 5,
 } as const;
 
-const READY_TIMEOUT_MS = 5000;
+const READY_TIMEOUT_MS = 12000;
 const MAX_EXTRAPOLATION_MS = 400;
 
 export interface YtModuleOptions {
