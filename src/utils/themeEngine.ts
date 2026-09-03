@@ -9,6 +9,7 @@ const MUSIC_VIDEO_ID = 'spicy-themes-mv';
 
 const NPV_CARD = '#SpicyLyricsNPVCard';
 const METADATA_SELECTOR = '#SpicyLyricsPage:not(.CardMode) .ContentBox .NowBar .Header .Metadata';
+const THEME_CREDIT_CLASS = 'st-theme-credit';
 
 function hexToRgba(hex: string, alpha: number): string {
     if (hex.startsWith('rgba') || hex.startsWith('rgb')) return hex;
@@ -80,6 +81,15 @@ function lineSelectors(bases: string[], state: string): string {
 
 function buildProps(...decls: (string | false | null | undefined | 0 | '')[]): string {
     return (decls.filter(Boolean) as string[]).join('\n    ');
+}
+
+function filterList(...fns: (string | false | null | undefined | '')[]): string {
+    return (fns.filter(Boolean) as string[]).join(' ');
+}
+
+function filterDecl(...fns: (string | false | null | undefined | '')[]): string {
+    const list = filterList(...fns);
+    return list ? `filter: ${list} !important;` : '';
 }
 
 function lineOriginRules(lineTargets: string[]): string {
@@ -361,9 +371,15 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const clampedActiveGlow = Math.min(config.activeGlowIntensity, 15);
     const clampedGlow = Math.min(config.glowIntensity, 15);
     const clampedSidebarGlow = Math.min(Math.round(config.activeGlowIntensity * 0.7), 15);
-    const glowActive = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedActiveGlow}px ${config.activeGlowColor}) !important;`;
-    const glowNormal = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`;
-    const glowSidebar = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedSidebarGlow}px ${config.activeGlowColor}) !important;`;
+    const shadowFilter = config.textShadowEnabled
+        ? `drop-shadow(${config.textShadowOffsetX}px ${config.textShadowOffsetY}px ${config.textShadowBlur}px ${hexToRgba(config.textShadowColor, config.textShadowOpacity)})`
+        : '';
+    const glowActiveFn = config.glowEnabled && `drop-shadow(0 0 ${clampedActiveGlow}px ${config.activeGlowColor})`;
+    const glowNormalFn = config.glowEnabled && `drop-shadow(0 0 ${clampedGlow}px ${config.glowColor})`;
+    const glowSidebarFn = config.glowEnabled && `drop-shadow(0 0 ${clampedSidebarGlow}px ${config.activeGlowColor})`;
+    const glowActive = filterDecl(glowActiveFn, shadowFilter);
+    const glowNormal = filterDecl(glowNormalFn, shadowFilter);
+    const glowSidebar = filterDecl(glowSidebarFn, shadowFilter);
     const scaleEffect = !config.scaleInEffect && config.scaleActive !== 1.0 && `transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1) !important;`;
     const glowPulseOn = config.glowEnabled && config.glowPulse;
     const pulseSpeed = Math.min(Math.max(config.glowPulseSpeed, 0.3), 3);
@@ -371,17 +387,12 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const pulseAnim = glowPulseOn ? `st-glow-pulse ${(1.6 / pulseSpeed).toFixed(2)}s ease-in-out infinite` : '';
     const bgGlowRgb = hexToRgb(config.bgGlowColor);
     const clampedBgGlow = Math.min(config.bgGlowIntensity, 30);
-    const dropShadow = config.textShadowEnabled
-        ? `${config.textShadowOffsetX}px ${config.textShadowOffsetY}px ${config.textShadowBlur}px ${hexToRgba(config.textShadowColor, config.textShadowOpacity)}`
-        : '';
-    const shadowSuffix = dropShadow ? `, ${dropShadow}` : '';
     const bgGlowDecl = config.bgGlowEnabled
-        ? `text-shadow: 0 0 ${clampedBgGlow}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1))${shadowSuffix} !important;`
+        ? `text-shadow: 0 0 ${clampedBgGlow}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1)) !important;`
         : '';
-    const wordBaseShadow = [
-        config.bgGlowEnabled && `0 0 ${clampedBgGlow}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1))`,
-        dropShadow,
-    ].filter(Boolean).join(', ');
+    const wordBaseShadow = config.bgGlowEnabled
+        ? `0 0 ${clampedBgGlow}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1))`
+        : '';
     const lyricTransitionMs = Math.max(8.333, 110 / config.animationSpeed).toFixed(3);
     const lyricSnapMs = Math.max(8.333, 56 / config.animationSpeed).toFixed(3);
 
@@ -560,7 +571,7 @@ ${lineSelectors(ALL, 'NotSung')} {
 }
 `);
 
-    if (config.glowEnabled) {
+    if (config.glowEnabled || config.textShadowEnabled) {
         css.push(`
 ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
     ${glowActive}
@@ -575,8 +586,8 @@ ${ALL.map(b => `${b} .line.NotSung`).join(',\n')} {
     if (glowPulseOn) {
         css.push(`
 @keyframes st-glow-pulse {
-    0%, 100% { filter: drop-shadow(0 0 ${clampedActiveGlow}px ${config.activeGlowColor}); }
-    50% { filter: drop-shadow(0 0 ${pulsePeak}px ${config.activeGlowColor}); }
+    0%, 100% { filter: ${filterList(`drop-shadow(0 0 ${clampedActiveGlow}px ${config.activeGlowColor})`, shadowFilter)}; }
+    50% { filter: ${filterList(`drop-shadow(0 0 ${pulsePeak}px ${config.activeGlowColor})`, shadowFilter)}; }
 }
 `);
         if (!config.scaleInEffect) {
@@ -599,9 +610,7 @@ ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
             '.line.Sung + .slt-interleaved-translation',
             '.line.NotSung + .slt-interleaved-translation',
         ].join(',\n');
-        const blurFilter = config.glowEnabled
-            ? `filter: blur(${config.blurAmount}px) drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`
-            : `filter: blur(${config.blurAmount}px) !important;`;
+        const blurFilter = filterDecl(`blur(${config.blurAmount}px)`, glowNormalFn, shadowFilter);
         css.push(`
 ${blurTargets} {
     ${blurFilter}
@@ -610,7 +619,6 @@ ${blurTargets} {
 `);
 
         if (config.blurProgressive) {
-            const glowPart = config.glowEnabled ? ` drop-shadow(0 0 ${clampedGlow}px ${config.glowColor})` : '';
             const ramp = [0.3, 0.6, 0.85];
             const rampRules = ramp.map((factor, idx) => {
                 const k = idx + 1;
@@ -625,14 +633,12 @@ ${blurTargets} {
                 ]).join(',\n');
 
                 const amount = Math.round(config.blurAmount * factor * 100) / 100;
-                return `${targets} {\n    filter: blur(${amount}px)${glowPart} !important;\n}`;
+                return `${targets} {\n    ${filterDecl(`blur(${amount}px)`, glowNormalFn, shadowFilter)}\n}`;
             });
             css.push(rampRules.join('\n'));
         }
 
-        const unblurFilter = config.glowEnabled
-            ? `filter: drop-shadow(0 0 ${clampedGlow}px ${config.glowColor}) !important;`
-            : `filter: none !important;`;
+        const unblurFilter = filterDecl(glowNormalFn, shadowFilter) || `filter: none !important;`;
         const unblurTargets = [
             ...ALL.map(b => `${b} [data-index].st-preview-line > .line`),
             ...ALL.map(b => `${b} [data-index].st-preview-line > .line.Sung`),
@@ -682,7 +688,7 @@ ${sungWordTargets} {
         ].join(',\n');
         css.push(`
 ${shadowTargets} {
-    text-shadow: ${dropShadow} !important;
+    ${filterDecl(shadowFilter)}
 }
 `);
     }
@@ -823,12 +829,13 @@ ${highlightTargets} {
     const useSltColor = config.sltTranslationColorEnabled && !!config.sltTranslationColor;
     const sltBaseColor = useSltColor ? config.sltTranslationColor : config.notSungLineColor;
     const useSltGlow = config.sltGlowColorEnabled && !!config.sltGlowColor;
-    const sltGlowActive = config.glowEnabled && `filter: drop-shadow(0 0 ${clampedActiveGlow}px ${useSltGlow ? config.sltGlowColor : config.activeGlowColor}) !important;`;
+    const sltGlowActiveFn = config.glowEnabled && `drop-shadow(0 0 ${clampedActiveGlow}px ${useSltGlow ? config.sltGlowColor : config.activeGlowColor})`;
+    const sltGlowActive = filterDecl(sltGlowActiveFn, shadowFilter);
     const sltBgGlowRgb = hexToRgb(useSltGlow ? config.sltGlowColor : config.bgGlowColor);
     const sltBgGlowDecl = config.bgGlowEnabled
-        ? `text-shadow: 0 0 ${clampedBgGlow}px rgba(${sltBgGlowRgb.r}, ${sltBgGlowRgb.g}, ${sltBgGlowRgb.b}, var(--text-shadow-opacity, 1))${shadowSuffix} !important;`
+        ? `text-shadow: 0 0 ${clampedBgGlow}px rgba(${sltBgGlowRgb.r}, ${sltBgGlowRgb.g}, ${sltBgGlowRgb.b}, var(--text-shadow-opacity, 1)) !important;`
         : '';
-    const sltKaraokeGlowDecl = `text-shadow: 0 0 7px ${hexToRgba(useSltGlow ? config.sltGlowColor : (config.gradientEnabled ? config.gradientStartColor : config.activeLineColor), 0.5)}${shadowSuffix} !important;`;
+    const sltKaraokeGlowDecl = `text-shadow: 0 0 7px ${hexToRgba(useSltGlow ? config.sltGlowColor : (config.gradientEnabled ? config.gradientStartColor : config.activeLineColor), 0.5)} !important;`;
     if (sltFontFamilyDecl) {
         css.push(`
 #SpicyLyricsPage .slt-interleaved-translation.slt-interleaved-translation,
@@ -1049,7 +1056,7 @@ ${lineOriginRules([
 `);
     }
 
-    if (config.glowEnabled) {
+    if (config.glowEnabled || config.textShadowEnabled) {
         css.push(`
 ${SIDEBAR.map(b => `${b} .line.Active`).join(',\n')} {
     ${glowSidebar}
@@ -1611,6 +1618,15 @@ ${styleRule('helix', '', (b, i) => `--st-eq-amp: var(--st-eq-b${b}); animation-d
         css.push(blocks[config.eqStyle] || blocks.equalizer);
     }
 
+    css.push(`
+#SpicyLyricsPage .${THEME_CREDIT_CLASS} {
+    opacity: 0.5;
+}
+#SpicyLyricsPage .LyricsProvider + .${THEME_CREDIT_CLASS} {
+    margin-top: 0.29cqw;
+}
+`);
+
     return css.join('\n');
 }
 
@@ -1686,6 +1702,53 @@ function removeEqualizer(): void {
     document.querySelectorAll('.st-eq').forEach(el => el.remove());
     const pipWindow = getPIPWindow();
     if (pipWindow) pipWindow.document.querySelectorAll('.st-eq').forEach(el => el.remove());
+}
+
+function themeCreditText(): string {
+    const name = (themeState.activePresetName || '').trim();
+    return `Theme: ${name || 'Custom'}`;
+}
+
+function updateThemeCreditIn(doc: Document): void {
+    const existing = Array.from(doc.querySelectorAll<HTMLElement>(`.${THEME_CREDIT_CLASS}`));
+
+    const songInfo = themeState.isEnabled
+        ? doc.querySelector<HTMLElement>('#SpicyLyricsPage .SongInfo')
+        : null;
+    const provider = songInfo
+        ? null
+        : (themeState.isEnabled ? doc.querySelector<HTMLElement>('#SpicyLyricsPage .LyricsProvider') : null);
+    const parent = songInfo || provider?.parentElement || null;
+
+    existing.forEach(el => {
+        if (el.parentElement !== parent) el.remove();
+    });
+    if (!parent) return;
+
+    let credit = existing.find(el => el.parentElement === parent) || null;
+    if (!credit) {
+        credit = doc.createElement('div');
+        credit.className = THEME_CREDIT_CLASS;
+        if (songInfo) songInfo.appendChild(credit);
+        else provider!.after(credit);
+    }
+
+    const text = themeCreditText();
+    if (credit.textContent !== text) credit.textContent = text;
+}
+
+export function updateThemeCredit(): void {
+    try {
+        updateThemeCreditIn(document);
+        const pipWindow = getPIPWindow();
+        if (pipWindow) updateThemeCreditIn(pipWindow.document);
+    } catch (e) {}
+}
+
+function removeThemeCredit(): void {
+    document.querySelectorAll(`.${THEME_CREDIT_CLASS}`).forEach(el => el.remove());
+    const pipWindow = getPIPWindow();
+    if (pipWindow) pipWindow.document.querySelectorAll(`.${THEME_CREDIT_CLASS}`).forEach(el => el.remove());
 }
 
 export function updateMusicVideo(): void {
@@ -1899,6 +1962,7 @@ export function injectThemeStyles(): void {
 
     updateEqualizer();
     updateMusicVideo();
+    updateThemeCredit();
     const needSung = themeState.activeTheme.blurSungWords;
     const needLive = wordEffectTrigger(themeState.activeTheme) === 'word';
     if (needSung || needLive) {
@@ -1924,6 +1988,7 @@ export function removeThemeStyles(): void {
 
     removeEqualizer();
     removeMusicVideo();
+    removeThemeCredit();
     stopSungWordTagger();
 }
 

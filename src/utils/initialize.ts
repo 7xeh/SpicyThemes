@@ -1,5 +1,5 @@
 import { themeState, saveThemeState, getAllPresets, applyPreset as applyPresetFn } from './state';
-import { injectThemeStyles, injectBaseStyles, removeThemeStyles, updateEqualizer, updateMusicVideo, startBlurPreviewObserver } from './themeEngine';
+import { injectThemeStyles, injectBaseStyles, removeThemeStyles, updateEqualizer, updateMusicVideo, updateThemeCredit, startBlurPreviewObserver } from './themeEngine';
 import { registerSettings } from './settings';
 import { isSpicyLyricsOpen, onSpicyLyricsOpen, onSpicyLyricsClose, createThemeButton, injectIntoPiP } from './core';
 import { startUpdateChecker, checkForUpdates, getUpdateInfo, VERSION, showPostUpdateChangelog } from './updater';
@@ -89,6 +89,7 @@ export async function initialize(): Promise<void> {
                     updateEqualizer();
                     updateMusicVideo();
                 }
+                updateThemeCredit();
             }
         }, 50);
     });

@@ -304,6 +304,13 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
     const letterSpacing = `${t.letterSpacing}em`;
     const lineHeight = String(t.lineHeight);
 
+    const shadowFilter = t.textShadowEnabled
+        ? (() => {
+            const c = hexToRgb(t.textShadowColor);
+            return `drop-shadow(${t.textShadowOffsetX}px ${t.textShadowOffsetY}px ${t.textShadowBlur}px rgba(${c.r}, ${c.g}, ${c.b}, ${t.textShadowOpacity}))`;
+        })()
+        : '';
+
     const lines = host.querySelectorAll<HTMLElement>('.st-prv-line');
     lines.forEach(line => {
         line.style.fontFamily = fontFamily;
@@ -327,7 +334,7 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
         (line.style as any).webkitTextFillColor = '';
         line.style.color = '';
         line.style.opacity = '';
-        line.style.filter = '';
+        line.style.filter = shadowFilter;
         line.style.transform = '';
         line.style.textShadow = '';
     });
@@ -373,7 +380,7 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
         unsung.style.opacity = String(t.notSungLineOpacity);
         unsung.style.color = t.notSungLineColor;
         if (t.blurUnsung && t.blurPreviewLines === 0) {
-            unsung.style.filter = `blur(${t.blurAmount}px)`;
+            unsung.style.filter = [`blur(${t.blurAmount}px)`, shadowFilter].filter(Boolean).join(' ');
         }
         if (t.glowEnabled) {
             const c = hexToRgb(t.glowColor);
