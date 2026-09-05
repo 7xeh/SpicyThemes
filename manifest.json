@@ -7,7 +7,7 @@
   "main": "loader/ST-loader.js",
   "preview": "https://github.com/7xeh/SpicyThemes/blob/main/st-preview.gif?raw=true",
   "readme": "README.md",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": "https://github.com/7xeh/SpicyThemes",
   "spicetify": {
     "minVersion": "2.0.0"

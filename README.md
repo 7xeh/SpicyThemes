@@ -10,7 +10,7 @@ Restyle the lyrics view from inside Spotify — colors, glow, gradients, blur, t
 
 ![Spicetify](https://img.shields.io/badge/Spicetify-Extension-1DB954?style=flat-square&logo=spotify&logoColor=white)
 ![Version](https://img.shields.io/badge/Version-1.2.9-blue?style=flat-square)
-![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
+![License](https://img.shields.io/badge/License-Source%20Available-blue?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-Online-success?style=flat-square)
 
 [Getting Started](docs/getting-started.md) · [Settings](docs/settings.md) · [Presets](docs/presets.md) · [Troubleshooting](docs/troubleshooting.md) · [All Docs](docs/README.md)
@@ -87,7 +87,7 @@ Join the official Discord for live support, bug reports, feature requests, theme
 
 ## License
 
-MIT licensed.
+Source-available under the ST Source-Available License v1.0 — see [LICENSE](LICENSE). Not OSI open source.
 
 ---
 
