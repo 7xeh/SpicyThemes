@@ -1,7 +1,7 @@
 {
   "id": "spicy-themes",
   "name": "[ST] Spicy Themes",
-  "description": "Customize the look and feel of Spicy Lyrics with colors, effects, fonts, glow, blur, and more!",
+  "description": "A Spicetify extension that restyles Spicy Lyrics with colors, glow, gradients, blur, fonts, motion, and more.",
   "authors": [{ "name": "7xeh", "url": "https://github.com/7xeh" }],
   "version": "1.2.9",
   "main": "loader/ST-loader.js",
@@ -19,9 +19,13 @@
     "lyrics",
     "spicy-lyrics",
     "colors",
-    "effects",
-    "fonts",
+    "gradients",
     "glow",
-    "gradients"
+    "blur",
+    "fonts",
+    "animations",
+    "equalizer",
+    "presets",
+    "marketplace"
   ]
 }
