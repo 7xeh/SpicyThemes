@@ -40,7 +40,7 @@ export function ytModuleEmbedUrl(videoId: string, opts: YtModuleOptions): string
     const qs =
         'start=' + Math.max(0, Math.floor(opts.start || 0)) +
         '&autoplay=' + (opts.autoplay ? 1 : 0) +
-        '&local=false&listen=false&quality=dash' +
+        '&local=false&listen=false&quality=dash&noaudio=1' +
         '&controls=' + (opts.controls ? 1 : 0) +
         '&captions=0' +
         '&origin=' + encodeURIComponent(ytModuleParentOrigin());

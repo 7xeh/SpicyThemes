@@ -4,6 +4,7 @@ import { registerSettings } from './settings';
 import { isSpicyLyricsOpen, onSpicyLyricsOpen, onSpicyLyricsClose, createThemeButton, injectIntoPiP } from './core';
 import { startUpdateChecker, checkForUpdates, getUpdateInfo, VERSION, showPostUpdateChangelog } from './updater';
 import { initConnectivity, getConnectivityState } from './connectivity';
+import { setDebugMode, isDebugEnabled } from './debug';
 
 
 const INIT_STATE_KEY = '__spicyThemesInitState';
@@ -131,6 +132,8 @@ export async function initialize(): Promise<void> {
         checkForUpdates: () => checkForUpdates(true),
         getUpdateInfo,
         getConnectivityState,
+        setDebugMode,
+        isDebugEnabled,
         version: VERSION,
     };
 

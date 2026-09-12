@@ -40,6 +40,9 @@ const YTMODULE_COOLDOWN_MS = 10 * 60 * 1000;
 const YTMODULE_FAIL_LIMIT = 2;
 const YTMODULE_VIDEO_ERRORS = ['unavailable'];
 const YTMODULE_STALL_MS = 4000;
+const YTMODULE_VIDEO_CODEC = 'video/mp4;codecs="av01.0.04M.08"';
+const YTMODULE_ERROR_GRACE_MS = 4500;
+const YTMODULE_ERROR_POLL_MS = 250;
 
 const videoCache = new Map<string, VideoMeta | null>();
 const failCounts = new Map<string, number>();
@@ -63,6 +66,7 @@ let ytReady = false;
 let buildToken = 0;
 
 let ytModuleFails = 0;
+let codecSupport: { ok: boolean; reason: string } | null = null;
 let ytModuleBlockedUntil = 0;
 let ytModuleLastSample = -1;
 let ytModuleStallDeadline = 0;
@@ -448,6 +452,26 @@ function disableYtCaptions(player: any): void {
     } catch (e) {}
 }
 
+function ytModuleCodecSupport(): { ok: boolean; reason: string } {
+    if (codecSupport) return codecSupport;
+    let result: { ok: boolean; reason: string };
+    try {
+        const ms = (window as any).MediaSource;
+        if (!ms || typeof ms.isTypeSupported !== 'function') {
+            result = { ok: false, reason: 'no-mediasource' };
+        } else if (!ms.isTypeSupported(YTMODULE_VIDEO_CODEC)) {
+            result = { ok: false, reason: 'no-av1' };
+        } else {
+            result = { ok: true, reason: 'ok' };
+        }
+    } catch (e) {
+        result = { ok: true, reason: 'probe-failed' };
+    }
+    codecSupport = result;
+    debug('music video: yt module codec preflight', result.reason);
+    return result;
+}
+
 function ytModuleAvailable(): boolean {
     if (ytModuleBlockedUntil && Date.now() >= ytModuleBlockedUntil) {
         ytModuleBlockedUntil = 0;
@@ -494,18 +518,30 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
                 if (token !== buildToken || ytModulePlayer !== player) return;
                 debug('music video: yt module error', code, message);
                 const videoFault = YTMODULE_VIDEO_ERRORS.indexOf(code) !== -1;
-                setTimeout(() => {
-                    if (token === buildToken) fallbackToIframeApi(videoFault);
-                }, 0);
+                const deadline = performance.now() + YTMODULE_ERROR_GRACE_MS;
+                const settle = () => {
+                    if (token !== buildToken) return;
+                    if (ytModulePlayer && ytModulePlayer.getPlayerState() === YTMODULE_STATE.playing) {
+                        debug('music video: yt module recovered after', code);
+                        return;
+                    }
+                    if (performance.now() >= deadline) {
+                        fallbackToIframeApi(code || 'error', videoFault);
+                        return;
+                    }
+                    setTimeout(settle, YTMODULE_ERROR_POLL_MS);
+                };
+                setTimeout(settle, YTMODULE_ERROR_POLL_MS);
             },
         });
     } catch (e) {
-        fallbackToIframeApi();
+        fallbackToIframeApi('exception');
     }
 }
 
-function fallbackToIframeApi(videoFault = false): void {
+function fallbackToIframeApi(reason: string, videoFault = false): void {
     if (!running || activeSource !== 'youtube' || ytEngine !== 'ytmodule') return;
+    debug('music video: falling back to youtube iframe', reason);
     const meta = currentMeta;
     const container = document.getElementById(CONTAINER_ID);
     if (!meta || !container) return;
@@ -654,17 +690,21 @@ function buildSource(id: string, meta: VideoMeta): void {
 
     if (meta.source_type === 'mp4_url') {
         attachMp4(container, meta);
-    } else if (ytModuleAvailable()) {
-        ytEngine = 'ytmodule';
-        loadDeadline = performance.now() + YTMODULE_LOAD_TIMEOUT_MS;
-        createYtModulePlayer(container, meta.source_ref);
     } else {
-        ytEngine = 'iframe_api';
-        const token = buildToken;
-        loadYouTubeAPI(() => {
-            if (token !== buildToken) return;
-            createYtPlayer(container, meta.source_ref);
-        });
+        const support = ytModuleCodecSupport();
+        if (support.ok && ytModuleAvailable()) {
+            ytEngine = 'ytmodule';
+            loadDeadline = performance.now() + YTMODULE_LOAD_TIMEOUT_MS;
+            createYtModulePlayer(container, meta.source_ref);
+        } else {
+            debug('music video: using youtube iframe', support.ok ? 'ytmodule-cooldown' : support.reason);
+            ytEngine = 'iframe_api';
+            const token = buildToken;
+            loadYouTubeAPI(() => {
+                if (token !== buildToken) return;
+                createYtPlayer(container, meta.source_ref);
+            });
+        }
     }
 }
 
@@ -924,6 +964,7 @@ function tick(ts: number): void {
             mediaVisible = true;
             setPageActive(true);
         } else if (ts > loadDeadline) {
+            debug('music video: load timeout', activeSource, ytEngine || 'none');
             failSource();
             return;
         }
@@ -940,8 +981,7 @@ function tick(ts: number): void {
             ytModuleLastSample = sample;
             ytModuleStallDeadline = ts + YTMODULE_STALL_MS;
         } else if (ts > ytModuleStallDeadline) {
-            debug('music video: yt module stalled, falling back');
-            fallbackToIframeApi();
+            fallbackToIframeApi('stall');
             return;
         }
     }
