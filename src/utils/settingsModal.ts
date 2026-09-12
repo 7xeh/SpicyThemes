@@ -17,10 +17,11 @@ import {
     ThemePreset,
 } from './state';
 import { injectThemeStyles } from './themeEngine';
+import { saveBackgroundImage, pruneBackgroundImages, getCachedBackgroundUrl, getBackgroundImageUrl, getBackgroundImageInfo, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
 import { checkForUpdates, getCurrentVersion, getDisplayHash, getUpdateInfo } from './updater';
 import * as Marketplace from './marketplace';
 
-export type FieldType = 'toggle' | 'color' | 'slider' | 'dropdown' | 'text';
+export type FieldType = 'toggle' | 'color' | 'slider' | 'dropdown' | 'text' | 'image';
 
 export interface FieldDef<K extends keyof ThemeConfig = keyof ThemeConfig> {
     id: K;
@@ -193,6 +194,23 @@ export const SCHEMA: FieldDef[] = [
     { id: 'pageBgOverlay', label: 'Background tint', type: 'toggle', section: 'Background', hint: 'Lays a coloured wash over the album-art background to calm it down.', keywords: 'overlay dim darken tint' },
     { id: 'pageBgColor', label: 'Tint colour', type: 'color', section: 'Background', parent: 'pageBgOverlay', when: (t) => t.pageBgOverlay },
     { id: 'pageBgOpacity', label: 'Tint strength', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'pageBgOverlay', when: (t) => t.pageBgOverlay },
+    { id: 'pageBgImageEnabled', label: 'Custom background image', type: 'toggle', section: 'Background', hint: 'Replaces the Spicy Lyrics background — album colours, artist header or animated art — with a picture of your own. Music videos still play over it when one is available.', keywords: 'wallpaper picture photo upload image static custom artist header dynamic' },
+    { id: 'pageBgImage', label: 'Image', type: 'image', section: 'Background', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, hint: 'Saved on this device only, so it isn’t included when you export or share a theme.', keywords: 'upload file picture wallpaper photo' },
+    { id: 'pageBgImageFit', label: 'Fit', type: 'dropdown', section: 'Background', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, options: [
+        { value: 'cover', text: 'Fill (crop to fit)' },
+        { value: 'contain', text: 'Fit (show whole image)' },
+        { value: 'stretch', text: 'Stretch' },
+        { value: 'tile', text: 'Tile' },
+    ], keywords: 'cover contain stretch tile repeat scale' },
+    { id: 'pageBgImagePosition', label: 'Focus point', type: 'dropdown', section: 'Background', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled && (t.pageBgImageFit === 'cover' || t.pageBgImageFit === 'contain'), options: [
+        { value: 'center', text: 'Centre' },
+        { value: 'top', text: 'Top' },
+        { value: 'bottom', text: 'Bottom' },
+        { value: 'left', text: 'Left' },
+        { value: 'right', text: 'Right' },
+    ], hint: 'Which part of the image stays in view when it’s cropped.', keywords: 'position align anchor crop' },
+    { id: 'pageBgImageBlur', label: 'Blur', type: 'slider', section: 'Background', min: 0, max: 40, step: 1, unit: 'px', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, keywords: 'soften frosted' },
+    { id: 'pageBgImageDim', label: 'Dimming', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, hint: 'Darkens the image so lyrics stay readable.', keywords: 'darken brightness' },
     { id: 'musicVideoEnabled', label: 'Synced music videos', type: 'toggle', section: 'Background', hint: 'Plays the track’s music video behind the lyrics when one is available.', keywords: 'video clip mv youtube background' },
     { id: 'musicVideoCompact', label: 'Also in compact player', type: 'toggle', section: 'Background', parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled },
     { id: 'musicVideoFullscreenCompact', label: 'Also in fullscreen compact', type: 'toggle', section: 'Background', parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled && !t.musicVideoCompact, hint: 'Keeps the video behind the compact layout while fullscreen, without turning it on for the windowed or popout player.', keywords: 'fullscreen compact video' },
@@ -393,12 +411,28 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
         }
     }
 
+    const imageId = t.pageBgImageEnabled ? t.pageBgImage : '';
+    const imageUrl = imageId ? getCachedBackgroundUrl(imageId) : null;
+    if (imageId && !imageUrl) {
+        getBackgroundImageUrl(imageId).then(url => {
+            if (url && host.isConnected) renderPreview(host, theme);
+        });
+    }
+
+    const layers: string[] = [];
     if (t.pageBgOverlay) {
         const c = hexToRgb(t.pageBgColor);
-        host.style.background = `linear-gradient(145deg, rgba(${c.r}, ${c.g}, ${c.b}, ${t.pageBgOpacity}), rgba(8, 8, 10, 0.95))`;
-    } else {
-        host.style.background = '';
+        const tint = `rgba(${c.r}, ${c.g}, ${c.b}, ${t.pageBgOpacity})`;
+        layers.push(imageUrl
+            ? `linear-gradient(${tint}, ${tint})`
+            : `linear-gradient(145deg, ${tint}, rgba(8, 8, 10, 0.95))`);
     }
+    if (imageUrl) {
+        const dim = `rgba(0, 0, 0, ${t.pageBgImageDim})`;
+        layers.push(`linear-gradient(${dim}, ${dim})`);
+        layers.push(`url("${imageUrl}") ${bgImagePosition(t.pageBgImagePosition)} / ${bgImageSize(t.pageBgImageFit)} ${bgImageRepeat(t.pageBgImageFit)}`);
+    }
+    host.style.background = layers.join(', ');
 }
 
 function liveUpdate<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]): void {
@@ -626,6 +660,75 @@ function buildField(def: FieldDef, index: number): FieldHandle {
                 sync = () => { select.value = String(themeState.activeTheme[def.id]); };
             }
             control.appendChild(select);
+            break;
+        }
+        case 'image': {
+            const thumb = document.createElement('div');
+            thumb.className = 'st-m-image-thumb';
+            const meta = document.createElement('div');
+            meta.className = 'st-m-image-meta';
+            const pick = document.createElement('button');
+            pick.type = 'button';
+            pick.className = 'st-m-btn';
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'st-m-btn st-m-btn-danger';
+            remove.textContent = 'Remove';
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.style.display = 'none';
+            let busy = false;
+
+            const paint = () => {
+                const id = String(themeState.activeTheme[def.id] || '');
+                pick.disabled = busy;
+                pick.textContent = busy ? 'Saving…' : id ? 'Replace…' : 'Choose image…';
+                remove.style.display = id && !busy ? '' : 'none';
+                if (!id) {
+                    thumb.style.backgroundImage = '';
+                    meta.textContent = 'No image chosen';
+                    meta.title = '';
+                    return;
+                }
+                const cached = getCachedBackgroundUrl(id);
+                thumb.style.backgroundImage = cached ? `url("${cached}")` : '';
+                if (!cached) meta.textContent = 'Loading…';
+                getBackgroundImageInfo(id).then(info => {
+                    if (String(themeState.activeTheme[def.id] || '') !== id) return;
+                    const url = getCachedBackgroundUrl(id);
+                    thumb.style.backgroundImage = url ? `url("${url}")` : '';
+                    meta.textContent = info ? `${info.name} · ${info.width}×${info.height}` : 'Image not found on this device';
+                    meta.title = info ? info.name : 'This theme points at an image saved on another device. Choose one to replace it.';
+                });
+            };
+
+            pick.addEventListener('click', () => input.click());
+            input.addEventListener('change', async () => {
+                const file = input.files?.[0];
+                input.value = '';
+                if (!file) return;
+                busy = true;
+                paint();
+                try {
+                    const id = await saveBackgroundImage(file);
+                    liveUpdate(def.id, id as any);
+                    pruneBackgroundImages().catch(() => {});
+                } catch (e) {
+                    notify(e instanceof Error ? e.message : 'Couldn’t use that image.', true);
+                } finally {
+                    busy = false;
+                    paint();
+                }
+            });
+            remove.addEventListener('click', () => {
+                liveUpdate(def.id, '' as any);
+                pruneBackgroundImages().catch(() => {});
+                paint();
+            });
+
+            control.append(thumb, meta, pick, remove, input);
+            sync = paint;
             break;
         }
         case 'text': {

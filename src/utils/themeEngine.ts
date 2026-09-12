@@ -1,6 +1,7 @@
 import { themeState, ThemeConfig, WordEffectTrigger, resolveWordTrigger, eqStyleMeta, eqStyleBands } from './state';
 import { startEqAudio, stopEqAudio, refreshEqElements } from './eqAudio';
 import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer, setMusicVideoCompactAllowed } from './musicVideo';
+import { BG_IMAGE_LAYER_ID, BG_IMAGE_ACTIVE_CLASS, updateBackgroundImage, removeBackgroundImage, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
 
 
 const STYLE_ID = 'spicy-themes-injected-styles';
@@ -825,6 +826,44 @@ ${highlightTargets} {
 `);
     }
 
+    if (config.pageBgImageEnabled && config.pageBgImage) {
+        const bgBlur = Math.round(clamp(config.pageBgImageBlur, 0, 40));
+        const bgDim = clamp(config.pageBgImageDim, 0, 1);
+        css.push(`
+#SpicyLyricsPage #${BG_IMAGE_LAYER_ID} {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: -2 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+}
+#SpicyLyricsPage #${BG_IMAGE_LAYER_ID}::before,
+#SpicyLyricsPage #${BG_IMAGE_LAYER_ID}::after {
+    content: '' !important;
+    position: absolute !important;
+    pointer-events: none !important;
+}
+#SpicyLyricsPage #${BG_IMAGE_LAYER_ID}::before {
+    inset: ${bgBlur > 0 ? `-${bgBlur * 2}px` : '0'} !important;
+    background-image: var(--st-bgimg) !important;
+    background-size: ${bgImageSize(config.pageBgImageFit)} !important;
+    background-repeat: ${bgImageRepeat(config.pageBgImageFit)} !important;
+    background-position: ${bgImagePosition(config.pageBgImagePosition)} !important;${bgBlur > 0 ? `
+    filter: blur(${bgBlur}px) !important;` : ''}
+}
+#SpicyLyricsPage #${BG_IMAGE_LAYER_ID}::after {
+    inset: 0 !important;
+    background: rgba(0, 0, 0, ${bgDim}) !important;
+}
+#SpicyLyricsPage.CardMode #${BG_IMAGE_LAYER_ID} {
+    display: none !important;
+}
+#SpicyLyricsPage.${BG_IMAGE_ACTIVE_CLASS}:not(.CardMode) .spicy-dynamic-bg {
+    opacity: 0 !important;
+}
+`);
+    }
+
     if (config.sltStylingEnabled) {
     const useSltColor = config.sltTranslationColorEnabled && !!config.sltTranslationColor;
     const sltBaseColor = useSltColor ? config.sltTranslationColor : config.notSungLineColor;
@@ -1218,12 +1257,13 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
 }
 `);
         if (!config.musicVideoCompact) {
+            const bgImageGuard = config.pageBgImageEnabled && config.pageBgImage ? `:not(.${BG_IMAGE_ACTIVE_CLASS})` : '';
             const compactScopes = ['CardMode', config.musicVideoFullscreenCompact ? 'CompactMode:not(.Fullscreen)' : 'CompactMode'];
             css.push(`
 ${compactScopes.map(c => `#SpicyLyricsPage.${c} #${MUSIC_VIDEO_ID}`).join(',\n')} {
     display: none !important;
 }
-${compactScopes.map(c => `#SpicyLyricsPage.${c}.st-mv-active .spicy-dynamic-bg`).join(',\n')} {
+${compactScopes.map(c => `#SpicyLyricsPage.${c}.st-mv-active${bgImageGuard} .spicy-dynamic-bg`).join(',\n')} {
     opacity: 1 !important;
 }
 ${compactScopes.flatMap(c => [
@@ -1962,6 +2002,7 @@ export function injectThemeStyles(): void {
 
     updateEqualizer();
     updateMusicVideo();
+    updateBackgroundImage();
     updateThemeCredit();
     const needSung = themeState.activeTheme.blurSungWords;
     const needLive = wordEffectTrigger(themeState.activeTheme) === 'word';
@@ -1988,6 +2029,7 @@ export function removeThemeStyles(): void {
 
     removeEqualizer();
     removeMusicVideo();
+    removeBackgroundImage();
     removeThemeCredit();
     stopSungWordTagger();
 }
@@ -2697,6 +2739,43 @@ const BASE_STYLES = `
 }
 .st-modal-root .st-m-field-text .st-m-field-control {
     max-width: 440px;
+}
+
+.st-modal-root .st-m-field-image {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    align-items: stretch;
+}
+.st-modal-root .st-m-field-image .st-m-field-control {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    max-width: 440px;
+}
+.st-modal-root .st-m-image-thumb {
+    flex: 0 0 64px;
+    width: 64px;
+    height: 40px;
+    border-radius: var(--st-radius-sm);
+    border: 1px solid var(--st-border);
+    background-color: rgba(255, 255, 255, 0.04);
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+}
+.st-modal-root .st-m-image-meta {
+    flex: 1 1 140px;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--st-text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.st-modal-root .st-m-field-image .st-m-btn {
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
 }
 
 @container (max-width: 440px) {

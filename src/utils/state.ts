@@ -139,6 +139,12 @@ export interface ThemeConfig {
     pageBgOverlay: boolean;
     pageBgColor: string;
     pageBgOpacity: number;
+    pageBgImageEnabled: boolean;
+    pageBgImage: string;
+    pageBgImageFit: string;
+    pageBgImagePosition: string;
+    pageBgImageBlur: number;
+    pageBgImageDim: number;
 
     sltStylingEnabled: boolean;
     sltTranslationOpacity: number;
@@ -264,6 +270,12 @@ export const DEFAULT_THEME: ThemeConfig = {
     pageBgOverlay: true,
     pageBgColor: '#000000',
     pageBgOpacity: 0.5,
+    pageBgImageEnabled: false,
+    pageBgImage: '',
+    pageBgImageFit: 'cover',
+    pageBgImagePosition: 'center',
+    pageBgImageBlur: 0,
+    pageBgImageDim: 0.3,
 
     sltStylingEnabled: true,
     sltTranslationOpacity: 0.8,
@@ -687,6 +699,8 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     sungLineOpacity: [0, 1],
     notSungLineOpacity: [0, 1],
     pageBgOpacity: [0, 1],
+    pageBgImageBlur: [0, 40],
+    pageBgImageDim: [0, 1],
     sltTranslationOpacity: [0, 1],
     blurAmount: [0, 8],
     blurPreviewLines: [0, 5],
@@ -744,6 +758,7 @@ const COLOR_KEYS: (keyof ThemeConfig)[] = [
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 const RGB_COLOR_RE = /^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(?:,\s*[\d.]+\s*)?\)$/;
 const FONT_NAME_RE = /^[A-Za-z0-9 ,'"._-]*$/;
+const BG_IMAGE_ID_RE = /^[a-z0-9-]{0,64}$/;
 
 function sanitizeColor(value: unknown, fallback: string): string {
     if (typeof value !== 'string') return fallback;
@@ -765,6 +780,9 @@ export function sanitizeThemeString<K extends keyof ThemeConfig>(key: K, value: 
     }
     if (key === 'fontFamily' || key === 'sltTranslationFont') {
         return sanitizeFont(value, DEFAULT_THEME[key] as string) as ThemeConfig[K];
+    }
+    if (key === 'pageBgImage') {
+        return (BG_IMAGE_ID_RE.test(value) ? value : '') as ThemeConfig[K];
     }
     return value;
 }
@@ -820,6 +838,18 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
 
     if (!['none', 'uppercase', 'lowercase', 'capitalize'].includes(normalized.textTransform)) {
         normalized.textTransform = 'none';
+    }
+
+    if (typeof normalized.pageBgImage !== 'string' || !BG_IMAGE_ID_RE.test(normalized.pageBgImage)) {
+        normalized.pageBgImage = '';
+    }
+
+    if (!['cover', 'contain', 'stretch', 'tile'].includes(normalized.pageBgImageFit)) {
+        normalized.pageBgImageFit = 'cover';
+    }
+
+    if (!['center', 'top', 'bottom', 'left', 'right'].includes(normalized.pageBgImagePosition)) {
+        normalized.pageBgImagePosition = 'center';
     }
 
     normalized.lineHeight = Math.round(normalized.lineHeight * 100) / 100;

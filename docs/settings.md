@@ -70,6 +70,10 @@ Every setting below lives in the **Customize** tab of the settings modal, groupe
 | Setting | What it does |
 |---|---|
 | Background tint | Color wash over the album-art background, with adjustable strength. |
+| Custom background image | Replaces Spicy Lyrics' own background (album colors, artist header, or animated art) with a picture you upload. Music videos still play over it when one is available. |
+| Image | Choose, replace, or remove the picture. Anything larger than 4K is scaled down; GIFs are kept as-is. It's saved on this device only, so exports and shared themes don't carry it. |
+| Fit / Focus point | Fill, fit, stretch, or tile — and which part stays in view when the image is cropped. |
+| Blur / Dimming | Soften and darken the image so lyrics stay readable. |
 | Synced music videos | Plays the track's music video behind the lyrics when one is available. |
 | Also in compact player | Extends videos to the compact player. |
 | Video dimming | Darkens the video so lyrics stay readable. |

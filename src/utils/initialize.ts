@@ -5,6 +5,7 @@ import { isSpicyLyricsOpen, onSpicyLyricsOpen, onSpicyLyricsClose, createThemeBu
 import { startUpdateChecker, checkForUpdates, getUpdateInfo, VERSION, showPostUpdateChangelog } from './updater';
 import { initConnectivity, getConnectivityState } from './connectivity';
 import { setDebugMode, isDebugEnabled } from './debug';
+import { updateBackgroundImage, backgroundImageNeedsMount } from './backgroundImage';
 
 
 const INIT_STATE_KEY = '__spicyThemesInitState';
@@ -89,6 +90,9 @@ export async function initialize(): Promise<void> {
                     startBlurPreviewObserver();
                     updateEqualizer();
                     updateMusicVideo();
+                }
+                if (pageChanged || backgroundImageNeedsMount()) {
+                    updateBackgroundImage();
                 }
                 updateThemeCredit();
             }
