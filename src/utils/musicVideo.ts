@@ -83,6 +83,7 @@ let lastModeCheck = 0;
 let lastStatePlayAttempt = 0;
 let lastStatePauseAttempt = 0;
 let allowCompact = false;
+let allowFullscreenCompact = false;
 let compactBlocked = false;
 
 async function fetchWithTimeout(url: string, timeout: number = FETCH_TIMEOUT): Promise<Response> {
@@ -359,17 +360,27 @@ function spotifyHasOwnVideo(): boolean {
     return false;
 }
 
+function isFullscreenCompact(page: Element): boolean {
+    if (!page.classList.contains('Fullscreen')) return false;
+    if (page.closest('.spicy-pip-wrapper')) return false;
+    return page.classList.contains('CompactMode') || page.classList.contains('ForcedCompactMode');
+}
+
 function isCompactBlocked(): boolean {
     if (allowCompact) return false;
     const page = document.querySelector('#SpicyLyricsPage');
     if (!page) return false;
-    return page.classList.contains('CardMode') || page.classList.contains('CompactMode');
+    if (page.classList.contains('CardMode')) return true;
+    if (!page.classList.contains('CompactMode') && !page.classList.contains('ForcedCompactMode')) return false;
+    return !(allowFullscreenCompact && isFullscreenCompact(page));
 }
 
-export function setMusicVideoCompactAllowed(allowed: boolean): void {
+export function setMusicVideoCompactAllowed(allowed: boolean, fullscreenAllowed?: boolean): void {
     const next = !!allowed;
-    if (next === allowCompact) return;
+    const nextFullscreen = !!fullscreenAllowed;
+    if (next === allowCompact && nextFullscreen === allowFullscreenCompact) return;
     allowCompact = next;
+    allowFullscreenCompact = nextFullscreen;
     if (!running) return;
     compactBlocked = isCompactBlocked();
     if (compactBlocked) teardownSource();

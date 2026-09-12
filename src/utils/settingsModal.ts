@@ -195,6 +195,7 @@ export const SCHEMA: FieldDef[] = [
     { id: 'pageBgOpacity', label: 'Tint strength', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'pageBgOverlay', when: (t) => t.pageBgOverlay },
     { id: 'musicVideoEnabled', label: 'Synced music videos', type: 'toggle', section: 'Background', hint: 'Plays the track’s music video behind the lyrics when one is available.', keywords: 'video clip mv youtube background' },
     { id: 'musicVideoCompact', label: 'Also in compact player', type: 'toggle', section: 'Background', parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled },
+    { id: 'musicVideoFullscreenCompact', label: 'Also in fullscreen compact', type: 'toggle', section: 'Background', parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled && !t.musicVideoCompact, hint: 'Keeps the video behind the compact layout while fullscreen, without turning it on for the windowed or popout player.', keywords: 'fullscreen compact video' },
     { id: 'musicVideoDim', label: 'Video dimming', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled, hint: 'Darkens the video so lyrics stay readable.' },
 
     { id: 'playerStylingEnabled', label: 'Restyle the player', type: 'toggle', section: 'Now Playing bar', hint: 'Unlocks the controls below for the Spicy Lyrics player bar.', keywords: 'nowbar controls player' },
@@ -217,6 +218,8 @@ export const SCHEMA: FieldDef[] = [
     { id: 'eqColor', label: 'Colour', type: 'color', section: 'Equalizer', parent: 'eqEnabled', when: (t) => t.eqEnabled },
     { id: 'eqSize', label: 'Size', type: 'slider', section: 'Equalizer', min: 0.4, max: 2.5, step: 0.05, unit: 'x', parent: 'eqEnabled', when: (t) => t.eqEnabled },
     { id: 'eqSpeed', label: 'Speed', type: 'slider', section: 'Equalizer', min: 0.3, max: 3.0, step: 0.1, unit: 'x', parent: 'eqEnabled', when: (t) => t.eqEnabled },
+    { id: 'eqStereoSpread', label: 'Stereo spread', type: 'toggle', section: 'Equalizer', parent: 'eqEnabled', when: (t) => t.eqEnabled && t.eqPosition === 'both', hint: 'Offsets the two sides in time and spectrum so they move independently instead of mirroring each other. Spotify only publishes a mono analysis, so this is a stereo-style spread rather than real left and right channels.', keywords: 'stereo channel split independent dual separate' },
+    { id: 'eqStereoAmount', label: 'Spread amount', type: 'slider', section: 'Equalizer', min: 0.1, max: 1.0, step: 0.05, parent: 'eqStereoSpread', when: (t) => t.eqEnabled && t.eqPosition === 'both' && t.eqStereoSpread },
 
     { id: 'sltStylingEnabled', label: 'Style translated lines', type: 'toggle', section: 'Translation', hint: 'Requires the Spicy Lyrics Translator extension. Styles the translation lines it adds.', keywords: 'slt translator subtitle' },
     { id: 'sltTranslationFont', label: 'Font', type: 'dropdown', section: 'Translation', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },

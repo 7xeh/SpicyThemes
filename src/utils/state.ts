@@ -198,6 +198,7 @@ export interface ThemeConfig {
 
     musicVideoEnabled: boolean;
     musicVideoCompact: boolean;
+    musicVideoFullscreenCompact: boolean;
     musicVideoDim: number;
 
     eqEnabled: boolean;
@@ -206,6 +207,8 @@ export interface ThemeConfig {
     eqColor: string;
     eqSize: number;
     eqSpeed: number;
+    eqStereoSpread: boolean;
+    eqStereoAmount: number;
 }
 
 export const DEFAULT_THEME: ThemeConfig = {
@@ -320,6 +323,7 @@ export const DEFAULT_THEME: ThemeConfig = {
 
     musicVideoEnabled: false,
     musicVideoCompact: false,
+    musicVideoFullscreenCompact: false,
     musicVideoDim: 0.3,
 
     eqEnabled: false,
@@ -328,6 +332,8 @@ export const DEFAULT_THEME: ThemeConfig = {
     eqColor: '#ffffff',
     eqSize: 1.0,
     eqSpeed: 1.0,
+    eqStereoSpread: false,
+    eqStereoAmount: 0.6,
 };
 
 export interface ThemePreset {

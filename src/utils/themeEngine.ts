@@ -1218,7 +1218,7 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
 }
 `);
         if (!config.musicVideoCompact) {
-            const compactScopes = ['CardMode', 'CompactMode'];
+            const compactScopes = ['CardMode', config.musicVideoFullscreenCompact ? 'CompactMode:not(.Fullscreen)' : 'CompactMode'];
             css.push(`
 ${compactScopes.map(c => `#SpicyLyricsPage.${c} #${MUSIC_VIDEO_ID}`).join(',\n')} {
     display: none !important;
@@ -1754,7 +1754,7 @@ function removeThemeCredit(): void {
 export function updateMusicVideo(): void {
     try {
         if (themeState.isEnabled && themeState.activeTheme.musicVideoEnabled) {
-            setMusicVideoCompactAllowed(themeState.activeTheme.musicVideoCompact);
+            setMusicVideoCompactAllowed(themeState.activeTheme.musicVideoCompact, themeState.activeTheme.musicVideoFullscreenCompact);
             startMusicVideo();
             refreshMusicVideoLayer();
         } else {
