@@ -18,7 +18,8 @@ import {
 } from './state';
 import { injectThemeStyles } from './themeEngine';
 import { saveBackgroundImage, pruneBackgroundImages, getCachedBackgroundUrl, getBackgroundImageUrl, getBackgroundImageInfo, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
-import { checkForUpdates, getCurrentVersion, getDisplayHash, getUpdateInfo } from './updater';
+import { getCurrentVersion, getDisplayHash, runManualUpdateCheck } from './updater';
+import { hideModal } from './modal';
 import * as Marketplace from './marketplace';
 
 export type FieldType = 'toggle' | 'color' | 'slider' | 'dropdown' | 'text' | 'image';
@@ -1377,35 +1378,13 @@ function buildAboutTab(): HTMLElement {
     });
 
     const checkBtn = tab.querySelector('#st-m-check') as HTMLButtonElement;
-    checkBtn.addEventListener('click', async () => {
-        checkBtn.disabled = true;
-        checkBtn.textContent = 'Checking...';
-        try {
-            const info = await getUpdateInfo();
-            if (!info) throw new Error('No metadata');
-            if (info.hasUpdate) {
-                notify(`Update available: v${info.latestVersion}! Updating...`);
-                await checkForUpdates(true);
-            } else {
-                let hotfix = false;
-                try {
-                    const metadata = (window as any)._spicy_themes_metadata;
-                    if (metadata?.utils?.runHotfixCheck) {
-                        hotfix = await metadata.utils.runHotfixCheck(true);
-                    }
-                } catch (_) {}
-                if (hotfix) {
-                    notify('Hotfix found! Reloading...');
-                } else {
-                    notify("You're on the latest version");
-                }
+    checkBtn.addEventListener('click', () => {
+        runManualUpdateCheck(checkBtn, {
+            beforePrompt: async () => {
+                hideModal();
+                await new Promise(resolve => setTimeout(resolve, 300));
             }
-        } catch {
-            notify('Failed to check for updates', true);
-        } finally {
-            checkBtn.disabled = false;
-            checkBtn.textContent = 'Check for updates';
-        }
+        });
     });
 
     return tab;

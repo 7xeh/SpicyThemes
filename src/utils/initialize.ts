@@ -133,7 +133,7 @@ export async function initialize(): Promise<void> {
                 injectThemeStyles();
             }
         },
-        checkForUpdates: () => checkForUpdates(true),
+        checkForUpdates: () => checkForUpdates({ trigger: 'manual' }),
         getUpdateInfo,
         getConnectivityState,
         setDebugMode,

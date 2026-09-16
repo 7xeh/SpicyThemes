@@ -1,7 +1,7 @@
 import { storage } from './storage';
 import { themeState, saveThemeState, applyPreset, getAllPresets, saveCustomPreset, deleteCustomPreset, updateThemeProperty, mergeThemeConfig, BUILTIN_PRESETS } from './state';
 import { injectThemeStyles } from './themeEngine';
-import { checkForUpdates, getCurrentVersion, getUpdateInfo } from './updater';
+import { getCurrentVersion, runManualUpdateCheck } from './updater';
 import { createSettingsModal, SCHEMA, FONT_OPTIONS, FieldDef } from './settingsModal';
 import { displayModal } from './modal';
 import { ThemeConfig } from './state';
@@ -50,43 +50,6 @@ function settingsHeadingClass(): string {
         '.x-settings-section h2',
         'encore-text-body-medium-bold encore-internal-color-text-base'
     );
-}
-
-async function handleManualUpdateCheck(button: HTMLButtonElement, idleText: string): Promise<void> {
-    button.disabled = true;
-    button.textContent = 'Checking...';
-
-    try {
-        const info = await getUpdateInfo();
-        if (!info) {
-            throw new Error('Failed to fetch update metadata');
-        }
-
-        if (info.hasUpdate) {
-            if (Spicetify.showNotification) {
-                Spicetify.showNotification(`Update available: v${info.latestVersion}! Updating...`);
-            }
-            await checkForUpdates(true);
-        } else {
-            let hotfix = false;
-            try {
-                const metadata = (window as any)._spicy_themes_metadata;
-                if (metadata?.utils?.runHotfixCheck) {
-                    hotfix = await metadata.utils.runHotfixCheck(true);
-                }
-            } catch (_) {}
-            if (Spicetify.showNotification) {
-                Spicetify.showNotification(hotfix ? 'Hotfix found! Reloading...' : 'You\'re on the latest version!');
-            }
-        }
-    } catch (e) {
-        if (Spicetify.showNotification) {
-            Spicetify.showNotification('Failed to check for updates', true);
-        }
-    } finally {
-        button.disabled = false;
-        button.textContent = idleText;
-    }
 }
 
 function createColorRow(id: string, label: string, currentValue: string, onChange: (value: string) => void): HTMLElement {
@@ -476,7 +439,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         async () => {
             const btn = document.getElementById('st-settings.check-updates') as HTMLButtonElement | null;
             if (!btn) return;
-            await handleManualUpdateCheck(btn, 'Check Now');
+            await runManualUpdateCheck(btn);
         }
     ));
 

@@ -7,11 +7,6 @@
     const STORAGE_PREFIX = 'spicy-themes:';
     const DEBUG_MODE = localStorage.getItem(STORAGE_PREFIX + 'debug-mode') === 'true';
 
-    const HOTFIX_CHECK_INTERVAL_MS = 30 * 60 * 1000;
-    const HOTFIX_FULL_CHECK_INTERVAL_MS = 2 * 60 * 1000;
-    const HOTFIX_INITIAL_DELAY_MS = 5 * 60 * 1000;
-    const HOTFIX_JITTER_MS = 60 * 1000;
-
     const log = {
         debug: (...args) => DEBUG_MODE && console.log('[ST-Loader]', ...args),
         info: (...args) => console.log('[ST-Loader]', ...args),
@@ -75,7 +70,7 @@
 
         return {
             version,
-            hash: data.hash || data.sha256 || data.checksum || null,
+            hash: String(data.hash || data.sha256 || data.checksum || '').toLowerCase() || null,
             downloadUrl: data.download_url || ''
         };
     };
@@ -93,7 +88,7 @@
         const jsAsset = Array.isArray(release.assets)
             ? release.assets.find(asset => typeof asset?.name === 'string' && asset.name.endsWith('.js'))
             : null;
-        const hash = jsAsset?.digest ? String(jsAsset.digest).replace(/^sha256:/i, '') : null;
+        const hash = jsAsset?.digest ? String(jsAsset.digest).replace(/^sha256:/i, '').toLowerCase() : null;
 
         return {
             version,
@@ -159,10 +154,6 @@
         if (contentHash) storageSet('content-hash', contentHash);
         storageSet('loaded-version', version);
 
-        if (isHotfix) {
-            storageSet('hotfix-detected', 'true');
-        }
-
         window._spicy_themes_metadata = {
             LoadedVersion: version,
             LoadedAt: Date.now(),
@@ -170,7 +161,6 @@
             ContentHash: contentHash,
             IsHotfix: isHotfix,
             utils: {
-                runHotfixCheck: (force) => runHotfixCheck(force),
                 log
             }
         };
@@ -186,100 +176,6 @@
         } else {
             log.info(`Loaded v${version}${hashTag}`);
         }
-    };
-
-    let hotfixTimer = null;
-    let lastFullCheckTime = 0;
-
-    const scheduleHotfixCheck = (delayMs) => {
-        if (hotfixTimer) clearTimeout(hotfixTimer);
-        const jitter = Math.floor(Math.random() * HOTFIX_JITTER_MS);
-        hotfixTimer = setTimeout(runHotfixCheck, delayMs + jitter);
-    };
-
-    const runHotfixCheck = async (force = false) => {
-        if (!force && document.hidden) {
-            scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-            return false;
-        }
-
-        try {
-            const info = await getVersionInfo();
-            const currentVersion = storageGet('loaded-version');
-            const currentHash = storageGet('content-hash');
-
-            if (!currentVersion || !currentHash) {
-                if (!force) scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-                return false;
-            }
-
-            if (info.version !== currentVersion) {
-                log.debug(`Version change detected: ${currentVersion} → ${info.version}, deferring to updater`);
-                if (!force) scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-                return false;
-            }
-
-            if (!force && info.hash) {
-                if (info.hash === currentHash) {
-                    log.debug('No hotfix (API hash match)');
-                    scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-                    return false;
-                }
-
-                log.info(`Hotfix detected via API for v${info.version}! Reloading...`);
-                storageSet('hotfix-detected', 'true');
-                window.location.reload();
-                return true;
-            }
-
-            const now = Date.now();
-            if (!force && now - lastFullCheckTime < HOTFIX_FULL_CHECK_INTERVAL_MS) {
-                log.debug('Skipping full hotfix check (too recent)');
-                scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-                return false;
-            }
-
-            lastFullCheckTime = now;
-            log.debug(`Running ${force ? 'forced ' : ''}full hotfix check for v${info.version}...`);
-
-            const hotfixUrlBase = info.downloadUrl || `${EXTENSION_BASE_URL}/versions/v${info.version}/spicy-themes.js`;
-            const url = `${hotfixUrlBase}${hotfixUrlBase.includes('?') ? '&' : '?'}_=${now}`;
-            const resp = await fetch(url, { cache: 'no-store' });
-            if (!resp.ok) {
-                if (!force) scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-                return false;
-            }
-
-            const code = await resp.text();
-            const newHash = await computeSHA256(code);
-
-            if (newHash && newHash !== currentHash) {
-                log.info(`Hotfix detected for v${info.version}! [${currentHash.substring(0, 8)} → ${newHash.substring(0, 8)}] Reloading...`);
-                storageSet('content-hash', newHash);
-                storageSet('hotfix-detected', 'true');
-                window.location.reload();
-                return true;
-            }
-
-            log.debug('No hotfix (content hash match)');
-        } catch (e) {
-            log.debug('Hotfix check failed:', e);
-        }
-
-        if (!force) scheduleHotfixCheck(HOTFIX_CHECK_INTERVAL_MS);
-        return false;
-    };
-
-    const startHotfixChecker = () => {
-        scheduleHotfixCheck(HOTFIX_INITIAL_DELAY_MS);
-
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                scheduleHotfixCheck(5000);
-            }
-        });
-
-        log.debug('Hotfix checker initialized');
     };
 
     const showError = (message) => {
@@ -341,7 +237,6 @@
             try {
                 const info = await getVersionInfo();
                 await loadExtension(info.version, info.downloadUrl || '', info.hash);
-                startHotfixChecker();
                 return;
             } catch (err) {
                 lastError = err;
