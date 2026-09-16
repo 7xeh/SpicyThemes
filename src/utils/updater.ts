@@ -47,7 +47,6 @@ const SCHEDULE_JITTER_MS = 2 * 60 * 1000;
 const SNOOZE_MS = 12 * 60 * 60 * 1000;
 const PENDING_TTL_MS = 60 * 60 * 1000;
 const APPLIED_MODAL_DELAY_MS = 2000;
-const SERVER_RELEASE_TTL_MS = 5 * 60 * 1000;
 
 const STORAGE_KEYS = {
     pending: 'pending-update',
@@ -105,8 +104,6 @@ let currentCheckIntervalMs = DEFAULT_CHECK_INTERVAL_MS;
 let currentBackoffMs = 0;
 let checkTimer: number | null = null;
 let schedulerStarted = false;
-let serverReleaseCache: { release: RemoteRelease; at: number } | null = null;
-const changelogRequests = new Map<string, Promise<string>>();
 
 export function parseVersion(version: string): VersionInfo | null {
     if (typeof version !== 'string') return null;
@@ -254,48 +251,17 @@ async function fetchGitHubLatestRelease(): Promise<RemoteRelease | null> {
     };
 }
 
-async function getServerRelease(): Promise<RemoteRelease | null> {
-    if (serverReleaseCache && Date.now() - serverReleaseCache.at < SERVER_RELEASE_TTL_MS) {
-        return serverReleaseCache.release;
-    }
-    const release = await fetchSelfHostedRelease();
-    serverReleaseCache = release ? { release, at: Date.now() } : null;
-    return release;
-}
-
 export async function fetchRemoteRelease(): Promise<RemoteRelease | null> {
-    serverReleaseCache = null;
-    return (await getServerRelease()) || (await fetchGitHubLatestRelease());
+    return (await fetchSelfHostedRelease()) || (await fetchGitHubLatestRelease());
 }
 
-async function loadChangelog(version: string, allowLatestFallback: boolean): Promise<string> {
-    const server = await getServerRelease();
-    if (server) {
-        if (server.version.text === version || allowLatestFallback) return server.changelog;
-        return '';
-    }
-
+async function fetchChangelogForVersion(version: string, allowLatestFallback: boolean = true): Promise<string> {
     const tagged = await fetchGitHubRelease(`tags/v${encodeURIComponent(version)}`);
     if (tagged?.body) return tagged.body;
     if (!allowLatestFallback) return '';
 
     const latest = await fetchGitHubRelease('latest');
     return latest?.body || '';
-}
-
-function fetchChangelogForVersion(version: string, allowLatestFallback: boolean = true): Promise<string> {
-    const key = `${version}:${allowLatestFallback}`;
-    const cached = changelogRequests.get(key);
-    if (cached) return cached;
-
-    const request = loadChangelog(version, allowLatestFallback)
-        .catch(() => '')
-        .then(changelog => {
-            if (!changelog) changelogRequests.delete(key);
-            return changelog;
-        });
-    changelogRequests.set(key, request);
-    return request;
 }
 
 async function detectHotfixHash(remote: RemoteRelease, trigger: UpdateTrigger): Promise<string | null> {
