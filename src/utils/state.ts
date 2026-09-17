@@ -352,6 +352,18 @@ export interface ThemePreset {
     name: string;
     description: string;
     config: ThemeConfig;
+    sourceId?: string;
+    sourceVersion?: number;
+    sourceName?: string;
+    sourceFingerprint?: string;
+    sourceRemoved?: boolean;
+}
+
+export interface ThemeSource {
+    id: string;
+    version: number;
+    name: string;
+    fingerprint?: string;
 }
 
 export const BUILTIN_PRESETS: ThemePreset[] = [
@@ -692,6 +704,11 @@ export interface ThemeState {
     activePresetName: string;
     customPresets: ThemePreset[];
     isEnabled: boolean;
+    activeBasePreset?: string;
+    activeSourceId?: string;
+    activeSourceVersion?: number;
+    activeSourceName?: string;
+    activeSourceFingerprint?: string;
 }
 
 const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
@@ -892,12 +909,68 @@ export function mergeThemeConfig(raw: Partial<ThemeConfig> | null | undefined): 
     return normalizeThemeConfig(merged);
 }
 
+export function themeFingerprint(config: Partial<ThemeConfig> | null | undefined): string {
+    if (!config) return '';
+    let hash = 0x811c9dc5;
+    for (const key of Object.keys(config).sort()) {
+        const value = (config as Record<string, unknown>)[key];
+        if (value === undefined) continue;
+        const chunk = key + '=' + (typeof value === 'object' ? JSON.stringify(value) : String(value)) + ';';
+        for (let i = 0; i < chunk.length; i++) {
+            hash ^= chunk.charCodeAt(i);
+            hash = Math.imul(hash, 0x01000193);
+        }
+    }
+    return (hash >>> 0).toString(16);
+}
+
+function sanitizePreset(raw: unknown): ThemePreset | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const src = raw as Record<string, unknown>;
+    if (typeof src.name !== 'string' || !src.name) return null;
+    const preset: ThemePreset = {
+        name: src.name,
+        description: typeof src.description === 'string' ? src.description : '',
+        config: mergeThemeConfig(src.config as Partial<ThemeConfig> | null),
+    };
+    if (typeof src.sourceId === 'string' && src.sourceId) preset.sourceId = src.sourceId;
+    if (typeof src.sourceVersion === 'number' && isFinite(src.sourceVersion)) preset.sourceVersion = src.sourceVersion;
+    if (typeof src.sourceName === 'string' && src.sourceName) preset.sourceName = src.sourceName;
+    if (typeof src.sourceFingerprint === 'string' && src.sourceFingerprint) preset.sourceFingerprint = src.sourceFingerprint;
+    if (src.sourceRemoved === true) preset.sourceRemoved = true;
+    return preset;
+}
+
+export function sanitizeCustomPresets(raw: unknown): ThemePreset[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.map(sanitizePreset).filter((p): p is ThemePreset => p !== null);
+}
+
+export function sanitizeThemeSource(raw: unknown): ThemeSource | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const src = raw as Record<string, unknown>;
+    if (typeof src.id !== 'string' || !src.id) return null;
+    return {
+        id: src.id,
+        version: typeof src.version === 'number' && isFinite(src.version) ? src.version : 1,
+        name: typeof src.name === 'string' ? src.name : '',
+        fingerprint: typeof src.fingerprint === 'string' && src.fingerprint ? src.fingerprint : undefined,
+    };
+}
+
 function loadCustomPresets(): ThemePreset[] {
     try {
         const raw = storage.get('custom-presets');
-        if (raw) return JSON.parse(raw);
+        if (raw) return sanitizeCustomPresets(JSON.parse(raw));
     } catch (e) {}
     return [];
+}
+
+function loadStoredNumber(key: string): number | undefined {
+    const raw = storage.get(key);
+    if (raw === null || raw === '') return undefined;
+    const parsed = Number(raw);
+    return isFinite(parsed) ? parsed : undefined;
 }
 
 function loadActiveTheme(): ThemeConfig {
@@ -915,32 +988,76 @@ export const themeState: ThemeState = {
     activePresetName: storage.get('active-preset') || 'Default',
     customPresets: loadCustomPresets(),
     isEnabled: storage.get('enabled') !== 'false',
+    activeBasePreset: storage.get('active-base-preset') || undefined,
+    activeSourceId: storage.get('active-source-id') || undefined,
+    activeSourceVersion: loadStoredNumber('active-source-version'),
+    activeSourceName: storage.get('active-source-name') || undefined,
+    activeSourceFingerprint: storage.get('active-source-fingerprint') || undefined,
 };
+
+function persistOptional(key: string, value: string | number | undefined): void {
+    if (value === undefined || value === '') {
+        storage.remove(key);
+        return;
+    }
+    storage.set(key, String(value));
+}
 
 export function saveThemeState(): void {
     storage.set('active-theme', JSON.stringify(themeState.activeTheme));
     storage.set('active-preset', themeState.activePresetName);
     storage.set('custom-presets', JSON.stringify(themeState.customPresets));
     storage.set('enabled', String(themeState.isEnabled));
+    persistOptional('active-base-preset', themeState.activeBasePreset);
+    persistOptional('active-source-id', themeState.activeSourceId);
+    persistOptional('active-source-version', themeState.activeSourceVersion);
+    persistOptional('active-source-name', themeState.activeSourceName);
+    persistOptional('active-source-fingerprint', themeState.activeSourceFingerprint);
+}
+
+export function setActiveSource(source: ThemeSource | null): void {
+    themeState.activeSourceId = source ? source.id : undefined;
+    themeState.activeSourceVersion = source ? source.version : undefined;
+    themeState.activeSourceName = source ? source.name : undefined;
+    themeState.activeSourceFingerprint = source ? source.fingerprint : undefined;
+}
+
+export function presetSource(preset: ThemePreset): ThemeSource | null {
+    if (!preset.sourceId) return null;
+    return {
+        id: preset.sourceId,
+        version: preset.sourceVersion ?? 1,
+        name: preset.sourceName || preset.name,
+        fingerprint: preset.sourceFingerprint,
+    };
 }
 
 export function applyPreset(preset: ThemePreset): void {
     themeState.activeTheme = mergeThemeConfig(preset.config);
     themeState.activePresetName = preset.name;
+    themeState.activeBasePreset = preset.name;
+    setActiveSource(presetSource(preset));
     saveThemeState();
+}
+
+export function activeBaseName(): string {
+    return themeState.activeBasePreset || themeState.activePresetName;
 }
 
 export function getAllPresets(): ThemePreset[] {
     return [...BUILTIN_PRESETS, ...themeState.customPresets];
 }
 
-export function saveCustomPreset(name: string, description: string): void {
-    const existing = themeState.customPresets.findIndex(p => p.name === name);
-    const preset: ThemePreset = {
-        name,
-        description,
-        config: { ...themeState.activeTheme }
-    };
+export function findCustomPresetIndex(name: string, sourceId?: string): number {
+    if (sourceId) {
+        const byId = themeState.customPresets.findIndex(p => p.sourceId === sourceId);
+        if (byId >= 0) return byId;
+    }
+    return themeState.customPresets.findIndex(p => p.name === name && !(sourceId && p.sourceId));
+}
+
+export function upsertCustomPreset(preset: ThemePreset): void {
+    const existing = findCustomPresetIndex(preset.name, preset.sourceId);
     if (existing >= 0) {
         themeState.customPresets[existing] = preset;
     } else {
@@ -949,10 +1066,43 @@ export function saveCustomPreset(name: string, description: string): void {
     saveThemeState();
 }
 
-export function deleteCustomPreset(name: string): boolean {
-    const index = themeState.customPresets.findIndex(p => p.name === name);
+export function saveCustomPreset(name: string, description: string, source?: ThemeSource | null): void {
+    const existing = findCustomPresetIndex(name, source?.id);
+    const preset: ThemePreset = {
+        name,
+        description,
+        config: { ...themeState.activeTheme }
+    };
+    if (source) {
+        preset.sourceId = source.id;
+        preset.sourceVersion = source.version;
+        preset.sourceName = source.name;
+        preset.sourceFingerprint = source.fingerprint;
+    } else if (existing >= 0) {
+        const prev = themeState.customPresets[existing];
+        preset.sourceId = prev.sourceId;
+        preset.sourceVersion = prev.sourceVersion;
+        preset.sourceName = prev.sourceName;
+        preset.sourceFingerprint = prev.sourceFingerprint;
+        preset.sourceRemoved = prev.sourceRemoved;
+    }
+    if (existing >= 0) {
+        themeState.customPresets[existing] = preset;
+    } else {
+        themeState.customPresets.push(preset);
+    }
+    themeState.activeBasePreset = name;
+    themeState.activePresetName = name;
+    saveThemeState();
+}
+
+export function deleteCustomPreset(name: string, sourceId?: string): boolean {
+    const index = sourceId
+        ? themeState.customPresets.findIndex(p => p.sourceId === sourceId)
+        : themeState.customPresets.findIndex(p => p.name === name && !p.sourceId);
     if (index >= 0) {
-        themeState.customPresets.splice(index, 1);
+        const [removed] = themeState.customPresets.splice(index, 1);
+        if (themeState.activeBasePreset === removed.name) themeState.activeBasePreset = undefined;
         saveThemeState();
         return true;
     }

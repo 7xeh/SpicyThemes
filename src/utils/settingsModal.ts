@@ -4,8 +4,13 @@ import {
     saveThemeState,
     applyPreset,
     getAllPresets,
+    activeBaseName,
     saveCustomPreset,
     deleteCustomPreset,
+    upsertCustomPreset,
+    setActiveSource,
+    sanitizeCustomPresets,
+    sanitizeThemeSource,
     updateThemeProperty,
     mergeThemeConfig,
     DEFAULT_THEME,
@@ -21,6 +26,16 @@ import { saveBackgroundImage, pruneBackgroundImages, getCachedBackgroundUrl, get
 import { getCurrentVersion, getDisplayHash, runManualUpdateCheck } from './updater';
 import { hideModal } from './modal';
 import * as Marketplace from './marketplace';
+import {
+    scanForUpdates,
+    presetUpdate,
+    activeThemeUpdate,
+    presetHasLocalChanges,
+    activeThemeHasLocalChanges,
+    updatePresetFromSource,
+    updateActiveThemeFromSource,
+    downloadThemeWithSource,
+} from './themeUpdates';
 
 export type FieldType = 'toggle' | 'color' | 'slider' | 'dropdown' | 'text' | 'image';
 
@@ -267,8 +282,19 @@ function resolveBaseline(): void {
         baseline = { name: 'default', config: DEFAULT_THEME };
         return;
     }
-    const match = getAllPresets().find(p => p.name === themeState.activePresetName);
+    if (!themeState.activeBasePreset) {
+        const exact = getAllPresets().find(p => changedFieldCount(p.config) === 0);
+        if (exact) {
+            themeState.activeBasePreset = exact.name;
+            saveThemeState();
+        }
+    }
+    const match = getAllPresets().find(p => p.name === activeBaseName());
     if (match) baseline = { name: match.name, config: match.config };
+}
+
+function changedFieldCount(config: ThemeConfig): number {
+    return SCHEMA.filter(d => themeState.activeTheme[d.id] !== config[d.id]).length;
 }
 
 let liveContainer: HTMLElement | null = null;
@@ -289,6 +315,67 @@ function notify(message: string, isError = false): void {
     if (typeof Spicetify !== 'undefined' && Spicetify.showNotification) {
         Spicetify.showNotification(message, isError);
     }
+}
+
+function askInlineConfirm(
+    host: HTMLElement,
+    opts: {
+        message: string;
+        action: string;
+        busy: string;
+        run: () => Promise<string>;
+        success: (result: string) => string;
+        done: () => void;
+    }
+): void {
+    const previous = Array.from(host.childNodes);
+
+    const restore = () => {
+        host.innerHTML = '';
+        previous.forEach(node => host.appendChild(node));
+    };
+
+    const strip = document.createElement('div');
+    strip.className = 'st-m-update-confirm';
+
+    const text = document.createElement('div');
+    text.className = 'st-m-update-confirm-text';
+    text.textContent = opts.message;
+
+    const row = document.createElement('div');
+    row.className = 'st-m-update-confirm-actions';
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'st-m-btn';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', restore);
+
+    const confirm = document.createElement('button');
+    confirm.type = 'button';
+    confirm.className = 'st-m-btn st-m-btn-primary';
+    confirm.textContent = opts.action;
+    confirm.addEventListener('click', async () => {
+        confirm.disabled = true;
+        cancel.disabled = true;
+        confirm.textContent = opts.busy;
+        try {
+            const result = await opts.run();
+            notify(opts.success(result));
+            opts.done();
+        } catch (e) {
+            notify(`${opts.action} failed: ${e instanceof Error ? e.message : 'Unknown error'}`, true);
+            restore();
+        }
+    });
+
+    row.appendChild(confirm);
+    row.appendChild(cancel);
+    strip.appendChild(text);
+    strip.appendChild(row);
+
+    host.innerHTML = '';
+    host.appendChild(strip);
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -1002,10 +1089,15 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
     grid.className = 'st-m-preset-grid';
 
     const all = getAllPresets();
+    const baseName = activeBaseName();
     all.forEach(preset => {
+        const isBase = preset.name === baseName;
+        const tweaks = isBase ? changedFieldCount(preset.config) : 0;
+        const isActive = isBase && tweaks === 0;
+        const isModified = isBase && tweaks > 0;
+
         const card = document.createElement('div');
-        const isActive = preset.name === themeState.activePresetName;
-        card.className = `st-m-preset-card${isActive ? ' active' : ''}`;
+        card.className = `st-m-preset-card${isActive ? ' active' : ''}${isModified ? ' modified' : ''}`;
         card.title = preset.description;
 
         const preview = document.createElement('div');
@@ -1015,22 +1107,84 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
         const meta = document.createElement('div');
         meta.className = 'st-m-preset-meta';
         const isCustom = !BUILTIN_PRESETS.some(b => b.name === preset.name);
+        const update = presetUpdate(preset);
         meta.innerHTML = `
-            <div class="st-m-preset-name">${escapeHtml(preset.name)}${isCustom ? ' <span class="st-m-preset-tag">custom</span>' : ''}</div>
+            <div class="st-m-preset-name">${escapeHtml(preset.name)}${isCustom ? ' <span class="st-m-preset-tag">custom</span>' : ''}${update ? ' <span class="st-m-preset-tag st-m-preset-tag-update">update</span>' : ''}${isModified ? ' <span class="st-m-preset-tag st-m-preset-tag-modified">modified</span>' : ''}</div>
             <div class="st-m-preset-desc">${escapeHtml(preset.description || '')}</div>
+            ${isModified ? `<div class="st-m-preset-note st-m-preset-note-edit">${tweaks} unsaved tweak${tweaks === 1 ? '' : 's'}</div>` : ''}
+            ${preset.sourceRemoved ? '<div class="st-m-preset-note">No longer on the Marketplace</div>' : ''}
         `;
 
         const actions = document.createElement('div');
         actions.className = 'st-m-preset-actions';
 
+        if (update) {
+            const updateBtn = document.createElement('button');
+            updateBtn.type = 'button';
+            updateBtn.className = 'st-m-btn st-m-btn-update';
+            updateBtn.textContent = 'Update available';
+            updateBtn.title = `Version ${update.version} is on the Marketplace`;
+            updateBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const label = preset.sourceName || preset.name;
+                askInlineConfirm(actions, {
+                    message: presetHasLocalChanges(preset)
+                        ? `Update "${label}"? This will replace your changes.`
+                        : `Update "${label}" to the latest version?`,
+                    action: 'Update',
+                    busy: 'Updating...',
+                    run: () => updatePresetFromSource(preset),
+                    success: (name) => `Updated "${name}" to the latest version`,
+                    done: refresh,
+                });
+            });
+            actions.appendChild(updateBtn);
+        }
+
+        const differs = isCustom ? changedFieldCount(preset.config) : 0;
+        if (isCustom && differs > 0) {
+            const overwrite = document.createElement('button');
+            overwrite.type = 'button';
+            overwrite.className = `st-m-btn${isModified ? ' st-m-btn-primary' : ''}`;
+            overwrite.textContent = isModified ? 'Save changes' : 'Overwrite';
+            overwrite.title = isModified
+                ? `Save your ${differs} tweak${differs === 1 ? '' : 's'} into "${preset.name}"`
+                : `Replace "${preset.name}" with the theme you have now`;
+            overwrite.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (isModified) {
+                    saveCustomPreset(preset.name, preset.description);
+                    resolveBaseline();
+                    notify(`Saved your changes to "${preset.name}"`);
+                    refresh();
+                    return;
+                }
+                askInlineConfirm(actions, {
+                    message: `Replace "${preset.name}" with your current theme? ${differs} setting${differs === 1 ? '' : 's'} differ and the saved version is lost.`,
+                    action: 'Overwrite',
+                    busy: 'Saving...',
+                    run: async () => {
+                        saveCustomPreset(preset.name, preset.description);
+                        resolveBaseline();
+                        return preset.name;
+                    },
+                    success: (name) => `Overwrote "${name}" with your current theme`,
+                    done: refresh,
+                });
+            });
+            actions.appendChild(overwrite);
+        }
+
         const apply = document.createElement('button');
-        apply.className = 'st-m-btn st-m-btn-primary';
-        apply.textContent = isActive ? 'Active' : 'Apply';
+        apply.className = `st-m-btn${isModified && isCustom ? '' : ' st-m-btn-primary'}`;
+        apply.textContent = isActive ? 'Active' : isModified ? 'Revert' : 'Apply';
         apply.disabled = isActive;
+        if (isModified) apply.title = `Discard your ${tweaks} tweak${tweaks === 1 ? '' : 's'} and go back to "${preset.name}"`;
         apply.addEventListener('click', () => {
             applyPreset(preset);
             resolveBaseline();
             injectThemeStyles();
+            if (isModified) notify(`Reverted to "${preset.name}"`);
             refresh();
         });
         actions.appendChild(apply);
@@ -1041,7 +1195,8 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
             del.textContent = 'Delete';
             del.addEventListener('click', (e) => {
                 e.stopPropagation();
-                deleteCustomPreset(preset.name);
+                deleteCustomPreset(preset.name, preset.sourceId);
+                resolveBaseline();
                 refresh();
             });
             actions.appendChild(del);
@@ -1056,7 +1211,7 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
     const saveBox = document.createElement('div');
     saveBox.className = 'st-m-save-preset';
     saveBox.innerHTML = `
-        <div class="st-m-section-title">Save current theme</div>
+        <div class="st-m-section-title">Save current theme as a new preset</div>
         <div class="st-m-save-row">
             <input type="text" class="st-m-text" id="st-m-save-name" placeholder="Preset name" maxlength="60">
             <input type="text" class="st-m-text" id="st-m-save-desc" placeholder="Description (optional)" maxlength="200">
@@ -1074,8 +1229,10 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
             nameInput.focus();
             return;
         }
+        const overwrites = themeState.customPresets.some(p => p.name === name);
         saveCustomPreset(name, descInput.value.trim());
-        notify(`Preset "${name}" saved`);
+        resolveBaseline();
+        notify(overwrites ? `Preset "${name}" overwritten` : `Preset "${name}" saved`);
         refresh();
     });
 
@@ -1153,14 +1310,17 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
                 apply.disabled = true;
                 apply.textContent = 'Applying...';
                 try {
-                    const data = await Marketplace.downloadTheme(t.id);
-                    themeState.activeTheme = mergeThemeConfig(data.theme);
-                    themeState.activePresetName = t.name;
-                    baseline = { name: t.name, config: { ...themeState.activeTheme } };
+                    const { config, source } = await downloadThemeWithSource(t.id);
+                    const name = source.name || t.name;
+                    themeState.activeTheme = config;
+                    themeState.activePresetName = name;
+                    themeState.activeBasePreset = name;
+                    setActiveSource(source);
+                    baseline = { name, config: { ...themeState.activeTheme } };
                     saveThemeState();
                     injectThemeStyles();
                     refresh();
-                    notify(`Applied "${t.name}" by ${t.author}`);
+                    notify(`Applied "${name}" by ${t.author}`);
                 } catch (e) {
                     notify(`Failed to apply: ${e instanceof Error ? e.message : 'Unknown error'}`, true);
                     apply.disabled = false;
@@ -1174,21 +1334,18 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
             savePreset.addEventListener('click', async () => {
                 savePreset.disabled = true;
                 try {
-                    const data = await Marketplace.downloadTheme(t.id);
-                    const presetName = t.name;
-                    const merged: ThemeConfig = mergeThemeConfig(data.theme);
+                    const { config, source, meta } = await downloadThemeWithSource(t.id);
+                    const presetName = source.name || t.name;
                     const preset: ThemePreset = {
                         name: presetName,
-                        description: t.description || `By ${t.author}`,
-                        config: merged,
+                        description: meta?.description || t.description || `By ${t.author}`,
+                        config,
+                        sourceId: source.id,
+                        sourceVersion: source.version,
+                        sourceName: presetName,
+                        sourceFingerprint: source.fingerprint,
                     };
-                    const existing = themeState.customPresets.findIndex(p => p.name === presetName);
-                    if (existing >= 0) {
-                        themeState.customPresets[existing] = preset;
-                    } else {
-                        themeState.customPresets.push(preset);
-                    }
-                    saveThemeState();
+                    upsertCustomPreset(preset);
                     notify(`Saved preset "${presetName}"`);
                 } catch (e) {
                     notify(`Failed to save: ${e instanceof Error ? e.message : 'Unknown error'}`, true);
@@ -1325,7 +1482,15 @@ function buildAboutTab(): HTMLElement {
         const data = JSON.stringify({
             theme: themeState.activeTheme,
             presets: themeState.customPresets,
-            presetName: themeState.activePresetName,
+            presetName: activeBaseName(),
+            source: themeState.activeSourceId
+                ? {
+                    id: themeState.activeSourceId,
+                    version: themeState.activeSourceVersion,
+                    name: themeState.activeSourceName,
+                    fingerprint: themeState.activeSourceFingerprint,
+                }
+                : undefined,
         }, null, 2);
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -1351,12 +1516,16 @@ function buildAboutTab(): HTMLElement {
                     const data = JSON.parse(reader.result as string);
                     if (data.theme) {
                         themeState.activeTheme = mergeThemeConfig(data.theme);
+                        setActiveSource(sanitizeThemeSource(data.source));
                     }
                     if (Array.isArray(data.presets)) {
-                        themeState.customPresets = data.presets;
+                        themeState.customPresets = sanitizeCustomPresets(data.presets);
                     }
                     if (data.presetName) {
                         themeState.activePresetName = data.presetName;
+                        themeState.activeBasePreset = data.presetName;
+                    } else {
+                        themeState.activeBasePreset = undefined;
                     }
                     saveThemeState();
                     injectThemeStyles();
@@ -1390,6 +1559,154 @@ function buildAboutTab(): HTMLElement {
     return tab;
 }
 
+interface EnabledGroup {
+    label: string;
+    icon: string;
+    items: string[];
+}
+
+function collectEnabledFeatures(): EnabledGroup[] {
+    const theme = themeState.activeTheme;
+    const sectionCategory = new Map<string, CzCategory>();
+    CZ_CATEGORIES.forEach(cat => cat.sections.forEach(section => sectionCategory.set(section, cat)));
+
+    const buckets = new Map<string, string[]>();
+    const add = (section: string, label: string) => {
+        const key = sectionCategory.get(section)?.id || 'cz-other';
+        const bucket = buckets.get(key);
+        if (bucket) bucket.push(label);
+        else buckets.set(key, [label]);
+    };
+
+    SCHEMA.forEach(def => {
+        if (def.comingSoon) return;
+        if (def.when && !def.when(theme)) return;
+        if (def.type === 'toggle') {
+            if (theme[def.id] === true) add(def.section, def.label);
+            return;
+        }
+        if (def.id === 'wordEffect') {
+            const value = String(theme.wordEffect || 'none');
+            if (value === 'none') return;
+            const option = (def.options || []).find(o => o.value === value);
+            add(def.section, `${def.label}: ${option ? option.text : value}`);
+        }
+    });
+
+    const groups: EnabledGroup[] = [];
+    CZ_CATEGORIES.forEach(cat => {
+        const items = buckets.get(cat.id);
+        if (items && items.length) groups.push({ label: cat.label, icon: cat.icon, items });
+    });
+    const rest = buckets.get('cz-other');
+    if (rest && rest.length) groups.push({ label: 'Other', icon: '•', items: rest });
+    return groups;
+}
+
+let enabledTip: HTMLElement | null = null;
+let enabledTipCleanup: (() => void) | null = null;
+let enabledTipTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelEnabledTipHide(): void {
+    if (!enabledTipTimer) return;
+    clearTimeout(enabledTipTimer);
+    enabledTipTimer = null;
+}
+
+function hideEnabledTip(): void {
+    cancelEnabledTipHide();
+    if (enabledTipCleanup) {
+        enabledTipCleanup();
+        enabledTipCleanup = null;
+    }
+    if (enabledTip) {
+        enabledTip.remove();
+        enabledTip = null;
+    }
+}
+
+function hideEnabledTipSoon(): void {
+    cancelEnabledTipHide();
+    enabledTipTimer = setTimeout(hideEnabledTip, 140);
+}
+
+function positionEnabledTip(tip: HTMLElement, anchor: HTMLElement): void {
+    const a = anchor.getBoundingClientRect();
+    const t = tip.getBoundingClientRect();
+    const margin = 8;
+
+    let top = a.bottom + 6;
+    if (top + t.height > window.innerHeight - margin) {
+        const above = a.top - t.height - 6;
+        top = above >= margin ? above : Math.max(margin, window.innerHeight - t.height - margin);
+    }
+
+    let left = a.left;
+    if (left + t.width > window.innerWidth - margin) left = window.innerWidth - t.width - margin;
+    if (left < margin) left = margin;
+
+    tip.style.top = `${Math.round(top)}px`;
+    tip.style.left = `${Math.round(left)}px`;
+}
+
+function showEnabledTip(anchor: HTMLElement): void {
+    hideEnabledTip();
+
+    const tip = document.createElement('div');
+    tip.className = 'st-m-enabled-tip';
+    tip.setAttribute('role', 'tooltip');
+
+    if (!themeState.isEnabled) {
+        tip.innerHTML = `
+            <div class="st-m-enabled-tip-head">Styling is off</div>
+            <div class="st-m-enabled-tip-empty">Spicy Lyrics is rendering its stock look. Your settings are kept.</div>
+        `;
+    } else {
+        const groups = collectEnabledFeatures();
+        const total = groups.reduce((sum, g) => sum + g.items.length, 0);
+        if (!total) {
+            tip.innerHTML = `
+                <div class="st-m-enabled-tip-head">Nothing extra enabled</div>
+                <div class="st-m-enabled-tip-empty">Only colours, fonts and sizes are in play — no effects are switched on.</div>
+            `;
+        } else {
+            tip.innerHTML = `
+                <div class="st-m-enabled-tip-head">${total} effect${total === 1 ? '' : 's'} enabled</div>
+                ${groups.map(group => `
+                    <div class="st-m-enabled-tip-group">
+                        <div class="st-m-enabled-tip-cat"><span class="st-m-enabled-tip-icon" aria-hidden="true">${escapeHtml(group.icon)}</span>${escapeHtml(group.label)}</div>
+                        <ul class="st-m-enabled-tip-list">${group.items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+                    </div>
+                `).join('')}
+            `;
+        }
+    }
+
+    tip.addEventListener('mouseenter', cancelEnabledTipHide);
+    tip.addEventListener('mouseleave', hideEnabledTipSoon);
+
+    document.body.appendChild(tip);
+    enabledTip = tip;
+    positionEnabledTip(tip, anchor);
+
+    const dismiss = () => hideEnabledTip();
+    const onPointerDown = (event: Event) => {
+        if (enabledTip && event.target instanceof Node && enabledTip.contains(event.target)) return;
+        hideEnabledTip();
+    };
+    const onKey = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') hideEnabledTip();
+    };
+    window.addEventListener('resize', dismiss);
+    window.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKey, true);
+    enabledTipCleanup = () => {
+        window.removeEventListener('resize', dismiss);
+        window.removeEventListener('pointerdown', onPointerDown, true);
+        document.removeEventListener('keydown', onKey, true);
+    };
+}
+
 function buildMasterBar(onChange: () => void): HTMLElement {
     const bar = document.createElement('div');
     bar.className = 'st-m-enabled-bar';
@@ -1409,16 +1726,25 @@ function buildMasterBar(onChange: () => void): HTMLElement {
     const input = bar.querySelector('input') as HTMLInputElement;
     const resetBtn = bar.querySelector('.st-m-enabled-reset') as HTMLButtonElement;
 
+    sub.tabIndex = 0;
+    sub.addEventListener('mouseenter', () => {
+        cancelEnabledTipHide();
+        if (!enabledTip) showEnabledTip(sub);
+    });
+    sub.addEventListener('mouseleave', hideEnabledTipSoon);
+    sub.addEventListener('focus', () => showEnabledTip(sub));
+    sub.addEventListener('blur', hideEnabledTip);
+
     const sync = () => {
         input.checked = themeState.isEnabled;
         bar.classList.toggle('st-m-enabled-off', !themeState.isEnabled);
-        const changed = new Set(
-            SCHEMA.filter(d => themeState.activeTheme[d.id] !== baseline.config[d.id]).map(d => d.id)
-        ).size;
+        const changed = changedFieldCount(baseline.config);
         const base = baseline.name === 'default' ? 'Default' : baseline.name;
         sub.textContent = themeState.isEnabled
             ? `Based on “${base}”${changed ? ` · ${changed} tweak${changed === 1 ? '' : 's'}` : ''}`
             : 'Styling is off — Spicy Lyrics looks stock';
+        sub.title = '';
+        if (enabledTip) showEnabledTip(sub);
     };
 
     input.addEventListener('change', () => {
@@ -1441,7 +1767,61 @@ function buildMasterBar(onChange: () => void): HTMLElement {
     return bar;
 }
 
+function buildUpdateBanner(onChange: () => void): HTMLElement {
+    const banner = document.createElement('div');
+    banner.className = 'st-m-update-banner';
+
+    const sync = () => {
+        const update = activeThemeUpdate();
+        banner.innerHTML = '';
+        if (!update) {
+            banner.style.display = 'none';
+            return;
+        }
+        banner.style.display = '';
+
+        const label = themeState.activeSourceName || themeState.activePresetName;
+        const text = document.createElement('div');
+        text.className = 'st-m-update-banner-text';
+        text.textContent = `"${label}" has a new version on the Marketplace`;
+
+        const actions = document.createElement('div');
+        actions.className = 'st-m-update-banner-actions';
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'st-m-btn st-m-btn-update';
+        btn.textContent = 'Update';
+        btn.addEventListener('click', () => {
+            askInlineConfirm(banner, {
+                message: activeThemeHasLocalChanges()
+                    ? `Update "${label}"? This will replace your changes.`
+                    : `Update "${label}" to the latest version?`,
+                action: 'Update',
+                busy: 'Updating...',
+                run: async () => {
+                    const name = await updateActiveThemeFromSource();
+                    resolveBaseline();
+                    injectThemeStyles();
+                    return name;
+                },
+                success: (name) => `Updated "${name}" to the latest version`,
+                done: onChange,
+            });
+        });
+
+        actions.appendChild(btn);
+        banner.appendChild(text);
+        banner.appendChild(actions);
+    };
+
+    syncChrome.push(sync);
+    sync();
+    return banner;
+}
+
 export function createSettingsModal(): HTMLElement {
+    hideEnabledTip();
     const container = document.createElement('div');
     container.className = 'st-modal-root';
     liveContainer = container;
@@ -1472,6 +1852,7 @@ export function createSettingsModal(): HTMLElement {
     }
 
     const masterBar = buildMasterBar(rerender);
+    const updateBanner = buildUpdateBanner(rerender);
 
     tabs.forEach(t => {
         const btn = document.createElement('button');
@@ -1496,12 +1877,21 @@ export function createSettingsModal(): HTMLElement {
     const header = document.createElement('div');
     header.className = 'st-m-header';
     header.appendChild(masterBar);
+    header.appendChild(updateBanner);
     header.appendChild(tabBar);
 
     container.appendChild(header);
     container.appendChild(tabContent);
 
     rerender();
+
+    scanForUpdates()
+        .then(changed => {
+            if (!changed || liveContainer !== container || !container.isConnected) return;
+            if (activeTab === 'presets') rerender();
+            else syncChrome.forEach(fn => fn());
+        })
+        .catch(() => {});
 
     return container;
 }

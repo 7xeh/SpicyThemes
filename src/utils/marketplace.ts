@@ -14,6 +14,8 @@ export interface MarketplaceTheme {
     featured: boolean;
     uploadDate: string;
     uploadTimestamp: number;
+    version: number;
+    updatedAt: string;
 }
 
 export interface MarketplaceListResponse {
@@ -39,8 +41,26 @@ export interface MarketplaceDownloadResponse {
         name: string;
         author: string;
         downloads: number;
+        version: number;
+        updatedAt: string;
+        description?: string;
+        tags?: string[];
     };
 }
+
+export interface RemoteThemeInfo {
+    id: string;
+    name: string;
+    version: number;
+    updatedAt: string;
+}
+
+export interface CheckUpdatesResponse {
+    themes: RemoteThemeInfo[];
+    missing: string[];
+}
+
+export const CHECK_UPDATES_MAX_IDS = 100;
 
 export type MarketplaceSort = 'newest' | 'popular' | 'featured';
 
@@ -100,6 +120,10 @@ export async function getTheme(id: string): Promise<MarketplaceTheme> {
 
 export async function downloadTheme(id: string): Promise<MarketplaceDownloadResponse> {
     return request<MarketplaceDownloadResponse>({ action: 'download', id });
+}
+
+export async function checkUpdates(ids: string[]): Promise<CheckUpdatesResponse> {
+    return request<CheckUpdatesResponse>({ action: 'check_updates', ids: ids.join(',') });
 }
 
 export async function uploadTheme(payload: {

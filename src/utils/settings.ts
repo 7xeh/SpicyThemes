@@ -232,7 +232,7 @@ function createPresetSelector(): HTMLElement {
 
         card.addEventListener('click', (e) => {
             if ((e.target as HTMLElement).classList.contains('st-preset-delete')) {
-                deleteCustomPreset(preset.name);
+                deleteCustomPreset(preset.name, preset.sourceId);
                 refreshSettings();
                 injectThemeStyles();
                 return;
@@ -465,7 +465,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
             const data = JSON.stringify({
                 theme: themeState.activeTheme,
                 presets: themeState.customPresets,
-                presetName: themeState.activePresetName,
+                presetName: themeState.activeBasePreset || themeState.activePresetName,
             }, null, 2);
             const blob = new Blob([data], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -500,6 +500,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
                         }
                         if (data.presetName) {
                             themeState.activePresetName = data.presetName;
+                            themeState.activeBasePreset = data.presetName;
                         }
                         saveThemeState();
                         injectThemeStyles();
