@@ -12,9 +12,21 @@ export const YTMODULE_STATE = {
 const READY_TIMEOUT_MS = 12000;
 const MAX_EXTRAPOLATION_MS = 400;
 
+export interface YtModuleQualities {
+    levels: number[];
+    locked: number[];
+    current: number;
+    auto: boolean;
+    cap: number;
+    limit: number;
+    premium: boolean;
+}
+
 export interface YtModuleOptions {
     videoId: string;
     start?: number;
+    vq?: string | null;
+    q?: number;
     autoplay?: boolean;
     controls?: boolean;
     className?: string;
@@ -22,7 +34,8 @@ export interface YtModuleOptions {
     onReady?: (player: YtModulePlayer) => void;
     onStateChange?: (state: number, player: YtModulePlayer) => void;
     onError?: (code: string, message: string | undefined, player: YtModulePlayer) => void;
-    onCommandError?: (cmd: string, message: string | undefined, player: YtModulePlayer) => void;
+    onCommandError?: (cmd: string, message: string | undefined, player: YtModulePlayer, code?: string) => void;
+    onQualities?: (qualities: YtModuleQualities, player: YtModulePlayer) => void;
     onCaptionsChange?: (showing: number, tracks: number, player: YtModulePlayer) => void;
 }
 
@@ -43,8 +56,34 @@ export function ytModuleEmbedUrl(videoId: string, opts: YtModuleOptions): string
         '&local=false&listen=false&quality=dash&noaudio=1' +
         '&controls=' + (opts.controls ? 1 : 0) +
         '&captions=0' +
-        '&origin=' + encodeURIComponent(ytModuleParentOrigin());
+        '&origin=' + encodeURIComponent(ytModuleParentOrigin()) +
+        (opts.q && isFinite(opts.q) ? '&q=' + Math.round(opts.q) : '') +
+        (opts.vq ? '&vq=' + encodeURIComponent(opts.vq) : '');
     return `${YTMODULE_ORIGIN}/embed/${encodeURIComponent(videoId)}?${qs}`;
+}
+
+function heightList(raw: unknown): number[] {
+    if (!Array.isArray(raw)) return [];
+    const out: number[] = [];
+    raw.forEach(v => {
+        const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+        if (isFinite(n) && n > 0 && n <= 8640 && !out.includes(n)) out.push(Math.round(n));
+    });
+    return out.sort((a, b) => b - a);
+}
+
+function parseQualities(d: any): YtModuleQualities {
+    const levels = heightList(d.levels);
+    const num = (v: unknown, fallback: number) => (typeof v === 'number' && isFinite(v) ? v : fallback);
+    return {
+        levels,
+        locked: heightList(d.locked),
+        current: num(d.current, 0),
+        auto: d.auto === true,
+        cap: num(d.cap, 0),
+        limit: num(d.limit, 0),
+        premium: d.premium === true,
+    };
 }
 
 export class YtModulePlayer {
@@ -62,9 +101,17 @@ export class YtModulePlayer {
     private muted = false;
     private capShowing = 0;
     private capTracks = 0;
+    private ticketSent: string;
+    private ticketWanted: string;
+    private ticketSentAt = 0;
+    private ticketResends = 0;
+    private qualities: YtModuleQualities | null = null;
 
     constructor(container: HTMLElement, opts: YtModuleOptions) {
         this.opts = opts;
+        this.ticketSent = opts.vq || '';
+        this.ticketWanted = this.ticketSent;
+        if (this.ticketSent) this.ticketSentAt = performance.now();
 
         const frame = document.createElement('iframe');
         if (opts.className) frame.className = opts.className;
@@ -91,7 +138,7 @@ export class YtModulePlayer {
     private handleMessage(e: MessageEvent): void {
         if (this.destroyed) return;
         if (e.origin !== YTMODULE_ORIGIN) return;
-        if (e.source && e.source !== this.frame.contentWindow) return;
+        if (!e.source || e.source !== this.frame.contentWindow) return;
         const d = e.data as any;
         if (!d || d.vdb !== 1) return;
 
@@ -101,6 +148,7 @@ export class YtModulePlayer {
             this.dur = typeof d.duration === 'number' && isFinite(d.duration) ? d.duration : 0;
             this.capShowing = typeof d.showing === 'number' ? d.showing : 0;
             this.capTracks = typeof d.tracks === 'number' ? d.tracks : 0;
+            this.flushTicket();
             this.opts.onReady?.(this);
         } else if (d.event === 'time') {
             if (typeof d.sec === 'number' && isFinite(d.sec)) {
@@ -119,8 +167,17 @@ export class YtModulePlayer {
             this.capShowing = typeof d.showing === 'number' ? d.showing : 0;
             this.capTracks = typeof d.tracks === 'number' ? d.tracks : 0;
             this.opts.onCaptionsChange?.(this.capShowing, this.capTracks, this);
+        } else if (d.event === 'qualities') {
+            const parsed = parseQualities(d);
+            this.qualities = parsed;
+            this.opts.onQualities?.(parsed, this);
         } else if (d.event === 'cmderror') {
-            this.opts.onCommandError?.(String(d.cmd || 'unknown'), d.message, this);
+            this.opts.onCommandError?.(
+                String(d.cmd || 'unknown'),
+                typeof d.message === 'string' ? d.message : undefined,
+                this,
+                typeof d.code === 'string' ? d.code : undefined,
+            );
         } else if (d.event === 'error') {
             this.clearReadyTimer();
             this.opts.onError?.(String(d.code || 'unknown'), d.message, this);
@@ -143,8 +200,55 @@ export class YtModulePlayer {
         } catch (e) {}
     }
 
+    private flushTicket(): void {
+        if (!this.ready || this.ticketWanted === this.ticketSent) return;
+        this.ticketSent = this.ticketWanted;
+        this.ticketSentAt = performance.now();
+        this.ticketResends = 0;
+        this.send('ticket', { vq: this.ticketWanted });
+    }
+
+    resendTicket(minGapMs: number, maxResends: number): boolean {
+        if (!this.ready || !this.ticketWanted) return false;
+        if (this.ticketResends >= maxResends) return false;
+        const now = performance.now();
+        if (now - this.ticketSentAt < minGapMs) return false;
+        this.ticketResends++;
+        this.ticketSentAt = now;
+        this.ticketSent = this.ticketWanted;
+        this.send('ticket', { vq: this.ticketWanted });
+        return true;
+    }
+
+    ticketResendsExhausted(maxResends: number): boolean {
+        return this.ticketResends >= maxResends;
+    }
+
+    msUntilTicketResend(minGapMs: number): number {
+        return Math.max(0, minGapMs - (performance.now() - this.ticketSentAt));
+    }
+
     isReady(): boolean {
         return this.ready;
+    }
+
+    setTicket(vq: string | null): void {
+        this.ticketWanted = vq || '';
+        this.flushTicket();
+    }
+
+    getQualities(): YtModuleQualities | null {
+        return this.qualities;
+    }
+
+    requestQualities(): void {
+        if (this.ready) this.send('qualities');
+    }
+
+    setQuality(height: number | 'auto'): void {
+        if (!this.ready) return;
+        if (height !== 'auto' && (!isFinite(height) || height <= 0)) return;
+        this.send('quality', { height });
     }
 
     getCurrentTime(): number {

@@ -157,6 +157,67 @@ export interface ThemeConfig {
     sltGlowColorEnabled: boolean;
     sltGlowColor: string;
 
+    sltIndependent: boolean;
+    sltActiveLineColor: string;
+    sltSungLineColor: string;
+    sltNotSungLineColor: string;
+    sltActiveLineOpacity: number;
+    sltSungLineOpacity: number;
+    sltNotSungLineOpacity: number;
+    sltGradientEnabled: boolean;
+    sltGradientStartColor: string;
+    sltGradientEndColor: string;
+    sltGradientDirection: string;
+    sltGradientAngle: number;
+    sltGradientFeather: number;
+    sltFontFamily: string;
+    sltFontWeight: number;
+    sltActiveLineWeight: number;
+    sltTextTransform: string;
+    sltFontStyle: string;
+    sltLyricsScale: number;
+    sltLetterSpacing: number;
+    sltWordSpacing: number;
+    sltLineHeight: number;
+    sltTextAlign: string;
+    sltMaxLineWidth: number;
+    sltGlowEnabled: boolean;
+    sltActiveGlowColor: string;
+    sltActiveGlowIntensity: number;
+    sltInactiveGlowColor: string;
+    sltGlowIntensity: number;
+    sltGlowPulse: boolean;
+    sltGlowPulseSpeed: number;
+    sltBgGlowEnabled: boolean;
+    sltBgGlowColor: string;
+    sltBgGlowIntensity: number;
+    sltTextShadowEnabled: boolean;
+    sltTextShadowColor: string;
+    sltTextShadowOpacity: number;
+    sltTextShadowBlur: number;
+    sltTextShadowOffsetX: number;
+    sltTextShadowOffsetY: number;
+    sltTextStrokeEnabled: boolean;
+    sltTextStrokeColor: string;
+    sltTextStrokeWidth: number;
+    sltBlurUnsung: boolean;
+    sltBlurAmount: number;
+    sltBlurSungWords: boolean;
+    sltBlurSungWordsAmount: number;
+    sltBlurSungWordsOpacity: number;
+    sltWordEffect: string;
+    sltWordEffectTrigger: string;
+    sltWordEffectIntensity: number;
+    sltWordEffectSpeed: number;
+    sltWordEffectStagger: number;
+    sltScaleActive: number;
+    sltScaleInEffect: boolean;
+    sltScaleInFrom: number;
+    sltScaleInDuration: number;
+    sltAnimationSpeed: number;
+    sltDisableHighlight: boolean;
+    sltHighlightColor: string;
+
     bgGlowEnabled: boolean;
     bgGlowColor: string;
     bgGlowIntensity: number;
@@ -287,6 +348,67 @@ export const DEFAULT_THEME: ThemeConfig = {
     sltHighlightEndColor: '#9ca3af',
     sltGlowColorEnabled: false,
     sltGlowColor: '#ffffff',
+
+    sltIndependent: false,
+    sltActiveLineColor: '#ffffff',
+    sltSungLineColor: '#b6beca',
+    sltNotSungLineColor: '#6b7280',
+    sltActiveLineOpacity: 0.8,
+    sltSungLineOpacity: 0.4,
+    sltNotSungLineOpacity: 0.2,
+    sltGradientEnabled: true,
+    sltGradientStartColor: '#ffffff',
+    sltGradientEndColor: '#9ca3af',
+    sltGradientDirection: 'auto',
+    sltGradientAngle: 180,
+    sltGradientFeather: 20,
+    sltFontFamily: '',
+    sltFontWeight: 800,
+    sltActiveLineWeight: 0,
+    sltTextTransform: 'none',
+    sltFontStyle: 'normal',
+    sltLyricsScale: 0.75,
+    sltLetterSpacing: 0.02,
+    sltWordSpacing: 0,
+    sltLineHeight: 1.4,
+    sltTextAlign: 'default',
+    sltMaxLineWidth: 0,
+    sltGlowEnabled: false,
+    sltActiveGlowColor: '#ffffff',
+    sltActiveGlowIntensity: 12,
+    sltInactiveGlowColor: '#ffffff',
+    sltGlowIntensity: 4,
+    sltGlowPulse: false,
+    sltGlowPulseSpeed: 1.0,
+    sltBgGlowEnabled: false,
+    sltBgGlowColor: '#ffffff',
+    sltBgGlowIntensity: 12,
+    sltTextShadowEnabled: false,
+    sltTextShadowColor: '#000000',
+    sltTextShadowOpacity: 0.8,
+    sltTextShadowBlur: 4,
+    sltTextShadowOffsetX: 0,
+    sltTextShadowOffsetY: 2,
+    sltTextStrokeEnabled: false,
+    sltTextStrokeColor: '#000000',
+    sltTextStrokeWidth: 0.6,
+    sltBlurUnsung: true,
+    sltBlurAmount: 2.0,
+    sltBlurSungWords: false,
+    sltBlurSungWordsAmount: 2.0,
+    sltBlurSungWordsOpacity: 0.6,
+    sltWordEffect: 'none',
+    sltWordEffectTrigger: 'auto',
+    sltWordEffectIntensity: 1.0,
+    sltWordEffectSpeed: 1.0,
+    sltWordEffectStagger: 55,
+    sltScaleActive: 1.02,
+    sltScaleInEffect: false,
+    sltScaleInFrom: 0.96,
+    sltScaleInDuration: 0.35,
+    sltAnimationSpeed: 1.0,
+    sltDisableHighlight: false,
+    sltHighlightColor: '#ffffff',
 
     bgGlowEnabled: false,
     bgGlowColor: '#ffffff',
@@ -735,6 +857,37 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     glowPulseSpeed: [0.3, 3.0],
     activeLineWeight: [0, 900],
     sltTranslationFontSize: [0.25, 2.0],
+    sltActiveLineOpacity: [0, 1],
+    sltSungLineOpacity: [0, 1],
+    sltNotSungLineOpacity: [0, 1],
+    sltGradientAngle: [0, 360],
+    sltGradientFeather: [0, 60],
+    sltFontWeight: [100, 900],
+    sltActiveLineWeight: [0, 900],
+    sltLyricsScale: [0.25, 2.0],
+    sltLetterSpacing: [-0.1, 0.3],
+    sltWordSpacing: [-0.1, 1.0],
+    sltLineHeight: [1.0, 2.5],
+    sltMaxLineWidth: [0, 100],
+    sltActiveGlowIntensity: [0, 15],
+    sltGlowIntensity: [0, 15],
+    sltGlowPulseSpeed: [0.3, 3.0],
+    sltBgGlowIntensity: [0, 30],
+    sltTextShadowOpacity: [0, 1],
+    sltTextShadowBlur: [0, 20],
+    sltTextShadowOffsetX: [-10, 10],
+    sltTextShadowOffsetY: [-10, 10],
+    sltTextStrokeWidth: [0, 3],
+    sltBlurAmount: [0, 8],
+    sltBlurSungWordsAmount: [0, 8],
+    sltBlurSungWordsOpacity: [0.05, 1],
+    sltWordEffectIntensity: [0.1, 2.0],
+    sltWordEffectSpeed: [0.3, 3.0],
+    sltWordEffectStagger: [0, 150],
+    sltScaleActive: [0.95, 1.12],
+    sltScaleInFrom: [0.85, 1.05],
+    sltScaleInDuration: [0.1, 1.0],
+    sltAnimationSpeed: [0.3, 3.0],
     scaleActive: [0.95, 1.12],
     scaleInFrom: [0.85, 1.05],
     scaleInDuration: [0.1, 1.0],
@@ -768,6 +921,10 @@ const COLOR_KEYS: (keyof ThemeConfig)[] = [
     'gradientStartColor', 'gradientEndColor',
     'textShadowColor', 'pageBgColor',
     'sltTranslationColor', 'sltHighlightStartColor', 'sltHighlightEndColor', 'sltGlowColor',
+    'sltActiveLineColor', 'sltSungLineColor', 'sltNotSungLineColor',
+    'sltGradientStartColor', 'sltGradientEndColor',
+    'sltActiveGlowColor', 'sltInactiveGlowColor', 'sltBgGlowColor',
+    'sltTextShadowColor', 'sltTextStrokeColor', 'sltHighlightColor',
     'bgGlowColor', 'highlightColor', 'eqColor', 'playerAccentColor',
     'textStrokeColor',
 ];
@@ -795,7 +952,7 @@ export function sanitizeThemeString<K extends keyof ThemeConfig>(key: K, value: 
     if (COLOR_KEYS.includes(key)) {
         return sanitizeColor(value, DEFAULT_THEME[key] as string) as ThemeConfig[K];
     }
-    if (key === 'fontFamily' || key === 'sltTranslationFont') {
+    if (key === 'fontFamily' || key === 'sltTranslationFont' || key === 'sltFontFamily') {
         return sanitizeFont(value, DEFAULT_THEME[key] as string) as ThemeConfig[K];
     }
     if (key === 'pageBgImage') {
@@ -831,12 +988,29 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         normalized.wordEffectTrigger = 'auto';
     }
 
+    if (!WORD_EFFECT_IDS.includes(normalized.sltWordEffect)) {
+        normalized.sltWordEffect = 'none';
+    }
+
+    const sltMeta = wordEffectMeta(normalized.sltWordEffect);
+    if (!sltMeta || (normalized.sltWordEffectTrigger !== 'auto' && !sltMeta.triggers.includes(normalized.sltWordEffectTrigger as WordEffectTrigger))) {
+        normalized.sltWordEffectTrigger = 'auto';
+    }
+
     if (!['normal', 'italic', 'oblique'].includes(normalized.fontStyle)) {
         normalized.fontStyle = 'normal';
     }
 
+    if (!['normal', 'italic', 'oblique'].includes(normalized.sltFontStyle)) {
+        normalized.sltFontStyle = 'normal';
+    }
+
     if (!['default', 'left', 'center', 'right'].includes(normalized.textAlign)) {
         normalized.textAlign = 'default';
+    }
+
+    if (!['default', 'left', 'center', 'right'].includes(normalized.sltTextAlign)) {
+        normalized.sltTextAlign = 'default';
     }
 
     for (const key of COLOR_KEYS) {
@@ -844,6 +1018,7 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
     }
     normalized.fontFamily = sanitizeFont(normalized.fontFamily, DEFAULT_THEME.fontFamily);
     normalized.sltTranslationFont = sanitizeFont(normalized.sltTranslationFont, DEFAULT_THEME.sltTranslationFont);
+    normalized.sltFontFamily = sanitizeFont(normalized.sltFontFamily, DEFAULT_THEME.sltFontFamily);
 
     if (!['both', 'left', 'right'].includes(normalized.eqPosition)) {
         normalized.eqPosition = 'both';
@@ -853,8 +1028,16 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         normalized.gradientDirection = 'auto';
     }
 
+    if (!['auto', 'horizontal', 'vertical', 'diagonal', 'custom'].includes(normalized.sltGradientDirection)) {
+        normalized.sltGradientDirection = 'auto';
+    }
+
     if (!['none', 'uppercase', 'lowercase', 'capitalize'].includes(normalized.textTransform)) {
         normalized.textTransform = 'none';
+    }
+
+    if (!['none', 'uppercase', 'lowercase', 'capitalize'].includes(normalized.sltTextTransform)) {
+        normalized.sltTextTransform = 'none';
     }
 
     if (typeof normalized.pageBgImage !== 'string' || !BG_IMAGE_ID_RE.test(normalized.pageBgImage)) {
@@ -911,10 +1094,12 @@ export function mergeThemeConfig(raw: Partial<ThemeConfig> | null | undefined): 
 
 export function themeFingerprint(config: Partial<ThemeConfig> | null | undefined): string {
     if (!config) return '';
+    const defaults = DEFAULT_THEME as unknown as Record<string, unknown>;
     let hash = 0x811c9dc5;
     for (const key of Object.keys(config).sort()) {
         const value = (config as Record<string, unknown>)[key];
         if (value === undefined) continue;
+        if (key in defaults && value === defaults[key]) continue;
         const chunk = key + '=' + (typeof value === 'object' ? JSON.stringify(value) : String(value)) + ';';
         for (let i = 0; i < chunk.length; i++) {
             hash ^= chunk.charCodeAt(i);
@@ -995,6 +1180,33 @@ export const themeState: ThemeState = {
     activeSourceFingerprint: storage.get('active-source-fingerprint') || undefined,
 };
 
+const FINGERPRINT_FORMAT = '2';
+
+function migrateFingerprintFormat(): void {
+    if (storage.get('fingerprint-format') === FINGERPRINT_FORMAT) return;
+    let changed = false;
+
+    themeState.customPresets.forEach(preset => {
+        if (!preset.sourceFingerprint) return;
+        const current = themeFingerprint(preset.config);
+        if (current !== preset.sourceFingerprint) {
+            preset.sourceFingerprint = current;
+            changed = true;
+        }
+    });
+
+    if (themeState.activeSourceFingerprint) {
+        const current = themeFingerprint(themeState.activeTheme);
+        if (current !== themeState.activeSourceFingerprint) {
+            themeState.activeSourceFingerprint = current;
+            changed = true;
+        }
+    }
+
+    storage.set('fingerprint-format', FINGERPRINT_FORMAT);
+    if (changed) saveThemeState();
+}
+
 function persistOptional(key: string, value: string | number | undefined): void {
     if (value === undefined || value === '') {
         storage.remove(key);
@@ -1014,6 +1226,8 @@ export function saveThemeState(): void {
     persistOptional('active-source-name', themeState.activeSourceName);
     persistOptional('active-source-fingerprint', themeState.activeSourceFingerprint);
 }
+
+migrateFingerprintFormat();
 
 export function setActiveSource(source: ThemeSource | null): void {
     themeState.activeSourceId = source ? source.id : undefined;
@@ -1109,6 +1323,82 @@ export function deleteCustomPreset(name: string, sourceId?: string): boolean {
     return false;
 }
 
+function seedTranslationStyle(theme: ThemeConfig): void {
+    const opacity = theme.sltTranslationOpacity;
+    const round3 = (n: number) => Math.round(n * 1000) / 1000;
+    const glowColor = theme.sltGlowColorEnabled && theme.sltGlowColor ? theme.sltGlowColor : '';
+
+    theme.sltActiveLineColor = theme.sltHighlightStartColor;
+    theme.sltSungLineColor = theme.sltTranslationColorEnabled && theme.sltTranslationColor
+        ? theme.sltTranslationColor
+        : theme.sungLineColor;
+    theme.sltNotSungLineColor = theme.sltTranslationColorEnabled && theme.sltTranslationColor
+        ? theme.sltTranslationColor
+        : theme.notSungLineColor;
+    theme.sltActiveLineOpacity = round3(theme.activeLineOpacity * opacity);
+    theme.sltSungLineOpacity = round3(theme.sungLineOpacity * opacity);
+    theme.sltNotSungLineOpacity = round3(theme.notSungLineOpacity * opacity);
+
+    theme.sltGradientEnabled = true;
+    theme.sltGradientStartColor = theme.sltHighlightStartColor;
+    theme.sltGradientEndColor = theme.sltHighlightEndColor;
+    theme.sltGradientDirection = 'auto';
+    theme.sltGradientAngle = theme.gradientAngle;
+    theme.sltGradientFeather = theme.gradientFeather;
+
+    theme.sltFontFamily = theme.sltTranslationFont;
+    theme.sltFontWeight = theme.fontWeight;
+    theme.sltActiveLineWeight = theme.activeLineWeight;
+    theme.sltTextTransform = theme.textTransform;
+    theme.sltFontStyle = theme.fontStyle;
+    theme.sltLyricsScale = round3(theme.sltTranslationFontSize * theme.lyricsScale);
+    theme.sltLetterSpacing = theme.letterSpacing;
+    theme.sltWordSpacing = theme.wordSpacing;
+    theme.sltLineHeight = theme.lineHeight;
+    theme.sltTextAlign = theme.textAlign;
+    theme.sltMaxLineWidth = theme.maxLineWidth;
+
+    theme.sltGlowEnabled = theme.glowEnabled;
+    theme.sltActiveGlowColor = glowColor || theme.activeGlowColor;
+    theme.sltActiveGlowIntensity = theme.activeGlowIntensity;
+    theme.sltInactiveGlowColor = glowColor || theme.glowColor;
+    theme.sltGlowIntensity = theme.glowIntensity;
+    theme.sltGlowPulse = theme.glowPulse;
+    theme.sltGlowPulseSpeed = theme.glowPulseSpeed;
+    theme.sltBgGlowEnabled = theme.bgGlowEnabled;
+    theme.sltBgGlowColor = glowColor || theme.bgGlowColor;
+    theme.sltBgGlowIntensity = theme.bgGlowIntensity;
+
+    theme.sltTextShadowEnabled = theme.textShadowEnabled;
+    theme.sltTextShadowColor = theme.textShadowColor;
+    theme.sltTextShadowOpacity = theme.textShadowOpacity;
+    theme.sltTextShadowBlur = theme.textShadowBlur;
+    theme.sltTextShadowOffsetX = theme.textShadowOffsetX;
+    theme.sltTextShadowOffsetY = theme.textShadowOffsetY;
+    theme.sltTextStrokeEnabled = theme.textStrokeEnabled;
+    theme.sltTextStrokeColor = theme.textStrokeColor;
+    theme.sltTextStrokeWidth = theme.textStrokeWidth;
+
+    theme.sltBlurUnsung = theme.blurUnsung;
+    theme.sltBlurAmount = theme.blurAmount;
+    theme.sltBlurSungWords = theme.blurSungWords;
+    theme.sltBlurSungWordsAmount = theme.blurSungWordsAmount;
+    theme.sltBlurSungWordsOpacity = theme.blurSungWordsOpacity;
+
+    theme.sltWordEffect = theme.wordEffect;
+    theme.sltWordEffectTrigger = theme.wordEffectTrigger;
+    theme.sltWordEffectIntensity = theme.wordEffectIntensity;
+    theme.sltWordEffectSpeed = theme.wordEffectSpeed;
+    theme.sltWordEffectStagger = theme.wordEffectStagger;
+    theme.sltScaleActive = theme.scaleActive;
+    theme.sltScaleInEffect = theme.scaleInEffect;
+    theme.sltScaleInFrom = theme.scaleInFrom;
+    theme.sltScaleInDuration = theme.scaleInDuration;
+    theme.sltAnimationSpeed = theme.animationSpeed;
+    theme.sltDisableHighlight = theme.disableHighlight;
+    theme.sltHighlightColor = theme.highlightColor;
+}
+
 export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]): void {
     if (typeof value === 'number') {
         const range = CLAMPS[key];
@@ -1131,6 +1421,9 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
         if (!meta || (trigger !== 'auto' && !meta.triggers.includes(trigger as WordEffectTrigger))) {
             themeState.activeTheme.wordEffectTrigger = 'auto';
         }
+    }
+    if (key === 'sltIndependent' && value === true) {
+        seedTranslationStyle(themeState.activeTheme);
     }
     if (key === 'popEffect') {
         themeState.activeTheme.waveEffect = value === true ? false : themeState.activeTheme.waveEffect;

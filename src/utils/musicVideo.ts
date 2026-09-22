@@ -1,5 +1,17 @@
-import { YtModulePlayer, YTMODULE_STATE, ytModuleParentOrigin } from './ytmodule';
+import { YtModulePlayer, YtModuleQualities, YTMODULE_STATE, ytModuleParentOrigin } from './ytmodule';
 import { debug } from './debug';
+import {
+    BACKDROP_HEIGHT,
+    FREE_MAX_HEIGHT,
+    QualityPref,
+    currentTicket,
+    getQualityPref,
+    isPremiumActive,
+    onTubeChange,
+    refreshTicketAfterRejection,
+    resolvePreferredHeight,
+    setQualityPref,
+} from './tubeAccess';
 
 interface VideoBreak {
     start_ms: number;
@@ -89,6 +101,276 @@ let lastStatePauseAttempt = 0;
 let allowCompact = false;
 let allowFullscreenCompact = false;
 let compactBlocked = false;
+
+let liveQualities: YtModuleQualities | null = null;
+let qualityApplied = false;
+let largeView = false;
+let raisedForLarge = false;
+let lastTicket: string | null = null;
+let tubeUnsubscribe: (() => void) | null = null;
+let pendingChoice: QualityPref | null = null;
+let expected: { target: number | 'auto'; resent: boolean } | null = null;
+let expectTimer: ReturnType<typeof setTimeout> | null = null;
+let ticketRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
+const QUALITY_CONFIRM_MS = 2500;
+const TICKET_RESEND_GAP_MS = 5000;
+const TICKET_MAX_RESENDS = 2;
+const qualityListeners = new Set<() => void>();
+
+export interface VideoQualityStatus {
+    engine: 'ytmodule' | 'iframe_api' | 'mp4' | null;
+    qualities: YtModuleQualities | null;
+    premiumReady: boolean;
+    switching: number | 'auto' | null;
+    large: boolean;
+}
+
+function emitQuality(): void {
+    qualityListeners.forEach(fn => {
+        try {
+            fn();
+        } catch (e) {}
+    });
+}
+
+export function onVideoQualityChange(fn: () => void): () => void {
+    qualityListeners.add(fn);
+    return () => qualityListeners.delete(fn);
+}
+
+export function getVideoQualityStatus(): VideoQualityStatus {
+    const engine = activeSource === 'mp4_url' ? 'mp4' : activeSource === 'youtube' ? ytEngine : null;
+    const qualities = engine === 'ytmodule' ? liveQualities : null;
+    return {
+        engine,
+        qualities,
+        premiumReady: embedHasTicket(qualities),
+        switching: engine === 'ytmodule' ? (expected ? expected.target : pendingChoice) : null,
+        large: largeView,
+    };
+}
+
+export function requestLiveQualities(): void {
+    if (ytModulePlayer && ytEngine === 'ytmodule') ytModulePlayer.requestQualities();
+}
+
+function isLargeView(): boolean {
+    const page = document.querySelector('#SpicyLyricsPage');
+    if (!page || page.closest('.spicy-pip-wrapper')) return false;
+    return page.classList.contains('Fullscreen');
+}
+
+function backdropHeight(levels: number[]): number | 'auto' {
+    const fit = levels.filter(h => h <= BACKDROP_HEIGHT);
+    return fit.length ? fit[0] : 'auto';
+}
+
+function readyPlayer(): YtModulePlayer | null {
+    if (!ytModulePlayer || ytEngine !== 'ytmodule' || !ytModulePlayer.isReady()) return null;
+    return ytModulePlayer;
+}
+
+function embedHasTicket(info: YtModuleQualities | null): boolean {
+    return !!info && (info.premium || info.cap > FREE_MAX_HEIGHT);
+}
+
+function qualityMatches(info: YtModuleQualities, target: number | 'auto'): boolean {
+    return target === 'auto' ? info.auto : !info.auto && info.current === target;
+}
+
+function clearExpectation(): void {
+    if (expectTimer) {
+        clearTimeout(expectTimer);
+        expectTimer = null;
+    }
+    expected = null;
+}
+
+function flushQualityBuffer(player: YtModulePlayer): void {
+    if (ytModulePlayer !== player || !currentMeta) return;
+    const ms = songMsToVideoMs(currentMeta, currentSongMs());
+    if (!isFinite(ms) || ms >= currentMeta.video_end_ms) return;
+    player.seekTo(ms / 1000);
+    lastSeekAt = performance.now();
+}
+
+function sendQuality(player: YtModulePlayer, target: number | 'auto'): void {
+    clearExpectation();
+    const token = buildToken;
+    expected = { target, resent: false };
+    player.setQuality(target);
+    const check = () => {
+        expectTimer = null;
+        if (token !== buildToken || ytModulePlayer !== player || !expected) return;
+        if (!expected.resent) {
+            debug('video quality: no confirmation for', target, '- sending again');
+            expected.resent = true;
+            player.setQuality(target);
+            flushQualityBuffer(player);
+            player.requestQualities();
+            expectTimer = setTimeout(check, QUALITY_CONFIRM_MS);
+            return;
+        }
+        debug('video quality: embed never confirmed', target);
+        expected = null;
+        player.requestQualities();
+        emitQuality();
+    };
+    expectTimer = setTimeout(check, QUALITY_CONFIRM_MS);
+    emitQuality();
+}
+
+function clearTicketRetry(): void {
+    if (ticketRetryTimer) {
+        clearTimeout(ticketRetryTimer);
+        ticketRetryTimer = null;
+    }
+}
+
+function ensureEmbedHasTicket(player: YtModulePlayer): void {
+    if (player.resendTicket(TICKET_RESEND_GAP_MS, TICKET_MAX_RESENDS)) {
+        debug('video quality: embed is still on the free stream, sending the ticket again');
+        return;
+    }
+    if (player.ticketResendsExhausted(TICKET_MAX_RESENDS)) {
+        refreshTicketAfterRejection().catch(() => {});
+        return;
+    }
+    const wait = player.msUntilTicketResend(TICKET_RESEND_GAP_MS);
+    if (wait <= 0 || ticketRetryTimer) return;
+    const token = buildToken;
+    ticketRetryTimer = setTimeout(() => {
+        ticketRetryTimer = null;
+        if (token !== buildToken || ytModulePlayer !== player || !isPremiumActive()) return;
+        if (embedHasTicket(liveQualities)) return;
+        if (pendingChoice === null && qualityApplied) return;
+        ensureEmbedHasTicket(player);
+    }, wait + 50);
+}
+
+function applyChoiceNow(player: YtModulePlayer, info: YtModuleQualities, pref: QualityPref): void {
+    qualityApplied = true;
+    if (pref === 'auto') {
+        raisedForLarge = largeView;
+        sendQuality(player, 'auto');
+        return;
+    }
+    raisedForLarge = false;
+    sendQuality(player, resolvePreferredHeight(pref, info.levels));
+}
+
+function applyQualityPolicy(): void {
+    const player = readyPlayer();
+    const info = liveQualities;
+    if (!player || !info || !isPremiumActive()) return;
+    if (!embedHasTicket(info)) {
+        qualityApplied = false;
+        ensureEmbedHasTicket(player);
+        return;
+    }
+    const pref = getQualityPref();
+
+    if (pref === 'auto') {
+        if (largeView) {
+            raisedForLarge = true;
+            sendQuality(player, 'auto');
+        } else if (raisedForLarge) {
+            raisedForLarge = false;
+            sendQuality(player, backdropHeight(info.levels));
+        }
+        return;
+    }
+
+    raisedForLarge = false;
+    const target = resolvePreferredHeight(pref, info.levels);
+    if (target === 'auto') {
+        if (!info.auto) sendQuality(player, 'auto');
+        return;
+    }
+    if (info.auto || info.current !== target) sendQuality(player, target);
+}
+
+export function chooseVideoQuality(pref: QualityPref): void {
+    setQualityPref(pref);
+    const player = readyPlayer();
+    if (!player || !isPremiumActive()) return;
+    const info = liveQualities;
+    if (!info || !embedHasTicket(info)) {
+        debug('video quality: holding', pref, 'until the embed is on the premium stream');
+        pendingChoice = pref;
+        qualityApplied = true;
+        if (info) ensureEmbedHasTicket(player);
+        player.requestQualities();
+        emitQuality();
+        return;
+    }
+    pendingChoice = null;
+    applyChoiceNow(player, info, pref);
+}
+
+function handleQualities(player: YtModulePlayer, qualities: YtModuleQualities): void {
+    liveQualities = qualities;
+
+    if (expected && qualityMatches(qualities, expected.target)) {
+        clearExpectation();
+        flushQualityBuffer(player);
+    }
+
+    if (isPremiumActive()) {
+        if (pendingChoice !== null && embedHasTicket(qualities)) {
+            const choice = pendingChoice;
+            pendingChoice = null;
+            applyChoiceNow(player, qualities, choice);
+        } else if (pendingChoice !== null) {
+            ensureEmbedHasTicket(player);
+        } else if (!qualityApplied) {
+            qualityApplied = true;
+            applyQualityPolicy();
+        }
+    } else {
+        pendingChoice = null;
+    }
+    emitQuality();
+}
+
+function handleUnavailable(player: YtModulePlayer): void {
+    const target = expected ? expected.target : null;
+    clearExpectation();
+    const info = liveQualities;
+    if (typeof target === 'number' && info && isPremiumActive()) {
+        const lower = resolvePreferredHeight(target, info.levels.filter(h => h < target));
+        debug('video quality:', target, 'unavailable, falling back to', lower);
+        sendQuality(player, lower);
+        return;
+    }
+    player.requestQualities();
+}
+
+function resetQualityState(): void {
+    clearExpectation();
+    clearTicketRetry();
+    liveQualities = null;
+    qualityApplied = false;
+    raisedForLarge = false;
+    pendingChoice = null;
+}
+
+function onTubeUpdate(): void {
+    const ticket = currentTicket();
+    if (ytModulePlayer && ytEngine === 'ytmodule') {
+        ytModulePlayer.setTicket(ticket);
+        if (ticket !== lastTicket) {
+            debug('video quality: ticket', ticket ? 'updated' : 'cleared', 'on the live player');
+            clearExpectation();
+            qualityApplied = false;
+            raisedForLarge = false;
+            if (!ticket) pendingChoice = null;
+        }
+    }
+    lastTicket = ticket;
+    emitQuality();
+}
 
 async function fetchWithTimeout(url: string, timeout: number = FETCH_TIMEOUT): Promise<Response> {
     const controller = new AbortController();
@@ -487,9 +769,13 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
     const startSec = Math.max(0, Math.floor(songMsToVideoMs(currentMeta, currentSongMs()) / 1000));
     debug('music video: yt module embed', videoId, 'parent origin', ytModuleParentOrigin());
     try {
+        resetQualityState();
+        largeView = isLargeView();
+        lastTicket = currentTicket();
         ytModulePlayer = new YtModulePlayer(container, {
             videoId,
             start: startSec,
+            vq: lastTicket,
             autoplay: true,
             controls: false,
             className: 'st-mv-yt',
@@ -511,8 +797,33 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
             onCaptionsChange: (showing, tracks) => {
                 debug('music video: yt module captions', showing, 'of', tracks);
             },
-            onCommandError: (cmd, message) => {
-                debug('music video: yt module command rejected', cmd, message);
+            onQualities: (qualities, player) => {
+                if (token !== buildToken || ytModulePlayer !== player) return;
+                handleQualities(player, qualities);
+            },
+            onCommandError: (cmd, message, player, code) => {
+                debug('music video: yt module command rejected', cmd, code || '', message || '');
+                if (token !== buildToken || ytModulePlayer !== player || cmd !== 'quality') return;
+                if (code === 'premium_required') {
+                    const retry = expected ? expected.target : null;
+                    clearExpectation();
+                    refreshTicketAfterRejection()
+                        .then(premium => {
+                            if (token !== buildToken || ytModulePlayer !== player) return;
+                            if (premium) {
+                                if (retry !== null && pendingChoice === null) pendingChoice = retry;
+                                qualityApplied = false;
+                                ensureEmbedHasTicket(player);
+                                player.requestQualities();
+                            } else {
+                                pendingChoice = null;
+                            }
+                            emitQuality();
+                        })
+                        .catch(() => {});
+                } else if (code === 'unavailable') {
+                    handleUnavailable(player);
+                }
             },
             onError: (code, message, player) => {
                 if (token !== buildToken || ytModulePlayer !== player) return;
@@ -555,6 +866,8 @@ function fallbackToIframeApi(reason: string, videoFault = false): void {
 
     destroyPlayers();
     container.innerHTML = '';
+    resetQualityState();
+    emitQuality();
     mediaPlaying = false;
     mediaVisible = false;
     adActive = false;
@@ -745,6 +1058,8 @@ function destroyPlayers(): void {
 function teardownSource(): void {
     buildToken++;
     destroyPlayers();
+    const hadQualities = liveQualities !== null;
+    resetQualityState();
     ytEngine = null;
     mediaPlaying = false;
     mediaVisible = false;
@@ -763,6 +1078,7 @@ function teardownSource(): void {
     currentId = null;
     currentMeta = null;
     activeSource = null;
+    if (hadQualities) emitQuality();
 }
 
 function failSource(): void {
@@ -936,6 +1252,12 @@ function tick(ts: number): void {
 
     if (ts - lastModeCheck > MODE_CHECK_MS) {
         lastModeCheck = ts;
+        const large = isLargeView();
+        if (large !== largeView) {
+            largeView = large;
+            applyQualityPolicy();
+            emitQuality();
+        }
         const blocked = isCompactBlocked();
         if (blocked !== compactBlocked) {
             compactBlocked = blocked;
@@ -1054,6 +1376,7 @@ function onSongChange(): void {
 export function startMusicVideo(): void {
     if (running) return;
     running = true;
+    if (!tubeUnsubscribe) tubeUnsubscribe = onTubeChange(onTubeUpdate);
     if (!songChangeHooked) {
         try {
             Spicetify.Player.addEventListener('songchange', onSongChange);

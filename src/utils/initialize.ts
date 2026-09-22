@@ -6,6 +6,7 @@ import { startUpdateChecker, checkForUpdates, getUpdateInfo, VERSION, showPostUp
 import { initConnectivity, getConnectivityState } from './connectivity';
 import { setDebugMode, isDebugEnabled } from './debug';
 import { updateBackgroundImage, backgroundImageNeedsMount } from './backgroundImage';
+import { initTubeAccess } from './tubeAccess';
 
 
 const INIT_STATE_KEY = '__spicyThemesInitState';
@@ -53,6 +54,8 @@ export async function initialize(): Promise<void> {
     }
 
     await registerSettings();
+
+    initTubeAccess();
 
     startUpdateChecker(30 * 60 * 1000);
 

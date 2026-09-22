@@ -60,11 +60,22 @@ function gradientRule(r: number, g: number, b: number, r2?: number, g2?: number,
 }
 
 function colorRule(color: string): string {
+    const { r, g, b } = hexToRgb(color);
     return `color: ${color} !important;
-    -webkit-text-fill-color: ${color} !important;
-    background-image: none !important;
-    -webkit-background-clip: unset !important;
-    background-clip: unset !important;`;
+    background-image: linear-gradient(
+        rgba(${r}, ${g}, ${b}, 1),
+        rgba(${r}, ${g}, ${b}, 1)
+    ) !important;
+    background-size: 100% 100% !important;
+    background-repeat: no-repeat !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;`;
+}
+
+function silhouetteRule(color: string, alphaVar: string, fallbackAlpha: number): string {
+    const { r, g, b } = hexToRgb(color);
+    return `text-shadow: 0 0 var(--BlurAmount, 0) rgba(${r}, ${g}, ${b}, var(${alphaVar}, ${fallbackAlpha})) !important;`;
 }
 
 function sel(bases: string[], suffix: string): string {
@@ -270,33 +281,51 @@ export function wordEffectTrigger(config: ThemeConfig): WordEffectTrigger | null
     return resolveWordTrigger(config.wordEffect, config.wordEffectTrigger);
 }
 
-function wordEffectCSS(config: ThemeConfig, bases: string[], baseShadow: string): string[] {
-    const spec = WORD_ANIMS[config.wordEffect];
+const SLT_WORD_ANIM_TARGETS = (nth: string, gate: string) => [
+    `.slt-interleaved-translation.Active .slt-sync-word${nth}${gate}`,
+    `.slt-replace-line.Active .slt-replace-word${nth}${gate}`,
+];
+
+const SLT_LINE_ANIM_TARGETS = [
+    '.slt-interleaved-translation.Active',
+    '.slt-replace-line.Active',
+];
+
+interface WordAnimOptions {
+    effect: string;
+    trigger: string;
+    intensity: number;
+    speed: number;
+    stagger: number;
+    baseShadow: string;
+    name: string;
+    scope: string;
+    words: (root: string, nth: string, gate: string) => string[];
+    lines: (root: string) => string[];
+}
+
+function wordAnimCSS(options: WordAnimOptions): string[] {
+    const spec = WORD_ANIMS[options.effect];
     if (!spec) return [];
 
-    const trigger = resolveWordTrigger(config.wordEffect, config.wordEffectTrigger);
-    const intensity = clamp(config.wordEffectIntensity, 0.1, 2);
-    const speed = clamp(config.wordEffectSpeed, 0.3, 3);
-    const stagger = clamp(config.wordEffectStagger, 0, 150) / 1000;
+    const trigger = resolveWordTrigger(options.effect, options.trigger);
+    const intensity = clamp(options.intensity, 0.1, 2);
+    const speed = clamp(options.speed, 0.3, 3);
+    const stagger = clamp(options.stagger, 0, 150) / 1000;
     const duration = round(spec.duration / speed, 4);
-    const name = `st-word-${config.wordEffect}`;
-    const scope = `:is(${bases.join(', ')})`;
+    const name = options.name;
     const gate = trigger === 'word' ? '.st-word-live' : '';
 
-    const targets = (root: string, nth: string) => [
-        `${root} .line.Active :is(.word, .letterGroup)${nth}${gate}`,
-        `.slt-interleaved-translation.Active .slt-sync-word${nth}${gate}`,
-        `.slt-replace-line.Active .slt-replace-word${nth}${gate}`,
-    ].join(',\n');
+    const targets = (root: string, nth: string) => options.words(root, nth, gate).join(',\n');
 
     const iterations = trigger === 'loop' ? 'infinite' : '1';
     const fill = trigger === 'line' ? 'backwards' : 'none';
     const out: string[] = [];
 
     out.push(`
-@keyframes ${name} {${spec.frames(intensity, baseShadow)}
+@keyframes ${name} {${spec.frames(intensity, options.baseShadow)}
 }
-${targets(scope, '')} {
+${targets(options.scope, '')} {
     ${buildProps(
         'display: inline-block !important;',
         `animation: ${name} ${duration}s ${spec.easing} ${iterations} ${fill} !important;`,
@@ -308,14 +337,15 @@ ${targets(scope, '')} {
 `);
 
     if (spec.perspective) {
-        out.push(`
-${scope} .line.Active,
-.slt-interleaved-translation.Active,
-.slt-replace-line.Active {
+        const lines = options.lines(options.scope);
+        if (lines.length) {
+            out.push(`
+${lines.join(',\n')} {
     perspective: 640px !important;
     transform-style: preserve-3d !important;
 }
 `);
+        }
     }
 
     if (trigger !== 'word' && stagger > 0) {
@@ -334,6 +364,307 @@ ${scope} .line.Active,
     }
 }
 `);
+
+    return out;
+}
+
+function wordEffectCSS(config: ThemeConfig, bases: string[], baseShadow: string, includeTranslations: boolean): string[] {
+    const scope = `:is(${bases.join(', ')})`;
+    return wordAnimCSS({
+        effect: config.wordEffect,
+        trigger: config.wordEffectTrigger,
+        intensity: config.wordEffectIntensity,
+        speed: config.wordEffectSpeed,
+        stagger: config.wordEffectStagger,
+        baseShadow,
+        name: `st-word-${config.wordEffect}`,
+        scope,
+        words: (root, nth, gate) => [
+            `${root} .line.Active :is(.word, .letterGroup)${nth}${gate}`,
+            ...(includeTranslations ? SLT_WORD_ANIM_TARGETS(nth, gate) : []),
+        ],
+        lines: (root) => [
+            `${root} .line.Active`,
+            ...(includeTranslations ? SLT_LINE_ANIM_TARGETS : []),
+        ],
+    });
+}
+
+const SLT_LINE_BASE = ['.slt-replace-line', '.slt-interleaved-translation'];
+const SLT_WORD_BASE = ['.slt-replace-word', '.slt-sync-word'];
+const SLT_ACTIVE_LINE = [
+    ':is(.slt-replace-line.Active, .slt-replace-line.active, .line.Active + .slt-replace-line)',
+    ':is(.slt-interleaved-translation.Active, .slt-interleaved-translation.active, .line.Active + .slt-interleaved-translation)',
+];
+const SLT_SUNG_LINE = [
+    ':is(.slt-replace-line.Sung, .line.Sung + .slt-replace-line)',
+    ':is(.slt-interleaved-translation.Sung, .line.Sung + .slt-interleaved-translation)',
+];
+const SLT_NOTSUNG_LINE = [
+    ':is(.slt-replace-line.NotSung, .line.NotSung + .slt-replace-line)',
+    ':is(.slt-interleaved-translation.NotSung, .line.NotSung + .slt-interleaved-translation)',
+];
+const SLT_ACTIVE_WORD = ['.slt-replace-word.word-active', '.slt-sync-word.slt-word-active'];
+const SLT_SUNG_WORD = ['.slt-replace-word.word-sung', '.slt-sync-word.slt-word-past'];
+const SLT_NOTSUNG_WORD = [
+    '.slt-replace-word.word-notsung',
+    '.slt-replace-word.word-notsng',
+    '.slt-sync-word.slt-word-future',
+];
+const SLT_SYNC_LINE = '.slt-sync-translation.slt-interleaved-translation';
+
+function translationCSS(config: ThemeConfig): string[] {
+    const out: string[] = [];
+
+    const flat = config.sltDisableHighlight;
+    const activeColor = flat ? config.sltHighlightColor : config.sltActiveLineColor;
+    const sungColor = flat ? config.sltHighlightColor : config.sltSungLineColor;
+    const baseColor = flat ? config.sltHighlightColor : config.sltNotSungLineColor;
+
+    const feather = round(clamp(config.sltGradientFeather, 0, 60), 2);
+    const gradStart = hexToRgb(config.sltGradientStartColor);
+    const gradEnd = hexToRgb(config.sltGradientEndColor);
+    const activePaint = (!flat && config.sltGradientEnabled)
+        ? gradientRule(gradStart.r, gradStart.g, gradStart.b, gradEnd.r, gradEnd.g, gradEnd.b, feather)
+        : colorRule(activeColor);
+    const sungPaint = colorRule(sungColor);
+    const notSungPaint = colorRule(baseColor);
+
+    const fontFamily = config.sltFontFamily || config.fontFamily;
+    const fontFamilyDecl = fontFamily ? `font-family: ${fontFamily}, system-ui, sans-serif !important;` : '';
+    const scale = round(clamp(config.sltLyricsScale, 0.25, 2), 4);
+    const animationSpeed = clamp(config.sltAnimationSpeed, 0.3, 3);
+    const transitionMs = Math.max(8.333, 110 / animationSpeed).toFixed(3);
+    const snapMs = Math.max(8.333, 56 / animationSpeed).toFixed(3);
+
+    const activeGlowPx = Math.min(config.sltActiveGlowIntensity, 15);
+    const glowPx = Math.min(config.sltGlowIntensity, 15);
+    const shadowFn = config.sltTextShadowEnabled
+        ? `drop-shadow(${config.sltTextShadowOffsetX}px ${config.sltTextShadowOffsetY}px ${config.sltTextShadowBlur}px ${hexToRgba(config.sltTextShadowColor, config.sltTextShadowOpacity)})`
+        : '';
+    const activeGlowFn = config.sltGlowEnabled && `drop-shadow(0 0 ${activeGlowPx}px ${config.sltActiveGlowColor})`;
+    const normalGlowFn = config.sltGlowEnabled && `drop-shadow(0 0 ${glowPx}px ${config.sltInactiveGlowColor})`;
+    const blurFn = config.sltBlurUnsung && `blur(${config.sltBlurAmount}px)`;
+    const activeFilter = filterDecl(activeGlowFn, shadowFn);
+    const unsungFilter = filterDecl(blurFn, normalGlowFn, shadowFn);
+    const baseFilter = filterDecl(normalGlowFn, shadowFn);
+
+    const bgGlowRgb = hexToRgb(config.sltBgGlowColor);
+    const bgGlowPx = Math.min(config.sltBgGlowIntensity, 30);
+    const bgGlowDecl = config.sltBgGlowEnabled
+        ? `text-shadow: 0 0 ${bgGlowPx}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1)) !important;`
+        : '';
+    const wordBaseShadow = config.sltBgGlowEnabled
+        ? `0 0 ${bgGlowPx}px rgba(${bgGlowRgb.r}, ${bgGlowRgb.g}, ${bgGlowRgb.b}, var(--text-shadow-opacity, 1))`
+        : '';
+
+    const glowPulseOn = config.sltGlowEnabled && config.sltGlowPulse;
+    const pulseSpeed = clamp(config.sltGlowPulseSpeed, 0.3, 3);
+    const pulsePeak = Math.min(Math.round(activeGlowPx * 1.9) + 2, 30);
+    const pulseAnim = glowPulseOn ? `st-slt-glow-pulse ${(1.6 / pulseSpeed).toFixed(2)}s ease-in-out infinite` : '';
+    const scaleEffect = !config.sltScaleInEffect && config.sltScaleActive !== 1.0
+        && `transform: scale3d(${config.sltScaleActive}, ${config.sltScaleActive}, 1) !important;`;
+
+    const DIRECTION_ANGLES: Record<string, number> = { horizontal: 90, vertical: 180, diagonal: 135 };
+    const gradientAngle = config.sltGradientDirection === 'auto'
+        ? null
+        : (config.sltGradientDirection === 'custom'
+            ? clamp(Math.round(config.sltGradientAngle), 0, 360)
+            : DIRECTION_ANGLES[config.sltGradientDirection] ?? 90);
+
+    const lineTransition = `transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
+    transition-duration: ${transitionMs}ms !important;
+    transition-timing-function: linear !important;
+    backface-visibility: hidden !important;`;
+    const wordTransition = `transition-property: color, -webkit-text-fill-color, transform, filter, text-shadow !important;
+    transition-duration: ${snapMs}ms !important;
+    transition-timing-function: linear !important;
+    backface-visibility: hidden !important;`;
+
+    const syncExtras = `background-size: 100% 100% !important;
+    background-repeat: no-repeat !important;
+    -webkit-box-decoration-break: slice !important;
+    box-decoration-break: slice !important;`;
+
+    if (fontFamilyDecl) {
+        out.push(`
+#SpicyLyricsPage .slt-interleaved-translation.slt-interleaved-translation,
+#SpicyLyricsPage .slt-interleaved-translation.slt-interleaved-translation *,
+#SpicyLyricsPage .slt-replace-line.slt-replace-line,
+#SpicyLyricsPage .slt-replace-line.slt-replace-line * {
+    ${fontFamilyDecl}
+}
+`);
+    }
+
+    out.push(`
+${SLT_LINE_BASE.join(',\n')} {
+    ${buildProps(
+        notSungPaint,
+        `opacity: ${config.sltNotSungLineOpacity} !important;`,
+        scale !== 1.0 && `font-size: calc(1em * ${scale}) !important;`,
+        fontFamilyDecl,
+        `font-weight: ${config.sltFontWeight} !important;`,
+        config.sltLetterSpacing !== 0 && `letter-spacing: ${config.sltLetterSpacing}em !important;`,
+        config.sltWordSpacing !== 0 && `word-spacing: ${round(clamp(config.sltWordSpacing, -0.1, 1), 3)}em !important;`,
+        `line-height: ${config.sltLineHeight} !important;`,
+        config.sltFontStyle !== 'normal' && `font-style: ${config.sltFontStyle} !important;`,
+        config.sltTextTransform !== 'none' && `text-transform: ${config.sltTextTransform} !important;`,
+        config.sltTextAlign !== 'default' && `text-align: ${config.sltTextAlign} !important;`,
+        config.sltMaxLineWidth > 0 && `max-width: ${round(clamp(config.sltMaxLineWidth, 0, 100), 2)}% !important;`,
+        config.sltMaxLineWidth > 0 && (config.sltTextAlign === 'right'
+            ? 'margin-inline: auto 0 !important;'
+            : config.sltTextAlign === 'left'
+                ? 'margin-inline: 0 auto !important;'
+                : 'margin-inline: auto !important;'),
+        gradientAngle !== null && `--gradient-degrees: ${gradientAngle}deg !important;`,
+        baseFilter,
+    )}
+    ${lineTransition}
+}
+
+${SLT_SYNC_LINE} {
+    ${syncExtras}
+}
+
+.slt-replace-line:has(.slt-replace-word),
+${SLT_SYNC_LINE}:has(.slt-sync-word) {
+    background-image: none !important;
+    -webkit-text-fill-color: ${baseColor} !important;
+}
+
+${SLT_WORD_BASE.join(',\n')} {
+    ${buildProps(
+        notSungPaint,
+        fontFamilyDecl,
+        `font-weight: ${config.sltFontWeight} !important;`,
+        'display: inline-block !important;',
+        'white-space: pre-wrap !important;',
+        gradientAngle !== null && `--gradient-degrees: ${gradientAngle}deg !important;`,
+    )}
+    ${wordTransition}
+}
+`);
+
+    out.push(`
+${SLT_ACTIVE_LINE.join(',\n')} {
+    ${buildProps(
+        activePaint,
+        `opacity: ${config.sltActiveLineOpacity} !important;`,
+        config.sltActiveLineWeight > 0 && `font-weight: ${Math.round(config.sltActiveLineWeight)} !important;`,
+        scaleEffect,
+        activeFilter,
+    )}
+}
+
+${SLT_ACTIVE_WORD.join(',\n')} {
+    ${buildProps(
+        activePaint,
+        config.sltActiveLineWeight > 0 && `font-weight: ${Math.round(config.sltActiveLineWeight)} !important;`,
+        bgGlowDecl,
+    )}
+}
+
+${SLT_SUNG_LINE.join(',\n')} {
+    ${buildProps(
+        sungPaint,
+        `opacity: ${config.sltSungLineOpacity} !important;`,
+        '--gradient-position: 100% !important;',
+        unsungFilter,
+    )}
+}
+
+${SLT_SUNG_WORD.join(',\n')} {
+    ${sungPaint}
+}
+
+${SLT_NOTSUNG_LINE.join(',\n')} {
+    ${buildProps(
+        notSungPaint,
+        `opacity: ${config.sltNotSungLineOpacity} !important;`,
+        '--gradient-position: -20% !important;',
+        unsungFilter,
+    )}
+}
+
+${SLT_NOTSUNG_WORD.join(',\n')} {
+    ${notSungPaint}
+}
+`);
+
+    if (config.sltBlurSungWords) {
+        const targets = [
+            `${SLT_ACTIVE_LINE[0]} .slt-replace-word.word-sung`,
+            `${SLT_ACTIVE_LINE[1]} .slt-sync-word.slt-word-past`,
+        ].join(',\n');
+        out.push(`
+${targets} {
+    filter: blur(${config.sltBlurSungWordsAmount}px) opacity(${config.sltBlurSungWordsOpacity}) !important;
+}
+`);
+    }
+
+    if (config.sltTextStrokeEnabled && config.sltTextStrokeWidth > 0) {
+        const strokeWidth = round(clamp(config.sltTextStrokeWidth, 0, 3), 2);
+        out.push(`
+${[...SLT_LINE_BASE, ...SLT_WORD_BASE].join(',\n')} {
+    -webkit-text-stroke: ${strokeWidth}px ${config.sltTextStrokeColor} !important;
+    paint-order: stroke fill !important;
+}
+`);
+    }
+
+    if (glowPulseOn) {
+        out.push(`
+@keyframes st-slt-glow-pulse {
+    0%, 100% { filter: ${filterList(`drop-shadow(0 0 ${activeGlowPx}px ${config.sltActiveGlowColor})`, shadowFn)}; }
+    50% { filter: ${filterList(`drop-shadow(0 0 ${pulsePeak}px ${config.sltActiveGlowColor})`, shadowFn)}; }
+}
+`);
+        if (!config.sltScaleInEffect) {
+            out.push(`
+${SLT_ACTIVE_LINE.join(',\n')} {
+    animation: ${pulseAnim} !important;
+    will-change: filter !important;
+}
+`);
+        }
+    }
+
+    if (config.sltScaleInEffect) {
+        out.push(`
+@keyframes st-slt-line-scale-in {
+    from { transform: scale3d(${config.sltScaleInFrom}, ${config.sltScaleInFrom}, 1); }
+    to { transform: scale3d(${config.sltScaleActive}, ${config.sltScaleActive}, 1); }
+}
+${SLT_ACTIVE_LINE.join(',\n')} {
+    animation: ${[`st-slt-line-scale-in ${config.sltScaleInDuration}s cubic-bezier(0.16, 1, 0.3, 1) both`, pulseAnim].filter(Boolean).join(', ')} !important;
+    will-change: transform${glowPulseOn ? ', filter' : ''} !important;
+}
+${lineOriginRules(SLT_ACTIVE_LINE)}
+`);
+    }
+
+    out.push(...wordAnimCSS({
+        effect: config.sltWordEffect,
+        trigger: config.sltWordEffectTrigger,
+        intensity: config.sltWordEffectIntensity,
+        speed: config.sltWordEffectSpeed,
+        stagger: config.sltWordEffectStagger,
+        baseShadow: wordBaseShadow,
+        name: `st-slt-word-${config.sltWordEffect}`,
+        scope: '#SpicyLyricsPage',
+        words: (_root, nth, gate) => (gate
+            ? [
+                `${SLT_ACTIVE_LINE[0]} .slt-replace-word.word-active${nth}`,
+                `${SLT_ACTIVE_LINE[1]} .slt-sync-word.slt-word-active${nth}`,
+            ]
+            : [
+                `${SLT_ACTIVE_LINE[0]} .slt-replace-word${nth}`,
+                `${SLT_ACTIVE_LINE[1]} .slt-sync-word${nth}`,
+            ]),
+        lines: () => SLT_ACTIVE_LINE,
+    }));
 
     return out;
 }
@@ -361,6 +692,9 @@ export function generateThemeCSS(config: ThemeConfig): string {
         '.spicy-pip-wrapper #SpicyLyricsPage .LyricsContent',
     ];
     const ALL = [...BASES, ...PIP];
+
+    const sltIndep = config.sltStylingEnabled && config.sltIndependent;
+    const sltShared = (items: string[]): string[] => sltIndep ? [] : items;
 
     const gradientFeather = round(clamp(config.gradientFeather, 0, 60), 2);
     const activeGrad = config.gradientEnabled
@@ -563,12 +897,14 @@ ${lineOriginRules(ALL.map(b => `${b} .line.Active`))}
     css.push(`
 ${lineSelectors(ALL, 'Sung')} {
     ${sungGrad}
+    ${silhouetteRule(config.sungLineColor, '--gradient-alpha', 0.85)}
 }
 `);
 
     css.push(`
 ${lineSelectors(ALL, 'NotSung')} {
     ${notSungGrad}
+    ${silhouetteRule(config.notSungLineColor, '--gradient-alpha-end', 0.35)}
 }
 `);
 
@@ -604,12 +940,14 @@ ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
     if (config.blurUnsung) {
         const blurTargets = [
             ...ALL.flatMap(b => [`${b} .line.Sung`, `${b} .line.NotSung`]),
-            '.slt-replace-line.Sung',
-            '.slt-replace-line.NotSung',
-            '.line.Sung + .slt-replace-line',
-            '.line.NotSung + .slt-replace-line',
-            '.line.Sung + .slt-interleaved-translation',
-            '.line.NotSung + .slt-interleaved-translation',
+            ...sltShared([
+                '.slt-replace-line.Sung',
+                '.slt-replace-line.NotSung',
+                '.line.Sung + .slt-replace-line',
+                '.line.NotSung + .slt-replace-line',
+                '.line.Sung + .slt-interleaved-translation',
+                '.line.NotSung + .slt-interleaved-translation',
+            ]),
         ].join(',\n');
         const blurFilter = filterDecl(`blur(${config.blurAmount}px)`, glowNormalFn, shadowFilter);
         css.push(`
@@ -644,14 +982,16 @@ ${blurTargets} {
             ...ALL.map(b => `${b} [data-index].st-preview-line > .line`),
             ...ALL.map(b => `${b} [data-index].st-preview-line > .line.Sung`),
             ...ALL.map(b => `${b} [data-index].st-preview-line > .line.NotSung`),
-            '[data-index].st-preview-line .slt-interleaved-translation',
-            '[data-index].st-preview-line .slt-replace-line',
-            '.slt-replace-line.Active',
-            '.slt-replace-line.active',
-            '.line.Active + .slt-replace-line',
-            '.slt-interleaved-translation.Active',
-            '.slt-interleaved-translation.active',
-            '.line.Active + .slt-interleaved-translation',
+            ...sltShared([
+                '[data-index].st-preview-line .slt-interleaved-translation',
+                '[data-index].st-preview-line .slt-replace-line',
+                '.slt-replace-line.Active',
+                '.slt-replace-line.active',
+                '.line.Active + .slt-replace-line',
+                '.slt-interleaved-translation.Active',
+                '.slt-interleaved-translation.active',
+                '.line.Active + .slt-interleaved-translation',
+            ]),
         ];
         css.push(`
 ${unblurTargets.join(',\n')} {
@@ -684,8 +1024,10 @@ ${sungWordTargets} {
     if (config.textShadowEnabled) {
         const shadowTargets = [
             ...ALL.map(b => `${b} .line`),
-            '.slt-replace-line',
-            '.slt-interleaved-translation',
+            ...sltShared([
+                '.slt-replace-line',
+                '.slt-interleaved-translation',
+            ]),
         ].join(',\n');
         css.push(`
 ${shadowTargets} {
@@ -701,10 +1043,12 @@ ${shadowTargets} {
                 `${b} .line`,
                 `${b} .line :is(.word, .letter, .letterGroup)`,
             ]),
-            '.slt-replace-line',
-            '.slt-replace-line .slt-replace-word',
-            '.slt-interleaved-translation',
-            '.slt-interleaved-translation .slt-sync-word',
+            ...sltShared([
+                '.slt-replace-line',
+                '.slt-replace-line .slt-replace-word',
+                '.slt-interleaved-translation',
+                '.slt-interleaved-translation .slt-sync-word',
+            ]),
         ].join(',\n');
         css.push(`
 ${strokeTargets} {
@@ -778,16 +1122,23 @@ ${bgGlowTargets} {
                 `${b} .line.${s} .syllableGroup`,
             ])
         ).join(',\n');
+        const highlightSilhouetteTargets = ALL.flatMap(b =>
+            ['Sung', 'NotSung'].flatMap(s => [
+                `${b} .line.${s}`,
+                `${b} .line.${s} .word`,
+                `${b} .line.${s} .letter`,
+                `${b} .line.${s} .letterGroup`,
+            ])
+        ).join(',\n');
         css.push(`
 ${highlightTargets} {
-    background-image: none !important;
-    -webkit-background-clip: unset !important;
-    background-clip: unset !important;
-    color: ${config.highlightColor} !important;
-    -webkit-text-fill-color: ${config.highlightColor} !important;
+    ${colorRule(config.highlightColor)}
     transition-property: color, -webkit-text-fill-color, opacity, filter, transform !important;
     transition-duration: var(--st-lyric-snap, ${lyricSnapMs}ms) !important;
     transition-timing-function: linear !important;
+}
+${highlightSilhouetteTargets} {
+    ${silhouetteRule(config.highlightColor, '--gradient-alpha-end', 0.35)}
 }
 `);
     }
@@ -864,7 +1215,11 @@ ${highlightTargets} {
 `);
     }
 
-    if (config.sltStylingEnabled) {
+    if (sltIndep) {
+        css.push(...translationCSS(config));
+    }
+
+    if (config.sltStylingEnabled && !config.sltIndependent) {
     const useSltColor = config.sltTranslationColorEnabled && !!config.sltTranslationColor;
     const sltBaseColor = useSltColor ? config.sltTranslationColor : config.notSungLineColor;
     const useSltGlow = config.sltGlowColorEnabled && !!config.sltGlowColor;
@@ -905,6 +1260,7 @@ ${highlightTargets} {
 
 .slt-replace-line:has(.slt-replace-word) {
     background-image: none !important;
+    -webkit-text-fill-color: ${sltBaseColor} !important;
 }
 
 .slt-replace-word {
@@ -948,6 +1304,7 @@ ${highlightTargets} {
 
 .slt-sync-translation.slt-interleaved-translation:has(.slt-sync-word) {
     background-image: none !important;
+    -webkit-text-fill-color: ${sltBaseColor} !important;
 }
 
 .slt-sync-word {
@@ -1066,17 +1423,19 @@ ${highlightTargets} {
 `);
     }
 
-    css.push(...wordEffectCSS(config, ALL, wordBaseShadow));
+    css.push(...wordEffectCSS(config, ALL, wordBaseShadow, !sltIndep));
 
     if (config.scaleInEffect) {
         const scaleInTargets = [
             ...ALL.map(b => `${b} .line.Active`),
-            '.slt-replace-line.Active',
-            '.slt-replace-line.active',
-            '.line.Active + .slt-replace-line',
-            '.slt-interleaved-translation.Active',
-            '.slt-interleaved-translation.active',
-            '.line.Active + .slt-interleaved-translation',
+            ...sltShared([
+                '.slt-replace-line.Active',
+                '.slt-replace-line.active',
+                '.line.Active + .slt-replace-line',
+                '.slt-interleaved-translation.Active',
+                '.slt-interleaved-translation.active',
+                '.line.Active + .slt-interleaved-translation',
+            ]),
         ].join(',\n');
         css.push(`
 @keyframes st-line-scale-in {
@@ -1089,8 +1448,10 @@ ${scaleInTargets} {
 }
 ${lineOriginRules([
     ...ALL.map(b => `${b} .line.Active`),
-    '.slt-replace-line.Active',
-    '.slt-interleaved-translation.Active',
+    ...sltShared([
+        '.slt-replace-line.Active',
+        '.slt-interleaved-translation.Active',
+    ]),
 ])}
 `);
     }
@@ -1659,11 +2020,25 @@ ${styleRule('helix', '', (b, i) => `--st-eq-amp: var(--st-eq-b${b}); animation-d
     }
 
     css.push(`
+#SpicyLyricsPage .Credits,
+#SpicyLyricsPage .SongInfo,
+#SpicyLyricsPage .LyricsProvider,
+#SpicyLyricsPage .${THEME_CREDIT_CLASS} {
+    ${buildProps(
+        `color: ${config.sungLineColor} !important;`,
+        fontFamily && `font-family: ${fontFamily}, system-ui, sans-serif !important;`,
+    )}
+}
 #SpicyLyricsPage .${THEME_CREDIT_CLASS} {
     opacity: 0.5;
 }
 #SpicyLyricsPage .LyricsProvider + .${THEME_CREDIT_CLASS} {
+    font-size: 0.34em;
+    font-weight: 600;
     margin-top: 0.29cqw;
+}
+#SpicyLyricsNPVCard #SpicyLyricsPage .LyricsProvider + .${THEME_CREDIT_CLASS} {
+    font-size: 0.45em;
 }
 `);
 
@@ -3270,6 +3645,153 @@ const BASE_STYLES = `
     background: var(--st-accent-soft);
     border-color: var(--st-accent);
     color: var(--st-accent);
+}
+
+.st-modal-root .st-m-field.st-m-vq {
+    display: block;
+    padding: 0;
+    border-top: none;
+}
+.st-modal-root .st-m-vq-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    min-height: 38px;
+    padding: 8px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+.st-modal-root .st-m-vq-body > .st-m-vq-row:first-child {
+    border-top: none;
+    padding-top: 2px;
+}
+.st-modal-root .st-m-vq-text {
+    min-width: 0;
+    flex: 1 1 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.st-modal-root .st-m-vq-status {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--st-text);
+}
+.st-modal-root .st-m-vq-sub {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--st-text-dim);
+}
+.st-modal-root .st-m-vq-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.st-modal-root .st-m-vq-error {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #f08272;
+    flex: 1 1 220px;
+}
+.st-modal-root .st-m-vq-link {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 4px 0 8px;
+}
+.st-modal-root .st-m-vq-code {
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    line-height: 1;
+    padding: 14px 20px;
+    border-radius: var(--st-radius-sm);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px dashed var(--st-border);
+    color: var(--st-text);
+    user-select: all;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
+}
+.st-modal-root .st-m-vq-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-top-color: var(--st-accent);
+    border-radius: 50%;
+    vertical-align: -2px;
+    animation: st-m-vq-spin 0.8s linear infinite;
+}
+@keyframes st-m-vq-spin {
+    to { transform: rotate(360deg); }
+}
+.st-modal-root .st-m-vq-account {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1 1 220px;
+}
+.st-modal-root .st-m-vq-avatar {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--st-text);
+}
+.st-modal-root .st-m-vq-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+    vertical-align: 1px;
+}
+.st-modal-root .st-m-vq-badge-premium {
+    background: linear-gradient(135deg, #f5c542, #e0892b);
+    color: #1a1200;
+}
+.st-modal-root .st-m-vq-badge-free {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--st-text-dim);
+}
+.st-modal-root .st-m-vq-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.st-modal-root .st-m-vq-row > .st-m-select {
+    width: auto;
+    min-width: 150px;
+    flex: 0 0 auto;
+}
+.st-modal-root .st-m-vq-chip.locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.st-modal-root .st-m-vq-chip.locked:hover {
+    transform: none;
+    background: transparent;
+    color: var(--st-text-dim);
+}
+@media (prefers-reduced-motion: reduce) {
+    .st-modal-root .st-m-vq-spinner {
+        animation: none;
+    }
 }
 
 .st-modal-root .st-m-mp-status {

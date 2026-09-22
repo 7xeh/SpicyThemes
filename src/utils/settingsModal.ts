@@ -22,6 +22,7 @@ import {
     ThemePreset,
 } from './state';
 import { injectThemeStyles } from './themeEngine';
+import { buildVideoQualityPanel } from './videoQualityPanel';
 import { saveBackgroundImage, pruneBackgroundImages, getCachedBackgroundUrl, getBackgroundImageUrl, getBackgroundImageInfo, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
 import { getCurrentVersion, getDisplayHash, runManualUpdateCheck } from './updater';
 import { hideModal } from './modal';
@@ -109,6 +110,8 @@ const WORD_EFFECT_OPTIONS = [
 ];
 
 const EQ_STYLE_OPTIONS = EQ_STYLES.map(s => ({ value: s.id, text: `${s.group} — ${s.label}` }));
+
+const VIDEO_QUALITY_SECTION = 'Video quality';
 
 export const SCHEMA: FieldDef[] = [
     { id: 'activeLineColor', label: 'Active line', type: 'color', section: 'Line colors', when: (t) => !t.gradientEnabled, hint: 'The line currently being sung. Replaced by the gradient when gradient text is on.', keywords: 'current karaoke highlight' },
@@ -256,16 +259,108 @@ export const SCHEMA: FieldDef[] = [
     { id: 'eqStereoAmount', label: 'Spread amount', type: 'slider', section: 'Equalizer', min: 0.1, max: 1.0, step: 0.05, parent: 'eqStereoSpread', when: (t) => t.eqEnabled && t.eqPosition === 'both' && t.eqStereoSpread },
 
     { id: 'sltStylingEnabled', label: 'Style translated lines', type: 'toggle', section: 'Translation', hint: 'Requires the Spicy Lyrics Translator extension. Styles the translation lines it adds.', keywords: 'slt translator subtitle' },
-    { id: 'sltTranslationFont', label: 'Font', type: 'dropdown', section: 'Translation', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
-    { id: 'sltTranslationFont', label: 'Custom font name', type: 'text', section: 'Translation', placeholder: "e.g. 'Inter', sans-serif", parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && t.sltTranslationFont !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltTranslationFont) },
-    { id: 'sltTranslationFontSize', label: 'Text size', type: 'slider', section: 'Translation', min: 0.25, max: 2.0, step: 0.05, unit: 'x', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
-    { id: 'sltTranslationOpacity', label: 'Opacity', type: 'slider', section: 'Translation', min: 0.1, max: 1.0, step: 0.05, parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
-    { id: 'sltHighlightStartColor', label: 'Highlight start', type: 'color', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
-    { id: 'sltHighlightEndColor', label: 'Highlight end', type: 'color', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
-    { id: 'sltTranslationColorEnabled', label: 'Custom base colour', type: 'toggle', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
-    { id: 'sltTranslationColor', label: 'Base colour', type: 'color', section: 'Translation', parent: 'sltTranslationColorEnabled', when: (t) => t.sltStylingEnabled && t.sltTranslationColorEnabled },
-    { id: 'sltGlowColorEnabled', label: 'Custom glow colour', type: 'toggle', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled },
-    { id: 'sltGlowColor', label: 'Glow colour', type: 'color', section: 'Translation', parent: 'sltGlowColorEnabled', when: (t) => t.sltStylingEnabled && t.sltGlowColorEnabled },
+    { id: 'sltIndependent', label: 'Style translations independently', type: 'toggle', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled, hint: 'Gives translated lines their own copy of every lyric control — colours, gradient, typography, glow, focus and motion — instead of following the main lyrics.', keywords: 'independent separate own controls mirror full' },
+    { id: 'sltTranslationFont', label: 'Font', type: 'dropdown', section: 'Translation', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltTranslationFont', label: 'Custom font name', type: 'text', section: 'Translation', placeholder: "e.g. 'Inter', sans-serif", parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent && t.sltTranslationFont !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltTranslationFont) },
+    { id: 'sltTranslationFontSize', label: 'Text size', type: 'slider', section: 'Translation', min: 0.25, max: 2.0, step: 0.05, unit: 'x', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltTranslationOpacity', label: 'Opacity', type: 'slider', section: 'Translation', min: 0.1, max: 1.0, step: 0.05, parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltHighlightStartColor', label: 'Highlight start', type: 'color', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltHighlightEndColor', label: 'Highlight end', type: 'color', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltTranslationColorEnabled', label: 'Custom base colour', type: 'toggle', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltTranslationColor', label: 'Base colour', type: 'color', section: 'Translation', parent: 'sltTranslationColorEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent && t.sltTranslationColorEnabled },
+    { id: 'sltGlowColorEnabled', label: 'Custom glow colour', type: 'toggle', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltGlowColor', label: 'Glow colour', type: 'color', section: 'Translation', parent: 'sltGlowColorEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent && t.sltGlowColorEnabled },
+
+    { id: 'sltActiveLineColor', label: 'Active line', type: 'color', section: 'Translation colours', when: (t) => t.sltStylingEnabled && t.sltIndependent && !t.sltGradientEnabled, hint: 'The translation of the line currently being sung. Replaced by the gradient when gradient text is on.', keywords: 'translation current karaoke highlight' },
+    { id: 'sltSungLineColor', label: 'Already sung', type: 'color', section: 'Translation colours', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation past previous' },
+    { id: 'sltNotSungLineColor', label: 'Not yet sung', type: 'color', section: 'Translation colours', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation upcoming future next' },
+    { id: 'sltActiveLineOpacity', label: 'Active line opacity', type: 'slider', section: 'Translation colours', min: 0.1, max: 1.0, step: 0.05, when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation transparency fade' },
+    { id: 'sltSungLineOpacity', label: 'Sung line opacity', type: 'slider', section: 'Translation colours', min: 0.1, max: 1.0, step: 0.05, when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation transparency fade' },
+    { id: 'sltNotSungLineOpacity', label: 'Unsung line opacity', type: 'slider', section: 'Translation colours', min: 0.1, max: 1.0, step: 0.05, when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation transparency fade' },
+
+    { id: 'sltGradientEnabled', label: 'Gradient text', type: 'toggle', section: 'Translation gradient', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Fills the active translation with a two-colour gradient instead of a flat colour.', keywords: 'translation rainbow fade blend' },
+    { id: 'sltGradientStartColor', label: 'Sung colour', type: 'color', section: 'Translation gradient', parent: 'sltGradientEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGradientEnabled },
+    { id: 'sltGradientEndColor', label: 'Upcoming colour', type: 'color', section: 'Translation gradient', parent: 'sltGradientEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGradientEnabled },
+    { id: 'sltGradientDirection', label: 'Sweep direction', type: 'dropdown', section: 'Translation gradient', parent: 'sltGradientEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGradientEnabled, options: [
+        { value: 'auto', text: 'Follow Spicy Lyrics' },
+        { value: 'horizontal', text: 'Horizontal' },
+        { value: 'vertical', text: 'Vertical' },
+        { value: 'diagonal', text: 'Diagonal' },
+        { value: 'custom', text: 'Custom angle' },
+    ], keywords: 'translation angle direction sweep fill' },
+    { id: 'sltGradientAngle', label: 'Sweep angle', type: 'slider', section: 'Translation gradient', min: 0, max: 360, step: 5, unit: '°', parent: 'sltGradientEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGradientEnabled && t.sltGradientDirection === 'custom', keywords: 'translation degrees rotation' },
+    { id: 'sltGradientFeather', label: 'Fill softness', type: 'slider', section: 'Translation gradient', min: 0, max: 60, step: 1, unit: '%', parent: 'sltGradientEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGradientEnabled, keywords: 'translation blend fade edge feather' },
+
+    { id: 'sltFontFamily', label: 'Font', type: 'dropdown', section: 'Translation typography', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation typeface family' },
+    { id: 'sltFontFamily', label: 'Custom font name', type: 'text', section: 'Translation typography', placeholder: "e.g. 'Inter', sans-serif", when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltFontFamily !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltFontFamily) },
+    { id: 'sltFontWeight', label: 'Weight', type: 'dropdown', section: 'Translation typography', options: WEIGHT_OPTIONS, when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation bold thin' },
+    { id: 'sltActiveLineWeight', label: 'Active line weight', type: 'dropdown', section: 'Translation typography', options: [{ value: '0', text: 'Same as above' }, ...WEIGHT_OPTIONS], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation bold emphasis active' },
+    { id: 'sltTextTransform', label: 'Capitalisation', type: 'dropdown', section: 'Translation typography', options: [
+        { value: 'none', text: 'As written' },
+        { value: 'uppercase', text: 'UPPERCASE' },
+        { value: 'lowercase', text: 'lowercase' },
+        { value: 'capitalize', text: 'Title Case' },
+    ], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation uppercase lowercase caps case' },
+    { id: 'sltFontStyle', label: 'Style', type: 'dropdown', section: 'Translation typography', options: [
+        { value: 'normal', text: 'Upright' },
+        { value: 'italic', text: 'Italic' },
+        { value: 'oblique', text: 'Oblique (slanted)' },
+    ], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation italic slant oblique' },
+    { id: 'sltLyricsScale', label: 'Text size', type: 'slider', section: 'Translation typography', min: 0.25, max: 2.0, step: 0.05, unit: 'x', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation scale bigger smaller font size' },
+    { id: 'sltLetterSpacing', label: 'Letter spacing', type: 'slider', section: 'Translation typography', min: -0.1, max: 0.3, step: 0.01, unit: 'em', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation tracking kerning' },
+    { id: 'sltWordSpacing', label: 'Word spacing', type: 'slider', section: 'Translation typography', min: -0.1, max: 1.0, step: 0.02, unit: 'em', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation gap space between words' },
+    { id: 'sltLineHeight', label: 'Line spacing', type: 'slider', section: 'Translation typography', min: 1.0, max: 2.5, step: 0.01, when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation leading gap' },
+    { id: 'sltTextAlign', label: 'Alignment', type: 'dropdown', section: 'Translation typography', options: [
+        { value: 'default', text: 'Follow Spicy Lyrics' },
+        { value: 'left', text: 'Left' },
+        { value: 'center', text: 'Centre' },
+        { value: 'right', text: 'Right' },
+    ], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation align left right centre' },
+    { id: 'sltMaxLineWidth', label: 'Max line width', type: 'slider', section: 'Translation typography', min: 0, max: 100, step: 5, unit: '%', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation measure wrap width column' },
+
+    { id: 'sltGlowEnabled', label: 'Line glow', type: 'toggle', section: 'Translation glow', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Adds a soft halo around every translated line.', keywords: 'translation halo neon shine bloom' },
+    { id: 'sltActiveGlowColor', label: 'Active line colour', type: 'color', section: 'Translation glow', parent: 'sltGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGlowEnabled },
+    { id: 'sltActiveGlowIntensity', label: 'Active line strength', type: 'slider', section: 'Translation glow', min: 0, max: 15, step: 1, unit: 'px', parent: 'sltGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGlowEnabled },
+    { id: 'sltInactiveGlowColor', label: 'Other lines colour', type: 'color', section: 'Translation glow', parent: 'sltGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGlowEnabled },
+    { id: 'sltGlowIntensity', label: 'Other lines strength', type: 'slider', section: 'Translation glow', min: 0, max: 15, step: 1, unit: 'px', parent: 'sltGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGlowEnabled },
+    { id: 'sltGlowPulse', label: 'Pulse the active line', type: 'toggle', section: 'Translation glow', parent: 'sltGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGlowEnabled, keywords: 'translation breathe pulse animate' },
+    { id: 'sltGlowPulseSpeed', label: 'Pulse speed', type: 'slider', section: 'Translation glow', min: 0.3, max: 3.0, step: 0.1, unit: 'x', parent: 'sltGlowPulse', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGlowEnabled && t.sltGlowPulse },
+    { id: 'sltBgGlowEnabled', label: 'Active word glow', type: 'toggle', section: 'Translation glow', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Lights up only the translated word being sung right now.', keywords: 'translation karaoke halo neon' },
+    { id: 'sltBgGlowColor', label: 'Word glow colour', type: 'color', section: 'Translation glow', parent: 'sltBgGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBgGlowEnabled },
+    { id: 'sltBgGlowIntensity', label: 'Word glow strength', type: 'slider', section: 'Translation glow', min: 0, max: 30, step: 1, unit: 'px', parent: 'sltBgGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBgGlowEnabled },
+    { id: 'sltTextShadowEnabled', label: 'Text shadow', type: 'toggle', section: 'Translation glow', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation drop shadow outline readability' },
+    { id: 'sltTextShadowColor', label: 'Shadow colour', type: 'color', section: 'Translation glow', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
+    { id: 'sltTextShadowOpacity', label: 'Shadow opacity', type: 'slider', section: 'Translation glow', min: 0, max: 1, step: 0.05, parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
+    { id: 'sltTextShadowBlur', label: 'Shadow blur', type: 'slider', section: 'Translation glow', min: 0, max: 20, step: 1, unit: 'px', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
+    { id: 'sltTextShadowOffsetX', label: 'Shadow offset X', type: 'slider', section: 'Translation glow', min: -10, max: 10, step: 1, unit: 'px', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
+    { id: 'sltTextShadowOffsetY', label: 'Shadow offset Y', type: 'slider', section: 'Translation glow', min: -10, max: 10, step: 1, unit: 'px', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
+    { id: 'sltTextStrokeEnabled', label: 'Text outline', type: 'toggle', section: 'Translation glow', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation stroke border outline edge' },
+    { id: 'sltTextStrokeColor', label: 'Outline colour', type: 'color', section: 'Translation glow', parent: 'sltTextStrokeEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextStrokeEnabled },
+    { id: 'sltTextStrokeWidth', label: 'Outline width', type: 'slider', section: 'Translation glow', min: 0, max: 3, step: 0.1, unit: 'px', parent: 'sltTextStrokeEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextStrokeEnabled },
+
+    { id: 'sltBlurUnsung', label: 'Blur other lines', type: 'toggle', section: 'Translation focus', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Softens every translated line except the one being sung.', keywords: 'translation depth of field defocus soft' },
+    { id: 'sltBlurAmount', label: 'Blur amount', type: 'slider', section: 'Translation focus', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'sltBlurUnsung', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBlurUnsung },
+    { id: 'sltBlurSungWords', label: 'Fade words as they pass', type: 'toggle', section: 'Translation focus', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Blurs each translated word once it has been sung.', keywords: 'translation karaoke word blur trail' },
+    { id: 'sltBlurSungWordsAmount', label: 'Word blur amount', type: 'slider', section: 'Translation focus', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'sltBlurSungWords', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBlurSungWords },
+    { id: 'sltBlurSungWordsOpacity', label: 'Word opacity', type: 'slider', section: 'Translation focus', min: 0.05, max: 1.0, step: 0.05, parent: 'sltBlurSungWords', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBlurSungWords },
+
+    { id: 'sltDisableHighlight', label: 'Flat colour mode', type: 'toggle', section: 'Translation motion', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Turns off the sweeping fill on translations — every translated line uses one solid colour.', keywords: 'translation no karaoke disable highlight solid' },
+    { id: 'sltHighlightColor', label: 'Flat colour', type: 'color', section: 'Translation motion', parent: 'sltDisableHighlight', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltDisableHighlight },
+    { id: 'sltWordEffect', label: 'Word animation', type: 'dropdown', section: 'Translation motion', options: WORD_EFFECT_OPTIONS, when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Animates individual words in the active translation.', keywords: 'translation bounce pop wave stamp shake glitch rise sway animate word' },
+    { id: 'sltWordEffectTrigger', label: 'Fires', type: 'dropdown', section: 'Translation motion', options: [
+        { value: 'auto', text: 'Recommended for this animation' },
+        { value: 'word', text: 'As each word is sung' },
+        { value: 'line', text: 'When the line starts' },
+        { value: 'loop', text: 'Continuously' },
+    ], parent: 'sltWordEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltWordEffect !== 'none', keywords: 'translation trigger timing sync' },
+    { id: 'sltWordEffectIntensity', label: 'Intensity', type: 'slider', section: 'Translation motion', min: 0.1, max: 2.0, step: 0.05, unit: 'x', parent: 'sltWordEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltWordEffect !== 'none', keywords: 'translation strength amount' },
+    { id: 'sltWordEffectSpeed', label: 'Speed', type: 'slider', section: 'Translation motion', min: 0.3, max: 3.0, step: 0.05, unit: 'x', parent: 'sltWordEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltWordEffect !== 'none', keywords: 'translation duration fast slow' },
+    { id: 'sltWordEffectStagger', label: 'Stagger between words', type: 'slider', section: 'Translation motion', min: 0, max: 150, step: 5, unit: 'ms', parent: 'sltWordEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltWordEffect !== 'none' && resolveWordTrigger(t.sltWordEffect, t.sltWordEffectTrigger) !== 'word', keywords: 'translation delay ripple cascade' },
+    { id: 'sltScaleActive', label: 'Active line zoom', type: 'slider', section: 'Translation motion', min: 0.95, max: 1.12, step: 0.01, unit: 'x', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation scale grow size' },
+    { id: 'sltScaleInEffect', label: 'Zoom in on arrival', type: 'toggle', section: 'Translation motion', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation scale in entrance animate' },
+    { id: 'sltScaleInFrom', label: 'Starting scale', type: 'slider', section: 'Translation motion', min: 0.85, max: 1.05, step: 0.01, unit: 'x', parent: 'sltScaleInEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltScaleInEffect },
+    { id: 'sltScaleInDuration', label: 'Zoom duration', type: 'slider', section: 'Translation motion', min: 0.1, max: 1.0, step: 0.05, unit: 's', parent: 'sltScaleInEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltScaleInEffect },
+    { id: 'sltAnimationSpeed', label: 'Overall animation speed', type: 'slider', section: 'Translation motion', min: 0.3, max: 3.0, step: 0.1, unit: 'x', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Scales every translation transition. Higher is snappier.', keywords: 'translation transition tempo fast slow' },
 ];
 
 interface FieldHandle {
@@ -294,7 +389,11 @@ function resolveBaseline(): void {
 }
 
 function changedFieldCount(config: ThemeConfig): number {
-    return SCHEMA.filter(d => themeState.activeTheme[d.id] !== config[d.id]).length;
+    const changed = new Set<keyof ThemeConfig>();
+    SCHEMA.forEach(d => {
+        if (themeState.activeTheme[d.id] !== config[d.id]) changed.add(d.id);
+    });
+    return changed.size;
 }
 
 let liveContainer: HTMLElement | null = null;
@@ -526,6 +625,9 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
 function liveUpdate<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]): void {
     updateThemeProperty(key, value);
     injectThemeStyles();
+    if (key === 'sltIndependent' && value === true) {
+        syncAllFields();
+    }
     applyCustomizeFilter();
     refreshResetIndicators();
     syncChrome.forEach(fn => fn());
@@ -919,7 +1021,7 @@ const CZ_CATEGORIES: CzCategory[] = [
         label: 'Background',
         icon: '▦',
         description: 'What sits behind the lyrics.',
-        sections: ['Background'],
+        sections: ['Background', VIDEO_QUALITY_SECTION],
     },
     {
         id: 'cz-player',
@@ -933,13 +1035,47 @@ const CZ_CATEGORIES: CzCategory[] = [
         label: 'Translation',
         icon: '文',
         description: 'Styling for lines added by the Spicy Lyrics Translator extension.',
-        sections: ['Translation'],
+        sections: [
+            'Translation',
+            'Translation colours',
+            'Translation gradient',
+            'Translation typography',
+            'Translation glow',
+            'Translation focus',
+            'Translation motion',
+        ],
     },
 ];
 
 let activeCategoryId = CZ_CATEGORIES[0].id;
 
 const SEARCH_SVG = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.6" y1="10.6" x2="14" y2="14"></line></svg>';
+
+const VIDEO_QUALITY_DEF: FieldDef = {
+    id: 'musicVideoEnabled',
+    label: 'Video quality',
+    type: 'toggle',
+    section: VIDEO_QUALITY_SECTION,
+    when: (t) => t.musicVideoEnabled,
+    keywords: 'music video quality premium hd 4k 1080p 1440p 720p resolution discord link account unlink',
+};
+
+function buildVideoQualitySection(): HTMLElement {
+    const section = document.createElement('div');
+    section.className = 'st-m-section';
+    section.dataset.section = VIDEO_QUALITY_SECTION;
+    const header = document.createElement('div');
+    header.className = 'st-m-section-title';
+    header.textContent = VIDEO_QUALITY_SECTION;
+    section.appendChild(header);
+
+    const panel = buildVideoQualityPanel();
+    const row = panel.root;
+    if (VIDEO_QUALITY_DEF.when) row.style.display = VIDEO_QUALITY_DEF.when(themeState.activeTheme) ? '' : 'none';
+    section.appendChild(row);
+    czFields.push({ row, def: VIDEO_QUALITY_DEF, sync: panel.sync, refreshReset: () => {} });
+    return section;
+}
 
 function buildSectionBody(section: HTMLElement, defs: { def: FieldDef; index: number }[]): void {
     const groups = new Map<string, HTMLElement>();
@@ -1028,6 +1164,8 @@ function buildCustomizeTab(): HTMLElement {
         buildSectionBody(section, defs);
         sectionEls.set(name, section);
     });
+
+    sectionEls.set(VIDEO_QUALITY_SECTION, buildVideoQualitySection());
 
     CZ_CATEGORIES.forEach(cat => {
         const catEl = document.createElement('div');

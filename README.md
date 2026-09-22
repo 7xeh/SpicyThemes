@@ -9,7 +9,7 @@ Restyle the lyrics view from inside Spotify — colors, glow, gradients, blur, t
 [![Discord](https://img.shields.io/badge/Discord-Join%20the%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/fXK34DeDW5)
 
 ![Spicetify](https://img.shields.io/badge/Spicetify-Extension-1DB954?style=flat-square&logo=spotify&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.3.3-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.3.4-blue?style=flat-square)
 ![License](https://img.shields.io/badge/License-Source%20Available-blue?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-Online-success?style=flat-square)
 
@@ -50,7 +50,7 @@ Full settings list: [docs/settings.md](docs/settings.md)
 
 No further setup needed — it ships with sensible defaults and 8 presets.
 
-Requires Spicetify `>= 2.0.0` and the Spicy Lyrics extension. For loader script or Windows installer instructions, see [docs/installation.md](docs/installation.md).
+Requires Spicetify `>= 2.45.1` and the Spicy Lyrics extension (tested through `6.3.20`). For loader script or Windows installer instructions, see [docs/installation.md](docs/installation.md).
 
 Then: play a track with lyrics, open the lyrics view, and click the **palette button** to toggle theming. Right-click it for the settings modal. → [Getting Started](docs/getting-started.md)
 
