@@ -75,6 +75,9 @@ let analysisUri: string | null = null;
 let fetching = false;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let running = false;
+let eqWanted = false;
+const listeners = new Set<string>();
+let lastPlaying = false;
 let rafId: number | null = null;
 let lastTick = 0;
 interface EqChannel {
@@ -574,10 +577,10 @@ function tick(ts: number): void {
     if (dt < 0.008) return;
     lastTick = ts;
 
-    const els = collectEls(ts);
-    if (els.length === 0) return;
+    const els = eqWanted ? collectEls(ts) : [];
+    if (els.length === 0 && listeners.size === 0) return;
 
-    if (measureQueued || ts - lastMeasure > 1000 || els.some(el => !el.style.getPropertyValue('--st-eq-u'))) {
+    if (els.length > 0 && (measureQueued || ts - lastMeasure > 1000 || els.some(el => !el.style.getPropertyValue('--st-eq-u')))) {
         measureQueued = false;
         lastMeasure = ts;
         reserveEqRoom(els);
@@ -598,6 +601,7 @@ function tick(ts: number): void {
         const rate = Number(player.data?.playbackSpeed) || 1;
         progress = trackProgress(ts, dt, playing, player.getProgress?.() || 0, rate);
     } catch (e) {}
+    lastPlaying = playing;
 
     const uri = currentTrackUri();
     if (uri && uri !== analysisUri && !fetching) fetchAnalysis();
@@ -632,7 +636,42 @@ function tick(ts: number): void {
     });
 }
 
+export interface EqSnapshot {
+    levels: readonly number[];
+    overall: number;
+    pulse: number;
+    phase: number;
+    playing: boolean;
+    analysed: boolean;
+}
+
+export function eqSnapshot(): EqSnapshot {
+    return {
+        levels: chMain.levels,
+        overall: chMain.overall,
+        pulse: chMain.pulse,
+        phase: chMain.phase,
+        playing: lastPlaying,
+        analysed: !!analysis,
+    };
+}
+
+export function acquireEqAudio(name: string): void {
+    listeners.add(name);
+    ensureRunning();
+}
+
+export function releaseEqAudio(name: string): void {
+    listeners.delete(name);
+    haltIfIdle();
+}
+
 export function startEqAudio(): void {
+    eqWanted = true;
+    ensureRunning();
+}
+
+function ensureRunning(): void {
     if (running) return;
     running = true;
     if (!songChangeHooked) {
@@ -648,7 +687,20 @@ export function startEqAudio(): void {
 }
 
 export function stopEqAudio(): void {
+    eqWanted = false;
+    if (sizeObserver) {
+        sizeObserver.disconnect();
+        observed = [];
+    }
+    clearEqRoom();
+    refreshEqElements();
+    haltIfIdle();
+}
+
+function haltIfIdle(): void {
+    if (eqWanted || listeners.size > 0 || !running) return;
     running = false;
+    lastPlaying = false;
     if (rafId !== null) {
         cancelAnimationFrame(rafId);
         rafId = null;
@@ -657,10 +709,4 @@ export function stopEqAudio(): void {
         clearTimeout(retryTimer);
         retryTimer = null;
     }
-    if (sizeObserver) {
-        sizeObserver.disconnect();
-        observed = [];
-    }
-    clearEqRoom();
-    refreshEqElements();
 }

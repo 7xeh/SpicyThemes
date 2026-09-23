@@ -78,6 +78,20 @@ Every setting below lives in the **Customize** tab of the settings modal, groupe
 | Also in compact player | Extends videos to the compact player. |
 | Video dimming | Darkens the video so lyrics stay readable. |
 
+## Animated background
+
+| Setting | What it does |
+|---|---|
+| Animated background | Draws a live, music-reactive WebGL scene behind the lyrics. Music videos still play over it. |
+| Style | Ridgelines, Silk, Halo, Pulse, Dots, Aurora, Nebula, Orbs, Horizon, Wormhole or Hyperspace. Hover a style in the list for a short description. |
+| Colours | Two custom colours, the current album art's palette (fades between tracks), or a rainbow spectrum — plus optional hue cycling. |
+| Backdrop | Solid colour replaces Spicy Lyrics' background; Blend draws just the light on top of it or your custom image. |
+| Speed / Music reactivity / Motion while paused | How fast it moves, how strongly it follows loudness, beats and spectrum, and whether it keeps drifting (or freezes and stops redrawing) when paused. |
+| Density / Thickness / Wave height | Number of lines, rings, curtains or orbs; their weight or size; and how tall the peaks get. |
+| Rotation / Perspective / Mirror spectrum / Solid ridges | Shown for the styles that use them: tilt the scene, set its depth or horizon, put the bass in the middle, and let each ridge hide the lines behind it. |
+| Glow / Brightness / Opacity / Vignette / Film grain / Blur | Finishing controls for the look. |
+| Render quality / Frame rate | Half, three-quarter or full resolution, and 30 fps, 60 fps or the display's rate — lower settings save GPU and battery. |
+
 ## Now Playing bar
 
 | Setting | What it does |

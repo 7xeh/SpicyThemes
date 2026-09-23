@@ -31,6 +31,32 @@ export const WORD_EFFECTS: WordEffectMeta[] = [
 
 export const WORD_EFFECT_IDS = WORD_EFFECTS.map(e => e.id);
 
+export interface AnimBgStyleMeta {
+    id: string;
+    label: string;
+    description: string;
+    angle: boolean;
+    perspective: boolean;
+    mirror: boolean;
+    solid: boolean;
+}
+
+export const ANIM_BG_STYLES: AnimBgStyleMeta[] = [
+    { id: 'ridges', label: 'Ridgelines', description: 'Stacked lines of the spectrum rolling away into the distance.', angle: true, perspective: true, mirror: true, solid: true },
+    { id: 'silk', label: 'Silk', description: 'Fine threads that ripple and flow with the music.', angle: true, perspective: false, mirror: false, solid: false },
+    { id: 'halo', label: 'Halo', description: 'Rings of sound radiating out from the centre.', angle: true, perspective: false, mirror: true, solid: false },
+    { id: 'pulse', label: 'Pulse', description: 'Layered glowing waveforms that swell with the song.', angle: true, perspective: false, mirror: true, solid: false },
+    { id: 'dots', label: 'Dots', description: 'An LED wall scrolling the spectrum like a waterfall.', angle: true, perspective: false, mirror: true, solid: false },
+    { id: 'aurora', label: 'Aurora', description: 'Folding curtains of northern lights over a starry sky.', angle: true, perspective: false, mirror: false, solid: false },
+    { id: 'nebula', label: 'Nebula', description: 'Slowly swirling clouds of cosmic gas.', angle: true, perspective: false, mirror: false, solid: false },
+    { id: 'orbs', label: 'Orbs', description: 'Glassy blobs that drift, merge and swell on the beat.', angle: false, perspective: false, mirror: false, solid: false },
+    { id: 'horizon', label: 'Horizon', description: 'A retro grid racing toward a sunset and a spectrum skyline.', angle: false, perspective: true, mirror: true, solid: false },
+    { id: 'tunnel', label: 'Wormhole', description: 'A swirling wormhole of spiralling light that bends and pulls you toward a blazing core.', angle: true, perspective: true, mirror: true, solid: false },
+    { id: 'hyperspace', label: 'Hyperspace', description: 'Stars streaking past at light speed, stretching on every beat.', angle: false, perspective: false, mirror: false, solid: false },
+];
+
+export const ANIM_BG_STYLE_IDS = ANIM_BG_STYLES.map(s => s.id);
+
 export interface EqStyleMeta {
     id: string;
     label: string;
@@ -145,6 +171,32 @@ export interface ThemeConfig {
     pageBgImagePosition: string;
     pageBgImageBlur: number;
     pageBgImageDim: number;
+    animBgEnabled: boolean;
+    animBgStyle: string;
+    animBgPalette: string;
+    animBgColor: string;
+    animBgColor2: string;
+    animBgBackdrop: string;
+    animBgBgColor: string;
+    animBgOpacity: number;
+    animBgSpeed: number;
+    animBgReactivity: number;
+    animBgIdleMotion: number;
+    animBgDensity: number;
+    animBgThickness: number;
+    animBgAmplitude: number;
+    animBgAngle: number;
+    animBgPerspective: number;
+    animBgMirror: boolean;
+    animBgSolid: boolean;
+    animBgGlow: number;
+    animBgBrightness: number;
+    animBgHueCycle: number;
+    animBgGrain: number;
+    animBgVignette: number;
+    animBgBlur: number;
+    animBgQuality: string;
+    animBgFps: string;
 
     sltStylingEnabled: boolean;
     sltTranslationOpacity: number;
@@ -337,6 +389,32 @@ export const DEFAULT_THEME: ThemeConfig = {
     pageBgImagePosition: 'center',
     pageBgImageBlur: 0,
     pageBgImageDim: 0.3,
+    animBgEnabled: false,
+    animBgStyle: 'ridges',
+    animBgPalette: 'custom',
+    animBgColor: '#5eead4',
+    animBgColor2: '#2563eb',
+    animBgBackdrop: 'solid',
+    animBgBgColor: '#050809',
+    animBgOpacity: 1,
+    animBgSpeed: 1,
+    animBgReactivity: 1,
+    animBgIdleMotion: 0.35,
+    animBgDensity: 0.5,
+    animBgThickness: 0.35,
+    animBgAmplitude: 0.55,
+    animBgAngle: 30,
+    animBgPerspective: 0.6,
+    animBgMirror: true,
+    animBgSolid: true,
+    animBgGlow: 0.6,
+    animBgBrightness: 1,
+    animBgHueCycle: 0,
+    animBgGrain: 0.03,
+    animBgVignette: 0.45,
+    animBgBlur: 0,
+    animBgQuality: 'balanced',
+    animBgFps: '60',
 
     sltStylingEnabled: true,
     sltTranslationOpacity: 0.8,
@@ -840,6 +918,21 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     pageBgOpacity: [0, 1],
     pageBgImageBlur: [0, 40],
     pageBgImageDim: [0, 1],
+    animBgOpacity: [0.05, 1],
+    animBgSpeed: [0, 3],
+    animBgReactivity: [0, 2],
+    animBgIdleMotion: [0, 1],
+    animBgDensity: [0, 1],
+    animBgThickness: [0, 1],
+    animBgAmplitude: [0, 1],
+    animBgAngle: [-180, 180],
+    animBgPerspective: [0, 1],
+    animBgGlow: [0, 1.5],
+    animBgBrightness: [0.2, 2],
+    animBgHueCycle: [0, 1],
+    animBgGrain: [0, 0.2],
+    animBgVignette: [0, 1],
+    animBgBlur: [0, 30],
     sltTranslationOpacity: [0, 1],
     blurAmount: [0, 8],
     blurPreviewLines: [0, 5],
@@ -927,6 +1020,7 @@ const COLOR_KEYS: (keyof ThemeConfig)[] = [
     'sltTextShadowColor', 'sltTextStrokeColor', 'sltHighlightColor',
     'bgGlowColor', 'highlightColor', 'eqColor', 'playerAccentColor',
     'textStrokeColor',
+    'animBgColor', 'animBgColor2', 'animBgBgColor',
 ];
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
@@ -1050,6 +1144,26 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
 
     if (!['center', 'top', 'bottom', 'left', 'right'].includes(normalized.pageBgImagePosition)) {
         normalized.pageBgImagePosition = 'center';
+    }
+
+    if (!ANIM_BG_STYLE_IDS.includes(normalized.animBgStyle)) {
+        normalized.animBgStyle = DEFAULT_THEME.animBgStyle;
+    }
+
+    if (!['custom', 'album', 'spectrum'].includes(normalized.animBgPalette)) {
+        normalized.animBgPalette = 'custom';
+    }
+
+    if (!['solid', 'blend'].includes(normalized.animBgBackdrop)) {
+        normalized.animBgBackdrop = 'solid';
+    }
+
+    if (!['performance', 'balanced', 'quality'].includes(normalized.animBgQuality)) {
+        normalized.animBgQuality = 'balanced';
+    }
+
+    if (!['30', '60', 'max'].includes(normalized.animBgFps)) {
+        normalized.animBgFps = '60';
     }
 
     normalized.lineHeight = Math.round(normalized.lineHeight * 100) / 100;

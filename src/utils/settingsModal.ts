@@ -17,6 +17,7 @@ import {
     BUILTIN_PRESETS,
     WORD_EFFECTS,
     EQ_STYLES,
+    ANIM_BG_STYLES,
     resolveWordTrigger,
     ThemeConfig,
     ThemePreset,
@@ -50,7 +51,7 @@ export interface FieldDef<K extends keyof ThemeConfig = keyof ThemeConfig> {
     step?: number;
     unit?: string;
     placeholder?: string;
-    options?: { value: string; text: string }[];
+    options?: { value: string; text: string; hint?: string }[];
     when?: (t: ThemeConfig) => boolean;
     comingSoon?: boolean;
     parent?: keyof ThemeConfig;
@@ -112,6 +113,13 @@ const WORD_EFFECT_OPTIONS = [
 const EQ_STYLE_OPTIONS = EQ_STYLES.map(s => ({ value: s.id, text: `${s.group} — ${s.label}` }));
 
 const VIDEO_QUALITY_SECTION = 'Video quality';
+const ANIM_BG_SECTION = 'Animated background';
+
+const ANIM_BG_STYLE_OPTIONS = ANIM_BG_STYLES.map(s => ({ value: s.id, text: s.label, hint: s.description }));
+
+function animStyle(t: ThemeConfig) {
+    return ANIM_BG_STYLES.find(s => s.id === t.animBgStyle) || ANIM_BG_STYLES[0];
+}
 
 export const SCHEMA: FieldDef[] = [
     { id: 'activeLineColor', label: 'Active line', type: 'color', section: 'Line colors', when: (t) => !t.gradientEnabled, hint: 'The line currently being sung. Replaced by the gradient when gradient text is on.', keywords: 'current karaoke highlight' },
@@ -234,6 +242,48 @@ export const SCHEMA: FieldDef[] = [
     { id: 'musicVideoCompact', label: 'Also in compact player', type: 'toggle', section: 'Background', parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled },
     { id: 'musicVideoFullscreenCompact', label: 'Also in fullscreen compact', type: 'toggle', section: 'Background', parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled && !t.musicVideoCompact, hint: 'Keeps the video behind the compact layout while fullscreen, without turning it on for the windowed or popout player.', keywords: 'fullscreen compact video' },
     { id: 'musicVideoDim', label: 'Video dimming', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled, hint: 'Darkens the video so lyrics stay readable.' },
+
+    { id: 'animBgEnabled', label: 'Animated background', type: 'toggle', section: ANIM_BG_SECTION, hint: 'Draws a live, music-reactive scene behind the lyrics. Music videos still play over it when one is available.', keywords: 'visualizer visualiser animated moving live webgl shader reactive audio spectrum unknown pleasures waves lines' },
+    { id: 'animBgStyle', label: 'Style', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: ANIM_BG_STYLE_OPTIONS, hint: 'Hover a style in the list for a description. Controls that don’t apply to it are hidden.', keywords: 'ridgelines silk halo aurora orbs horizon synthwave rings mode preset' },
+    { id: 'animBgPalette', label: 'Colours', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
+        { value: 'custom', text: 'Custom colours' },
+        { value: 'album', text: 'From album art' },
+        { value: 'spectrum', text: 'Rainbow spectrum' },
+    ], hint: 'Album colours fade smoothly into each new track’s palette.', keywords: 'palette colour color album art rainbow' },
+    { id: 'animBgColor', label: 'Primary colour', type: 'color', section: ANIM_BG_SECTION, parent: 'animBgPalette', when: (t) => t.animBgEnabled && t.animBgPalette === 'custom', hint: 'Used up front — the nearest lines, inner rings and lower layers.' },
+    { id: 'animBgColor2', label: 'Secondary colour', type: 'color', section: ANIM_BG_SECTION, parent: 'animBgPalette', when: (t) => t.animBgEnabled && t.animBgPalette === 'custom', hint: 'Blended in toward the back of the scene.' },
+    { id: 'animBgHueCycle', label: 'Colour cycling', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgPalette', when: (t) => t.animBgEnabled, hint: 'Slowly rotates the hue of every colour over time. 0 keeps colours fixed.', keywords: 'hue rotate shift rainbow' },
+    { id: 'animBgBackdrop', label: 'Backdrop', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
+        { value: 'solid', text: 'Solid colour' },
+        { value: 'blend', text: 'Blend over Spicy Lyrics / image' },
+    ], hint: 'Blend draws just the lines and light on top of the album background or your custom image.', keywords: 'behind transparent overlay mix' },
+    { id: 'animBgBgColor', label: 'Backdrop colour', type: 'color', section: ANIM_BG_SECTION, parent: 'animBgBackdrop', when: (t) => t.animBgEnabled && t.animBgBackdrop === 'solid' },
+    { id: 'animBgSpeed', label: 'Speed', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 3, step: 0.05, unit: 'x', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'tempo fast slow flow' },
+    { id: 'animBgReactivity', label: 'Music reactivity', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 2, step: 0.05, unit: 'x', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How strongly the scene follows the track’s loudness, beats and spectrum. 0 turns it into a calm ambient loop.', keywords: 'audio beat bass sensitivity react' },
+    { id: 'animBgIdleMotion', label: 'Motion while paused', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How much the scene keeps drifting when nothing is playing. 0 freezes it and stops redrawing.', keywords: 'idle pause freeze' },
+    { id: 'animBgDensity', label: 'Density', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How much is drawn — lines, rings, curtains, stars, waves or dots.', keywords: 'count lines rings amount' },
+    { id: 'animBgThickness', label: 'Thickness', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'Line weight — or curtain height, orb and dot size, and cloud contrast.', keywords: 'width weight size' },
+    { id: 'animBgAmplitude', label: 'Wave height', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How far the music pushes the scene — peak height, warping, bulges or streak length.', keywords: 'amplitude peaks height' },
+    { id: 'animBgAngle', label: 'Rotation', type: 'slider', section: ANIM_BG_SECTION, min: -180, max: 180, step: 1, unit: '°', parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).angle, keywords: 'angle tilt diagonal rotate' },
+    { id: 'animBgPerspective', label: 'Perspective', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).perspective, hint: 'How deep the scene recedes. For Horizon it sets where the horizon sits; for Wormhole, how far you can see down it.', keywords: 'depth 3d distance horizon' },
+    { id: 'animBgMirror', label: 'Mirror spectrum', type: 'toggle', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).mirror, hint: 'Puts the bass in the middle and mirrors the highs out to both sides.', keywords: 'symmetric symmetry bass centre' },
+    { id: 'animBgSolid', label: 'Solid ridges', type: 'toggle', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).solid, hint: 'Each ridge hides the lines behind it, like a mountain range.', keywords: 'occlude hide behind fill mountain' },
+    { id: 'animBgGlow', label: 'Glow', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1.5, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'bloom halo neon soft' },
+    { id: 'animBgBrightness', label: 'Brightness', type: 'slider', section: ANIM_BG_SECTION, min: 0.2, max: 2, step: 0.05, unit: 'x', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'intensity exposure' },
+    { id: 'animBgOpacity', label: 'Opacity', type: 'slider', section: ANIM_BG_SECTION, min: 0.05, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'transparency fade' },
+    { id: 'animBgVignette', label: 'Vignette', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'Darkens the edges so the lyrics stand out.', keywords: 'edges darken corners' },
+    { id: 'animBgGrain', label: 'Film grain', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 0.2, step: 0.01, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'A little noise hides colour banding in dark gradients.', keywords: 'noise dither texture' },
+    { id: 'animBgBlur', label: 'Blur', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 30, step: 1, unit: 'px', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'Softens the whole scene. Blurred scenes render at a lower resolution, so this also saves power.', keywords: 'soften frosted defocus' },
+    { id: 'animBgQuality', label: 'Render quality', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
+        { value: 'performance', text: 'Performance (half resolution)' },
+        { value: 'balanced', text: 'Balanced' },
+        { value: 'quality', text: 'Sharpest (full resolution)' },
+    ], hint: 'Lower resolutions use far less GPU on large or high-DPI screens.', keywords: 'resolution gpu performance fps lag' },
+    { id: 'animBgFps', label: 'Frame rate', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
+        { value: '30', text: '30 fps' },
+        { value: '60', text: '60 fps' },
+        { value: 'max', text: 'Match display' },
+    ], keywords: 'fps frame rate smooth performance battery' },
 
     { id: 'playerStylingEnabled', label: 'Restyle the player', type: 'toggle', section: 'Now Playing bar', hint: 'Unlocks the controls below for the Spicy Lyrics player bar.', keywords: 'nowbar controls player' },
     { id: 'playerArtRadius', label: 'Album art roundness', type: 'slider', section: 'Now Playing bar', min: 0, max: 50, step: 1, unit: '%', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'corner radius rounded' },
@@ -829,6 +879,7 @@ function buildField(def: FieldDef, index: number): FieldHandle {
                     const opt = document.createElement('option');
                     opt.value = o.value;
                     opt.textContent = o.text;
+                    if (o.hint) opt.title = o.hint;
                     if (String(cur) === o.value) {
                         opt.selected = true;
                         matched = true;
@@ -843,11 +894,17 @@ function buildField(def: FieldDef, index: number): FieldHandle {
                     opt.selected = true;
                     select.appendChild(opt);
                 }
+                const showHint = () => { select.title = opts.find(o => o.value === select.value)?.hint || ''; };
+                showHint();
                 select.addEventListener('change', () => {
                     const v: any = isNumeric ? parseInt(select.value, 10) : select.value;
                     liveUpdate(def.id, v);
+                    showHint();
                 });
-                sync = () => { select.value = String(themeState.activeTheme[def.id]); };
+                sync = () => {
+                    select.value = String(themeState.activeTheme[def.id]);
+                    showHint();
+                };
             }
             control.appendChild(select);
             break;
@@ -1021,7 +1078,7 @@ const CZ_CATEGORIES: CzCategory[] = [
         label: 'Background',
         icon: '▦',
         description: 'What sits behind the lyrics.',
-        sections: ['Background', VIDEO_QUALITY_SECTION],
+        sections: ['Background', ANIM_BG_SECTION, VIDEO_QUALITY_SECTION],
     },
     {
         id: 'cz-player',

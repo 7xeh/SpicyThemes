@@ -9,7 +9,7 @@ Restyle the lyrics view from inside Spotify — colors, glow, gradients, blur, t
 [![Discord](https://img.shields.io/badge/Discord-Join%20the%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/fXK34DeDW5)
 
 ![Spicetify](https://img.shields.io/badge/Spicetify-Extension-1DB954?style=flat-square&logo=spotify&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.3.4-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.3.5-blue?style=flat-square)
 ![License](https://img.shields.io/badge/License-Source%20Available-blue?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-Online-success?style=flat-square)
 
@@ -30,6 +30,7 @@ Restyle the lyrics view from inside Spotify — colors, glow, gradients, blur, t
 - **Glow and focus** — separate glow for the active line, the other lines, and the word being sung, with an optional breathing pulse; blur everything but the active line, fade words as they're sung, or hide everything outside a window
 - **Motion** — Pop and Wave word animations, active-line zoom, zoom-in on arrival, global speed control, and a flat-color mode that turns the karaoke sweep off entirely
 - **Background and Now Playing bar** — color tint over the album art, synced music videos behind the lyrics with adjustable dimming, rounded art, progress bar thickness, accent color, and control toggles
+- **Animated backgrounds** — eleven music-reactive WebGL scenes (Ridgelines, Silk, Halo, Pulse, Dots, Aurora, Nebula, Orbs, Horizon, Wormhole, Hyperspace) with custom, album-art or rainbow colours, and controls for speed, reactivity, density, thickness, rotation, perspective, glow, grain, vignette, blur, quality and frame rate
 - **Audio-reactive equalizer** — thirteen visualizer styles beside the song title, grouped Classic / Energetic / Smooth / Dimensional, with color, size, speed, and placement
 - **Translator styling** — dedicated font, size, opacity, color, highlight, and glow for [Spicy Lyric Translator](https://github.com/7xeh/SpicyLyricTranslator) lines
 - **Presets and marketplace** — 8 built-in presets, unlimited custom ones, and a community marketplace you can browse and apply without leaving Spotify

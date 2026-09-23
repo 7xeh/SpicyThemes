@@ -6,6 +6,7 @@ import { startUpdateChecker, checkForUpdates, getUpdateInfo, VERSION, showPostUp
 import { initConnectivity, getConnectivityState } from './connectivity';
 import { setDebugMode, isDebugEnabled } from './debug';
 import { updateBackgroundImage, backgroundImageNeedsMount } from './backgroundImage';
+import { updateAnimatedBackground, animatedBackgroundNeedsMount } from './animatedBackground';
 import { initTubeAccess } from './tubeAccess';
 
 
@@ -96,6 +97,9 @@ export async function initialize(): Promise<void> {
                 }
                 if (pageChanged || backgroundImageNeedsMount()) {
                     updateBackgroundImage();
+                }
+                if (pageChanged || animatedBackgroundNeedsMount()) {
+                    updateAnimatedBackground();
                 }
                 updateThemeCredit();
             }

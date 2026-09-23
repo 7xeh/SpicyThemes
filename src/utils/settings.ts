@@ -122,7 +122,7 @@ function createToggleRow(id: string, label: string, checked: boolean, onChange: 
     return row;
 }
 
-function createDropdownRow(id: string, label: string, options: { value: string; text: string }[], currentValue: string, onChange: (value: string) => void): HTMLElement {
+function createDropdownRow(id: string, label: string, options: { value: string; text: string; hint?: string }[], currentValue: string, onChange: (value: string) => void): HTMLElement {
     const row = document.createElement('div');
     row.className = 'x-settings-row';
     row.innerHTML = `
@@ -132,15 +132,20 @@ function createDropdownRow(id: string, label: string, options: { value: string; 
         <div class="x-settings-secondColumn">
             <span>
                 <select class="main-dropDown-dropDown" id="${id}">
-                    ${options.map(opt => `<option value="${opt.value}" ${opt.value === currentValue ? 'selected' : ''}>${opt.text}</option>`).join('')}
+                    ${options.map(opt => `<option value="${opt.value}" ${opt.value === currentValue ? 'selected' : ''}${opt.hint ? ` title="${opt.hint.replace(/"/g, '&quot;')}"` : ''}>${opt.text}</option>`).join('')}
                 </select>
             </span>
         </div>
     `;
     const select = row.querySelector('select') as HTMLSelectElement;
+    const showHint = () => {
+        if (select) select.title = options.find(o => o.value === select.value)?.hint || '';
+    };
+    showHint();
     select?.addEventListener('change', () => {
         onChange(select.value);
         injectThemeStyles();
+        showHint();
     });
     return row;
 }
@@ -542,12 +547,6 @@ function settingsPageContainer(): HTMLElement | null {
             document.querySelector('[data-testid="settings-page"]')) as HTMLElement | null;
 }
 
-/**
- * Spotify's settings page keeps its own content inside absolutely positioned
- * wrappers. Appending to the container itself drops the section into an empty
- * flow that spans the whole main view and overlaps the native rows, so descend
- * past any wrapper whose children are all out of flow.
- */
 function inFlowHost(container: HTMLElement, section: HTMLElement): HTMLElement {
     let host = container;
 
@@ -572,8 +571,6 @@ function placeSettingsSection(container: HTMLElement, section: HTMLElement): voi
                           nativeElements(container, 'section').pop() ||
                           null;
 
-    // Without a native section to sit beside, the section provides its own
-    // column width instead of stretching across the full main view.
     section.classList.toggle('st-standalone', !nativeSection);
 
     const host = nativeSection?.parentElement || inFlowHost(container, section);
@@ -666,8 +663,6 @@ function watchForSettingsPage(): void {
     const observer = new MutationObserver(() => {
         const existing = document.getElementById(SETTINGS_ID);
 
-        // The settings page unmounts without taking the injected section with
-        // it, which is how it ended up stranded on pages like the Marketplace.
         if (!isOnSettingsPage()) {
             if (existing) schedule(removeInjectedSettings);
             return;

@@ -2,6 +2,7 @@ import { themeState, ThemeConfig, WordEffectTrigger, resolveWordTrigger, eqStyle
 import { startEqAudio, stopEqAudio, refreshEqElements } from './eqAudio';
 import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer, setMusicVideoCompactAllowed } from './musicVideo';
 import { BG_IMAGE_LAYER_ID, BG_IMAGE_ACTIVE_CLASS, updateBackgroundImage, removeBackgroundImage, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
+import { ANIM_BG_LAYER_ID, ANIM_BG_SOLID_CLASS, updateAnimatedBackground, removeAnimatedBackground } from './animatedBackground';
 
 
 const STYLE_ID = 'spicy-themes-injected-styles';
@@ -1215,6 +1216,50 @@ ${highlightSilhouetteTargets} {
 `);
     }
 
+    if (config.animBgEnabled) {
+        const animBlur = Math.round(clamp(config.animBgBlur, 0, 30));
+        const animOpacity = clamp(config.animBgOpacity, 0.05, 1);
+        css.push(`
+#SpicyLyricsPage #${ANIM_BG_LAYER_ID} {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: auto !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+    opacity: ${animOpacity} !important;
+    transition: opacity 0.4s ease !important;
+}
+#SpicyLyricsPage > #${ANIM_BG_LAYER_ID} {
+    z-index: -2 !important;
+}
+#SpicyLyricsPage #${ANIM_BG_LAYER_ID} > canvas {
+    position: absolute !important;
+    inset: ${animBlur > 0 ? `-${animBlur * 2}px` : '0'} !important;
+    width: ${animBlur > 0 ? `calc(100% + ${animBlur * 4}px)` : '100%'} !important;
+    height: ${animBlur > 0 ? `calc(100% + ${animBlur * 4}px)` : '100%'} !important;
+    display: block !important;${animBlur > 0 ? `
+    filter: blur(${animBlur}px) !important;` : ''}
+}
+#SpicyLyricsPage.CardMode #${ANIM_BG_LAYER_ID} {
+    display: none !important;
+}
+#SpicyLyricsPage.${ANIM_BG_SOLID_CLASS}:not(.CardMode) .spicy-dynamic-bg {
+    opacity: 0 !important;
+}
+`);
+        if (config.animBgBackdrop === 'blend' && config.musicVideoEnabled) {
+            const mvHidden = config.musicVideoCompact ? [] : ['CardMode', config.musicVideoFullscreenCompact ? 'CompactMode:not(.Fullscreen)' : 'CompactMode'];
+            css.push(`
+#SpicyLyricsPage.st-mv-active .ContentBox > #${ANIM_BG_LAYER_ID} {
+    opacity: 0 !important;
+}${mvHidden.length ? `
+${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG_LAYER_ID}`).join(',\n')} {
+    opacity: ${animOpacity} !important;
+}` : ''}
+`);
+        }
+    }
+
     if (sltIndep) {
         css.push(...translationCSS(config));
     }
@@ -1618,7 +1663,8 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
 }
 `);
         if (!config.musicVideoCompact) {
-            const bgImageGuard = config.pageBgImageEnabled && config.pageBgImage ? `:not(.${BG_IMAGE_ACTIVE_CLASS})` : '';
+            const bgImageGuard = (config.pageBgImageEnabled && config.pageBgImage ? `:not(.${BG_IMAGE_ACTIVE_CLASS})` : '')
+                + (config.animBgEnabled ? `:not(.${ANIM_BG_SOLID_CLASS})` : '');
             const compactScopes = ['CardMode', config.musicVideoFullscreenCompact ? 'CompactMode:not(.Fullscreen)' : 'CompactMode'];
             css.push(`
 ${compactScopes.map(c => `#SpicyLyricsPage.${c} #${MUSIC_VIDEO_ID}`).join(',\n')} {
@@ -2378,6 +2424,7 @@ export function injectThemeStyles(): void {
     updateEqualizer();
     updateMusicVideo();
     updateBackgroundImage();
+    updateAnimatedBackground();
     updateThemeCredit();
     const needSung = themeState.activeTheme.blurSungWords;
     const needLive = wordEffectTrigger(themeState.activeTheme) === 'word';
@@ -2405,6 +2452,7 @@ export function removeThemeStyles(): void {
     removeEqualizer();
     removeMusicVideo();
     removeBackgroundImage();
+    removeAnimatedBackground();
     removeThemeCredit();
     stopSungWordTagger();
 }
