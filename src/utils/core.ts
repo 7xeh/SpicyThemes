@@ -75,9 +75,12 @@ export function createThemeButton(): void {
         return false;
     });
 
+    const learningToggle = viewControls.querySelector('#LearningToggle');
     const translateToggle = viewControls.querySelector('#TranslateToggle');
     const romanizationToggle = viewControls.querySelector('#RomanizationToggle');
-    if (translateToggle) {
+    if (learningToggle) {
+        learningToggle.after(button);
+    } else if (translateToggle) {
         translateToggle.after(button);
     } else if (romanizationToggle) {
         romanizationToggle.after(button);

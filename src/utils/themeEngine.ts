@@ -414,6 +414,26 @@ const SLT_NOTSUNG_WORD = [
 ];
 const SLT_SYNC_LINE = '.slt-sync-translation.slt-interleaved-translation';
 
+const LEARNING_HEADER = '#SpicyLyricsPage .slt-learning-row .slt-learning-translation';
+const LEARNING_HEADER_COMPACT = [
+    '#SpicyLyricsPage.SidebarMode .slt-learning-row .slt-learning-translation',
+    'body.SpicySidebarLyrics__Active #SpicyLyricsPage .slt-learning-row .slt-learning-translation',
+    '#SpicyLyricsPage.CardMode .slt-learning-row .slt-learning-translation',
+];
+
+function learningHeaderCSS(color: string, scale: number, ...decls: (string | false | null | undefined | 0 | '')[]): string {
+    const size = (base: number) => `font-size: calc(${base}em * var(--slt-overlay-font-scale, 1) * ${scale}) !important;`;
+    return `
+${LEARNING_HEADER} {
+    ${buildProps(colorRule(color), ...decls, scale !== 1 && size(0.45))}
+}
+${scale !== 1 ? `
+${LEARNING_HEADER_COMPACT.join(',\n')} {
+    ${size(0.6)}
+}
+` : ''}`;
+}
+
 function translationCSS(config: ThemeConfig): string[] {
     const out: string[] = [];
 
@@ -667,7 +687,77 @@ ${lineOriginRules(SLT_ACTIVE_LINE)}
         lines: () => SLT_ACTIVE_LINE,
     }));
 
+    out.push(learningHeaderCSS(
+        flat ? config.sltHighlightColor : (config.sltGradientEnabled ? config.sltGradientStartColor : config.sltActiveLineColor),
+        scale,
+        `opacity: ${config.sltActiveLineOpacity} !important;`,
+        `font-weight: ${config.sltActiveLineWeight > 0 ? Math.round(config.sltActiveLineWeight) : config.sltFontWeight} !important;`,
+        config.sltLetterSpacing !== 0 && `letter-spacing: ${config.sltLetterSpacing}em !important;`,
+        config.sltFontStyle !== 'normal' && `font-style: ${config.sltFontStyle} !important;`,
+        config.sltTextTransform !== 'none' && `text-transform: ${config.sltTextTransform} !important;`,
+        config.sltTextStrokeEnabled && config.sltTextStrokeWidth > 0
+            && `-webkit-text-stroke: ${round(clamp(config.sltTextStrokeWidth, 0, 3), 2)}px ${config.sltTextStrokeColor} !important;\n    paint-order: stroke fill !important;`,
+        activeFilter,
+    ));
+
     return out;
+}
+
+function learningCSS(config: ThemeConfig): string {
+    const indep = config.sltIndependent;
+    const text = indep ? config.sltActiveLineColor : config.sltHighlightStartColor;
+    const muted = indep
+        ? config.sltSungLineColor
+        : (config.sltTranslationColorEnabled && config.sltTranslationColor ? config.sltTranslationColor : config.sungLineColor);
+    const usable = (f: string) => (f === 'Custom Font' ? '' : f);
+    const font = indep
+        ? (config.sltFontFamily || config.fontFamily)
+        : (usable(config.sltTranslationFont) || usable(config.fontFamily));
+    const ink = (color: string) => `color: ${color} !important;
+    -webkit-text-fill-color: ${color} !important;`;
+    const scope = (items: string[]) => items.map(s => `#SpicyLyricsPage ${s}`).join(',\n');
+
+    return `
+${scope(['.slt-learning-row'])} {
+    ${buildProps(
+        'background-image: none !important;',
+        'filter: none !important;',
+        '-webkit-text-stroke: 0 !important;',
+    )}
+}
+${font ? `
+${scope(['.slt-learning-row.slt-learning-row', '.slt-learning-row.slt-learning-row *'])} {
+    font-family: ${font}, system-ui, sans-serif !important;
+}
+` : ''}
+${scope(['.slt-learning-token'])} {
+    background-color: ${hexToRgba(text, 0.07)} !important;
+    border-color: ${hexToRgba(text, 0.12)} !important;
+}
+
+${scope(['.slt-learning-source'])} {
+    ${ink(hexToRgba(text, 0.96))}
+}
+
+${scope(['.slt-learning-target'])} {
+    ${ink(hexToRgba(muted, 0.85))}
+}
+
+${scope([
+    '.slt-learning-token[data-confidence="medium"] .slt-learning-target',
+    '.slt-learning-token[data-confidence="low"] .slt-learning-target',
+])} {
+    text-decoration-color: ${hexToRgba(muted, 0.4)} !important;
+}
+
+${scope(['.slt-learning-lemma'])} {
+    ${ink(hexToRgba(muted, 0.6))}
+}
+
+${scope(['.slt-learning-pos'])} {
+    ${ink(hexToRgba(muted, 0.5))}
+}
+`;
 }
 
 export function generateThemeCSS(config: ThemeConfig): string {
@@ -1264,6 +1354,10 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
         css.push(...translationCSS(config));
     }
 
+    if (config.sltStylingEnabled) {
+        css.push(learningCSS(config));
+    }
+
     if (config.sltStylingEnabled && !config.sltIndependent) {
     const useSltColor = config.sltTranslationColorEnabled && !!config.sltTranslationColor;
     const sltBaseColor = useSltColor ? config.sltTranslationColor : config.notSungLineColor;
@@ -1466,6 +1560,15 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
     ${notSungGrad}
 }
 `);
+    css.push(learningHeaderCSS(
+        config.sltHighlightStartColor,
+        sltCombinedScale,
+        `opacity: ${sltActiveOpacity} !important;`,
+        `font-weight: ${config.fontWeight} !important;`,
+        config.textStrokeEnabled && config.textStrokeWidth > 0
+            && `-webkit-text-stroke: ${round(clamp(config.textStrokeWidth, 0, 3), 2)}px ${config.textStrokeColor} !important;\n    paint-order: stroke fill !important;`,
+        sltGlowActive,
+    ));
     }
 
     css.push(...wordEffectCSS(config, ALL, wordBaseShadow, !sltIndep));

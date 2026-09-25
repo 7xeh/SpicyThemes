@@ -12,6 +12,7 @@ const SKIP_BUMP = IS_WATCH || ARGS.includes('--no-bump');
 
 const MANIFEST_PATH = path.resolve(__dirname, 'manifest.json');
 const PACKAGE_PATH = path.resolve(__dirname, 'package.json');
+const README_PATH = path.resolve(__dirname, 'README.md');
 const OUT_DIR = 'dist';
 const OUT_DIR_PATH = path.resolve(__dirname, OUT_DIR);
 const OUT_FILE = path.join(OUT_DIR_PATH, 'spicy-themes.js');
@@ -25,6 +26,18 @@ const writeVersion = (filePath, file, version) => {
     const pattern = /("version"\s*:\s*")[^"]*(")/;
     if (!pattern.test(file.raw)) throw new Error(`No version field in ${path.basename(filePath)}`);
     fs.writeFileSync(filePath, file.raw.replace(pattern, `$1${version}$2`));
+};
+
+const writeReadmeVersion = (version) => {
+    if (!fs.existsSync(README_PATH)) return;
+    const raw = fs.readFileSync(README_PATH, 'utf8');
+    const pattern = /(img\.shields\.io\/badge\/Version-)[^-?)\s]+(-)/;
+    if (!pattern.test(raw)) {
+        console.warn('[Version] No version badge found in README.md');
+        return;
+    }
+    const updated = raw.replace(pattern, `$1${version}$2`);
+    if (updated !== raw) fs.writeFileSync(README_PATH, updated);
 };
 
 const parseVersion = (version) => {
@@ -138,6 +151,7 @@ const run = async () => {
 
     if (!SKIP_BUMP) {
         writeVersion(MANIFEST_PATH, manifest, nextVersion);
+        writeReadmeVersion(nextVersion);
     }
     if (pkg.data.version !== nextVersion) {
         writeVersion(PACKAGE_PATH, pkg, nextVersion);
