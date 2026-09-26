@@ -626,7 +626,7 @@ function presentPrompt(result: UpdateCheckResult): void {
 
     const content = buildUpdaterModal({
         variant: isHotfix ? 'hotfix' : 'update',
-        icon: isHotfix ? '🔧' : '🚀',
+        icon: ST_ICON_HTML,
         title,
         subtitle,
         versionRow: { from: fromLabel, to: toLabel },
@@ -670,10 +670,10 @@ function showAppliedModal(kind: PromptKind, version: string, changelog: string):
 
     const content = buildUpdaterModal({
         variant: isHotfix ? 'hotfix' : 'update',
-        icon: isHotfix ? '🔧' : '✨',
+        icon: ST_ICON_HTML,
         title: isHotfix ? 'Hotfix applied' : 'Updated successfully',
         titleBadges: [`v${version}`, ...(hashShort ? [hashShort] : [])],
-        subtitle: isHotfix ? "Here's what changed in this hotfix" : "Here's what's new in this release",
+        subtitle: isHotfix ? 'Spicy Themes has been patched and is ready to go' : `Spicy Themes is now on v${version}`,
         changelogHtml: formatReleaseNotes(changelog),
         buttonsHtml: `
             <a class="st-upd-btn secondary" href="${RELEASES_URL}" target="_blank" rel="noopener noreferrer">View on GitHub</a>
@@ -740,17 +740,19 @@ export async function showPostUpdateChangelog(): Promise<void> {
     showAppliedModal(applied.kind, applied.version, changelog);
 }
 
-export async function showCurrentChangelog(): Promise<void> {
+export async function showCurrentChangelog(options: { expanded?: boolean; beforeShow?: () => Promise<void> } = {}): Promise<void> {
     const changelog = await fetchChangelogForVersion(CURRENT_VERSION);
+    await options.beforeShow?.();
     const hashShort = getDisplayHash().hash.substring(0, 8);
 
     const content = buildUpdaterModal({
         variant: 'update',
-        icon: '📝',
+        icon: ST_ICON_HTML,
         title: "What's new",
         titleBadges: [`v${CURRENT_VERSION}`, ...(hashShort ? [hashShort] : [])],
         subtitle: 'Changelog for the version you are running',
         changelogHtml: formatReleaseNotes(changelog),
+        changelogExpanded: options.expanded,
         buttonsHtml: `
             <a class="st-upd-btn secondary" href="${RELEASES_URL}" target="_blank" rel="noopener noreferrer">View on GitHub</a>
             <button class="st-upd-btn primary" type="button" data-action="dismiss">Got it</button>
@@ -762,6 +764,9 @@ export async function showCurrentChangelog(): Promise<void> {
     displayModal({ title: MODAL_TITLE, content, isLarge: true });
 }
 
+const ST_ICON_URL = 'https://cdn.discordapp.com/emojis/1526398425262850219.webp?size=96';
+const ST_ICON_HTML = `<img src="${ST_ICON_URL}" alt="" draggable="false">`;
+
 interface UpdaterModalOptions {
     variant: 'update' | 'hotfix';
     icon: string;
@@ -772,6 +777,7 @@ interface UpdaterModalOptions {
     changelogHtml: string;
     buttonsHtml: string;
     withProgress: boolean;
+    changelogExpanded?: boolean;
 }
 
 function buildUpdaterModal(options: UpdaterModalOptions): HTMLElement {
@@ -797,6 +803,12 @@ function buildUpdaterModal(options: UpdaterModalOptions): HTMLElement {
             </div>`
         : '';
 
+    const expanded = !!options.changelogExpanded;
+    const toggle = `<button class="st-upd-notes-toggle" type="button" aria-expanded="${expanded}" data-action="toggle-notes">
+                <span class="st-upd-notes-toggle-label">${expanded ? 'Hide changelog' : 'Show changelog'}</span>
+                <svg class="st-upd-notes-toggle-chevron" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>`;
+
     content.innerHTML = `
         <style>${UPDATER_STYLES}</style>
         <div class="st-upd-hero">
@@ -807,13 +819,29 @@ function buildUpdaterModal(options: UpdaterModalOptions): HTMLElement {
             </div>
         </div>
         ${versionRow}
-        <div class="st-upd-notes">
+        <div class="st-upd-notes"${expanded ? '' : ' hidden'}>
             <div class="st-upd-notes-title">Changelog</div>
             <div class="st-upd-notes-content">${options.changelogHtml}</div>
         </div>
         ${progress}
-        <div class="st-upd-buttons">${options.buttonsHtml}</div>
+        <div class="st-upd-buttons">${toggle}${options.buttonsHtml}</div>
     `;
+
+    const notes = content.querySelector('.st-upd-notes') as HTMLElement;
+    const toggleBtn = content.querySelector('[data-action="toggle-notes"]') as HTMLButtonElement;
+    const label = toggleBtn.querySelector('.st-upd-notes-toggle-label') as HTMLElement;
+    toggleBtn.addEventListener('click', () => {
+        const open = notes.hidden;
+        notes.hidden = !open;
+        toggleBtn.setAttribute('aria-expanded', String(open));
+        label.textContent = open ? 'Hide changelog' : 'Show changelog';
+        if (open) notes.scrollTop = 0;
+    });
+
+    const iconImg = content.querySelector('.st-upd-hero-icon img');
+    iconImg?.addEventListener('error', () => {
+        if (iconImg.parentElement) iconImg.parentElement.textContent = '🎨';
+    }, { once: true });
 
     return content;
 }
@@ -865,6 +893,12 @@ const UPDATER_STYLES = `
         font-size: 22px;
         flex-shrink: 0;
         box-shadow: 0 4px 12px rgba(var(--st-upd-accent-rgb), 0.25);
+    }
+    .st-upd-hero-icon img {
+        width: 26px;
+        height: 26px;
+        object-fit: contain;
+        pointer-events: none;
     }
     .st-upd-hero-text {
         flex: 1;
@@ -940,6 +974,8 @@ const UPDATER_STYLES = `
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.06);
     }
+    .st-upd-notes[hidden] { display: none; }
+    .st-upd-notes { animation: st-upd-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both; }
     .st-upd-notes::-webkit-scrollbar { width: 5px; }
     .st-upd-notes::-webkit-scrollbar-track { background: transparent; }
     .st-upd-notes::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
@@ -1029,6 +1065,30 @@ const UPDATER_STYLES = `
     }
     .st-upd-btn.secondary:hover {
         background: rgba(255, 255, 255, 0.1);
+    }
+    .st-upd-notes-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-right: auto;
+        padding: 10px 4px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--spice-subtext);
+        transition: color 0.2s ease;
+    }
+    .st-upd-notes-toggle:hover,
+    .st-upd-notes-toggle:focus-visible {
+        color: var(--st-cl-accent);
+    }
+    .st-upd-notes-toggle-chevron {
+        transition: transform 0.2s ease;
+    }
+    .st-upd-notes-toggle[aria-expanded="true"] .st-upd-notes-toggle-chevron {
+        transform: rotate(180deg);
     }
 `;
 

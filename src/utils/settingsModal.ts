@@ -25,7 +25,7 @@ import {
 import { injectThemeStyles } from './themeEngine';
 import { buildVideoQualityPanel } from './videoQualityPanel';
 import { saveBackgroundImage, pruneBackgroundImages, getCachedBackgroundUrl, getBackgroundImageUrl, getBackgroundImageInfo, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
-import { getCurrentVersion, getDisplayHash, runManualUpdateCheck } from './updater';
+import { getCurrentVersion, getDisplayHash, runManualUpdateCheck, showCurrentChangelog } from './updater';
 import { hideModal } from './modal';
 import * as Marketplace from './marketplace';
 import {
@@ -1661,6 +1661,7 @@ function buildAboutTab(): HTMLElement {
             <div class="st-m-section-title">Updates</div>
             <div class="st-m-about-actions">
                 <button class="st-m-btn" id="st-m-check">Check for updates</button>
+                <button class="st-m-btn" id="st-m-changelog">Show changelog</button>
             </div>
         </div>
         <div class="st-m-section">
@@ -1739,6 +1740,27 @@ function buildAboutTab(): HTMLElement {
         applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Default') || BUILTIN_PRESETS[0]);
         injectThemeStyles();
         notify('Theme reset to default');
+    });
+
+    const changelogBtn = tab.querySelector('#st-m-changelog') as HTMLButtonElement;
+    changelogBtn.addEventListener('click', async () => {
+        if (changelogBtn.disabled) return;
+        changelogBtn.disabled = true;
+        changelogBtn.textContent = 'Loading changelog...';
+        try {
+            await showCurrentChangelog({
+                expanded: true,
+                beforeShow: async () => {
+                    hideModal();
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+            });
+        } catch {
+            notify('Could not load the changelog', true);
+        } finally {
+            changelogBtn.disabled = false;
+            changelogBtn.textContent = 'Show changelog';
+        }
     });
 
     const checkBtn = tab.querySelector('#st-m-check') as HTMLButtonElement;

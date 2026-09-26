@@ -92,6 +92,12 @@ function lineSelectors(bases: string[], state: string): string {
     ]).join(',\n');
 }
 
+function syllableScope(base: string): string {
+    return base.endsWith('.SpicyLyricsScrollContainer')
+        ? `${base}[data-lyrics-type="Syllable"]`
+        : `${base} [data-lyrics-type="Syllable"]`;
+}
+
 function buildProps(...decls: (string | false | null | undefined | 0 | '')[]): string {
     return (decls.filter(Boolean) as string[]).join('\n    ');
 }
@@ -973,6 +979,9 @@ ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
     css.push(`
 ${lineSelectors(ALL, 'Active')} {
     ${activeGrad}
+}
+${ALL.map(b => `${syllableScope(b)} .line.Active`).join(',\n')} {
+    background-image: none !important;
 }
 `);
 
