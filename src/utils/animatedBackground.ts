@@ -12,6 +12,10 @@ const AUDIO_KEY = 'animated-background';
 const HIST_H = 64;
 const QUALITY_SCALE: Record<string, number> = { performance: 0.5, balanced: 0.75, quality: 1 };
 const FPS_INTERVAL: Record<string, number> = { '30': 1000 / 30, '60': 1000 / 60, max: 0 };
+const REACT_FOCUS: Record<string, { weights: number[]; lo: number; hi: number; beat: number }> = {
+    bass: { weights: [1, 1, 0.9, 0.6, 0.25, 0, 0, 0, 0, 0], lo: 0, hi: 4.5, beat: 1 },
+    highs: { weights: [0, 0, 0, 0, 0, 0.25, 0.6, 0.9, 1, 1], lo: 4.5, hi: 9, beat: 0.25 },
+};
 
 type Rgb = [number, number, number];
 
@@ -1168,6 +1172,10 @@ const renderers = new Map<HTMLElement, Renderer>();
 let rafId: number | null = null;
 let configVersion = 0;
 let audioHeld = false;
+let focusTs = 0;
+let focusSlowAll = 0;
+let focusSlowPart = 0;
+let focusSlowEnergy = 0;
 
 let albumColors: { a: Rgb; b: Rgb } | null = null;
 let albumUri = '';
@@ -1369,6 +1377,55 @@ function buildSettings(): CoreSettings {
     };
 }
 
+function focusAudio(audio: CoreAudio, ts: number): CoreAudio {
+    const dt = focusTs ? Math.min(Math.max((ts - focusTs) / 1000, 0), 0.25) : 1 / 60;
+    focusTs = ts;
+    const focus = REACT_FOCUS[themeState.activeTheme.animBgReactTo];
+    const levels = audio.levels;
+    if (!focus || levels.length === 0) {
+        focusSlowAll = focusSlowPart = focusSlowEnergy = 0;
+        return audio;
+    }
+
+    let all = 0;
+    let part = 0;
+    let weight = 0;
+    for (let k = 0; k < levels.length; k++) {
+        const w = focus.weights[k] || 0;
+        all += levels[k];
+        part += levels[k] * w;
+        weight += w;
+    }
+    all /= levels.length;
+    part = weight > 0 ? part / weight : 0;
+
+    const slow = 1 - Math.exp(-dt / 4);
+    focusSlowAll += (all - focusSlowAll) * slow;
+    focusSlowPart += (part - focusSlowPart) * slow;
+    const gain = focusSlowPart > 0.01 ? Math.min(Math.max(focusSlowAll / focusSlowPart, 1), 2.5) : 1;
+
+    const last = levels.length - 1;
+    const focused = levels.map((_, k) => {
+        const f = Math.min(focus.lo + (focus.hi - focus.lo) * (k / Math.max(last, 1)), last);
+        const i = Math.min(Math.floor(f), Math.max(last - 1, 0));
+        const t = f - i;
+        const v = levels[i] + ((levels[i + 1] ?? levels[i]) - levels[i]) * t;
+        return Math.min(v * gain, 1);
+    });
+
+    const energy = Math.min(part * gain, 1);
+    focusSlowEnergy += (energy - focusSlowEnergy) * (1 - Math.exp(-dt / 0.35));
+    const onset = Math.min(Math.max((energy - focusSlowEnergy) * 4, 0), 1);
+    const overall = focusSlowAll > 0.01 ? Math.min(audio.overall * (energy / focusSlowAll), 1) : 0;
+
+    return {
+        levels: focused,
+        overall,
+        pulse: Math.min(Math.max(audio.pulse * focus.beat, onset), 1),
+        playing: audio.playing,
+    };
+}
+
 function pushSettings(): void {
     const settings = buildSettings();
     renderers.forEach(renderer => renderer.settings(settings));
@@ -1381,12 +1438,12 @@ function tick(ts: number): void {
     }
     rafId = requestAnimationFrame(tick);
     const snap = eqSnapshot();
-    const audio: CoreAudio = {
+    const audio = focusAudio({
         levels: Array.from(snap.levels),
         overall: snap.overall,
         pulse: snap.pulse,
         playing: playingNow(),
-    };
+    }, ts);
     renderers.forEach((renderer, page) => {
         if (!page.isConnected) {
             renderer.destroy();

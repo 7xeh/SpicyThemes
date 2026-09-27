@@ -53,6 +53,7 @@ Every setting below lives in the **Customize** tab of the settings modal, groupe
 | Keep upcoming lines sharp | How many lines ahead stay readable through the blur. |
 | Ramp blur with distance | Nearby lines blur gently, distant ones blur fully. |
 | Fade words as they pass | Blurs and fades each word of the active line once it's been sung. |
+| Fade whole words, not syllables | On syllable-synced lyrics, waits until a word's last syllable is sung before fading it, instead of fading each syllable as it passes. |
 | Limit visible lines | Hides everything outside a window around the active line — set how many sung and upcoming lines stay visible. |
 
 ## Motion
@@ -87,6 +88,7 @@ Every setting below lives in the **Customize** tab of the settings modal, groupe
 | Colours | Two custom colours, the current album art's palette (fades between tracks), or a rainbow spectrum — plus optional hue cycling. |
 | Backdrop | Solid colour replaces Spicy Lyrics' background; Blend draws just the light on top of it or your custom image. |
 | Speed / Music reactivity / Motion while paused | How fast it moves, how strongly it follows loudness, beats and spectrum, and whether it keeps drifting (or freezes and stops redrawing) when paused. |
+| Reacts to | Bass and highs, Bass only, or Highs only — which part of the track drives the scene. Hidden when Music reactivity is 0. |
 | Density / Thickness / Wave height | Number of lines, rings, curtains or orbs; their weight or size; and how tall the peaks get. |
 | Rotation / Perspective / Mirror spectrum / Solid ridges | Shown for the styles that use them: tilt the scene, set its depth or horizon, put the bass in the middle, and let each ridge hide the lines behind it. |
 | Glow / Brightness / Opacity / Vignette / Film grain / Blur | Finishing controls for the look. |

@@ -143,6 +143,7 @@ export interface ThemeConfig {
     blurPreviewLines: number;
 
     blurSungWords: boolean;
+    blurSungWholeWords: boolean;
     blurSungWordsAmount: number;
     blurSungWordsOpacity: number;
 
@@ -181,6 +182,7 @@ export interface ThemeConfig {
     animBgOpacity: number;
     animBgSpeed: number;
     animBgReactivity: number;
+    animBgReactTo: string;
     animBgIdleMotion: number;
     animBgDensity: number;
     animBgThickness: number;
@@ -361,6 +363,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     blurPreviewLines: 2,
 
     blurSungWords: false,
+    blurSungWholeWords: false,
     blurSungWordsAmount: 2.0,
     blurSungWordsOpacity: 0.6,
 
@@ -399,6 +402,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     animBgOpacity: 1,
     animBgSpeed: 1,
     animBgReactivity: 1,
+    animBgReactTo: 'all',
     animBgIdleMotion: 0.35,
     animBgDensity: 0.5,
     animBgThickness: 0.35,
@@ -1152,6 +1156,10 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
 
     if (!['custom', 'album', 'spectrum'].includes(normalized.animBgPalette)) {
         normalized.animBgPalette = 'custom';
+    }
+
+    if (!['all', 'bass', 'highs'].includes(normalized.animBgReactTo)) {
+        normalized.animBgReactTo = 'all';
     }
 
     if (!['solid', 'blend'].includes(normalized.animBgBackdrop)) {

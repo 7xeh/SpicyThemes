@@ -2345,6 +2345,7 @@ const FINISHED = 99;
 let wordTagFrame: number | null = null;
 let wordTagSung = false;
 let wordTagLive = false;
+let wordTagWhole = false;
 const activeLineCache = new Map<Document, HTMLElement[]>();
 
 function gradientPos(el: HTMLElement): number {
@@ -2387,7 +2388,11 @@ function tagWordsIn(doc: Document): void {
             }
 
             if (wordTagSung) {
-                const tail = isGroup ? (el.querySelector<HTMLElement>('.letter:last-child') || el) : el;
+                const group = wordTagWhole ? el.parentElement : null;
+                const unit = group && group.classList.contains('word-group')
+                    ? (Array.from(group.children).reverse().find(c => c.matches('.word, .letterGroup')) as HTMLElement | undefined) || el
+                    : el;
+                const tail = unit.classList.contains('letterGroup') ? (unit.querySelector<HTMLElement>('.letter:last-child') || unit) : unit;
                 const sung = gradientPos(tail) >= FINISHED;
                 if (el.classList.contains('st-sung-word') !== sung) {
                     el.classList.toggle('st-sung-word', sung);
@@ -2410,9 +2415,10 @@ function wordTagLoop(): void {
     wordTagFrame = requestAnimationFrame(wordTagLoop);
 }
 
-function startWordTagger(sung: boolean, live: boolean): void {
+function startWordTagger(sung: boolean, live: boolean, whole: boolean): void {
     wordTagSung = sung;
     wordTagLive = live;
+    wordTagWhole = whole;
     if (wordTagFrame !== null) return;
     wordTagFrame = requestAnimationFrame(wordTagLoop);
 }
@@ -2424,6 +2430,7 @@ export function stopSungWordTagger(): void {
     }
     wordTagSung = false;
     wordTagLive = false;
+    wordTagWhole = false;
     activeLineCache.clear();
     clearWordTags(document);
     const pipWindow = getPIPWindow();
@@ -2541,7 +2548,7 @@ export function injectThemeStyles(): void {
     const needLive = wordEffectTrigger(themeState.activeTheme) === 'word';
     if (needSung || needLive) {
         if (!needLive) clearLiveTags();
-        startWordTagger(needSung, needLive);
+        startWordTagger(needSung, needLive, needSung && !!themeState.activeTheme.blurSungWholeWords);
     } else {
         stopSungWordTagger();
     }
