@@ -8,6 +8,7 @@ import { setDebugMode, isDebugEnabled } from './debug';
 import { updateBackgroundImage, backgroundImageNeedsMount } from './backgroundImage';
 import { updateAnimatedBackground, animatedBackgroundNeedsMount } from './animatedBackground';
 import { initTubeAccess } from './tubeAccess';
+import { ensureSurfaceStyles } from './surface';
 
 
 const INIT_STATE_KEY = '__spicyThemesInitState';
@@ -49,6 +50,7 @@ export async function initialize(): Promise<void> {
     }
 
     injectBaseStyles();
+    ensureSurfaceStyles();
 
     if (themeState.isEnabled) {
         injectThemeStyles();

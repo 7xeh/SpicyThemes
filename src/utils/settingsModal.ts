@@ -25,8 +25,10 @@ import {
 import { injectThemeStyles } from './themeEngine';
 import { buildVideoQualityPanel } from './videoQualityPanel';
 import { saveBackgroundImage, pruneBackgroundImages, getCachedBackgroundUrl, getBackgroundImageUrl, getBackgroundImageInfo, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
-import { getCurrentVersion, getDisplayHash, runManualUpdateCheck, showCurrentChangelog } from './updater';
-import { hideModal } from './modal';
+import { getCurrentVersion, getDisplayHash, runManualUpdateCheck, showCurrentChangelog, hasWaitingUpdate, openWaitingUpdate } from './updater';
+import { el, openDialog, openSurfaces, prefersReducedMotion, paintTone, CLOSE_SVG, SurfaceHandle, Tone } from './surface';
+import { toast, getInbox, markInboxRead, clearInbox, onInboxChange, unreadCount, runInboxAction, InboxEntry } from './toast';
+import { Icons } from './icons';
 import * as Marketplace from './marketplace';
 import {
     scanForUpdates,
@@ -461,71 +463,60 @@ export function escapeHtml(value: string): string {
 }
 
 function notify(message: string, isError = false): void {
-    if (typeof Spicetify !== 'undefined' && Spicetify.showNotification) {
-        Spicetify.showNotification(message, isError);
-    }
+    toast({ kind: isError ? 'error' : 'success', title: message });
 }
 
-function askInlineConfirm(
-    host: HTMLElement,
-    opts: {
-        message: string;
-        action: string;
-        busy: string;
-        run: () => Promise<string>;
-        success: (result: string) => string;
-        done: () => void;
-    }
-): void {
-    const previous = Array.from(host.childNodes);
-
-    const restore = () => {
-        host.innerHTML = '';
-        previous.forEach(node => host.appendChild(node));
+function snapshotState(): () => void {
+    const saved = {
+        activeTheme: { ...themeState.activeTheme },
+        activePresetName: themeState.activePresetName,
+        customPresets: JSON.parse(JSON.stringify(themeState.customPresets)) as ThemePreset[],
+        isEnabled: themeState.isEnabled,
+        activeBasePreset: themeState.activeBasePreset,
+        activeSourceId: themeState.activeSourceId,
+        activeSourceVersion: themeState.activeSourceVersion,
+        activeSourceName: themeState.activeSourceName,
+        activeSourceFingerprint: themeState.activeSourceFingerprint,
     };
-
-    const strip = document.createElement('div');
-    strip.className = 'st-m-update-confirm';
-
-    const text = document.createElement('div');
-    text.className = 'st-m-update-confirm-text';
-    text.textContent = opts.message;
-
-    const row = document.createElement('div');
-    row.className = 'st-m-update-confirm-actions';
-
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.className = 'st-m-btn';
-    cancel.textContent = 'Cancel';
-    cancel.addEventListener('click', restore);
-
-    const confirm = document.createElement('button');
-    confirm.type = 'button';
-    confirm.className = 'st-m-btn st-m-btn-primary';
-    confirm.textContent = opts.action;
-    confirm.addEventListener('click', async () => {
-        confirm.disabled = true;
-        cancel.disabled = true;
-        confirm.textContent = opts.busy;
-        try {
-            const result = await opts.run();
-            notify(opts.success(result));
-            opts.done();
-        } catch (e) {
-            notify(`${opts.action} failed: ${e instanceof Error ? e.message : 'Unknown error'}`, true);
-            restore();
-        }
-    });
-
-    row.appendChild(confirm);
-    row.appendChild(cancel);
-    strip.appendChild(text);
-    strip.appendChild(row);
-
-    host.innerHTML = '';
-    host.appendChild(strip);
+    const savedBaseline = baseline;
+    return () => {
+        themeState.activeTheme = { ...saved.activeTheme };
+        themeState.activePresetName = saved.activePresetName;
+        themeState.customPresets = JSON.parse(JSON.stringify(saved.customPresets));
+        themeState.isEnabled = saved.isEnabled;
+        themeState.activeBasePreset = saved.activeBasePreset;
+        themeState.activeSourceId = saved.activeSourceId;
+        themeState.activeSourceVersion = saved.activeSourceVersion;
+        themeState.activeSourceName = saved.activeSourceName;
+        themeState.activeSourceFingerprint = saved.activeSourceFingerprint;
+        saveThemeState();
+        baseline = savedBaseline;
+        injectThemeStyles();
+        rerenderLive?.();
+    };
 }
+
+function undoable(title: string, description: string | undefined, mutate: () => void): void {
+    const restore = snapshotState();
+    mutate();
+    offerUndo(title, description, restore);
+}
+
+function offerUndo(title: string, description: string | undefined, restore: () => void): void {
+    toast({
+        kind: 'success',
+        key: 'st-undo',
+        title,
+        description,
+        duration: 8000,
+        undo: () => {
+            restore();
+            toast({ kind: 'info', key: 'st-undo', title: 'Undone', description: 'Everything is back the way it was.' });
+        },
+    });
+}
+
+let rerenderLive: (() => void) | null = null;
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
     if (hex.startsWith('rgb')) {
@@ -728,6 +719,7 @@ function applyCustomizeFilter(): void {
 
     const rail = liveContainer.querySelector<HTMLElement>('.st-m-cz-nav');
     if (rail) rail.classList.toggle('st-m-cz-nav-muted', searching);
+    liveContainer.classList.toggle('st-m-searching', searching);
 
     const status = liveContainer.querySelector<HTMLElement>('.st-m-cz-status');
     if (status) {
@@ -1162,7 +1154,7 @@ function buildCustomizeTab(): HTMLElement {
     toolbar.className = 'st-m-cz-toolbar';
     toolbar.innerHTML = `
         <span class="st-m-cz-search-icon" aria-hidden="true">${SEARCH_SVG}</span>
-        <input type="text" class="st-m-text st-m-cz-search" placeholder="Search all settings…" spellcheck="false" aria-label="Search settings">
+        <input type="text" class="st-m-text st-m-cz-search" placeholder="Filter this page…" spellcheck="false" aria-label="Filter settings" data-st-esc-local>
         <button type="button" class="st-m-cz-clear" style="display: none;" aria-label="Clear search">Clear</button>
     `;
     const search = toolbar.querySelector('input') as HTMLInputElement;
@@ -1183,13 +1175,6 @@ function buildCustomizeTab(): HTMLElement {
 
     const body = document.createElement('div');
     body.className = 'st-m-cz-body';
-
-    const rail = document.createElement('div');
-    rail.className = 'st-m-cz-rail';
-
-    const nav = document.createElement('nav');
-    nav.className = 'st-m-cz-nav';
-    nav.setAttribute('role', 'tablist');
 
     const sectionsCol = document.createElement('div');
     sectionsCol.className = 'st-m-cz-sections';
@@ -1242,32 +1227,12 @@ function buildCustomizeTab(): HTMLElement {
             if (el) catEl.appendChild(el);
         });
         sectionsCol.appendChild(catEl);
-
-        const navBtn = document.createElement('button');
-        navBtn.type = 'button';
-        navBtn.className = `st-m-cz-nav-item${cat.id === activeCategoryId ? ' active' : ''}`;
-        navBtn.innerHTML = `<span class="st-m-cz-nav-icon" aria-hidden="true">${escapeHtml(cat.icon)}</span><span>${escapeHtml(cat.label)}</span>`;
-        navBtn.dataset.target = cat.id;
-        navBtn.setAttribute('role', 'tab');
-        navBtn.setAttribute('aria-selected', String(cat.id === activeCategoryId));
-        navBtn.addEventListener('click', () => {
-            activeCategoryId = cat.id;
-            if (search.value) search.value = '';
-            applyCustomizeFilter();
-            const host = liveContainer?.querySelector('.st-m-tab-host') as HTMLElement | null;
-            if (host) host.scrollTop = 0;
-            if (liveContainer) liveContainer.scrollTop = 0;
-            liveContainer?.closest('.sl-modal-content')?.scrollTo?.(0, 0);
-        });
-        nav.appendChild(navBtn);
     });
 
     sectionEls.forEach((el, name) => {
         if (!CZ_CATEGORIES.some(c => c.sections.includes(name))) sectionsCol.appendChild(el);
     });
 
-    rail.appendChild(nav);
-    body.appendChild(rail);
     body.appendChild(sectionsCol);
     tab.appendChild(toolbar);
     tab.appendChild(status);
@@ -1319,19 +1284,21 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
             updateBtn.className = 'st-m-btn st-m-btn-update';
             updateBtn.textContent = 'Update available';
             updateBtn.title = `Version ${update.version} is on the Marketplace`;
-            updateBtn.addEventListener('click', (e) => {
+            updateBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const label = preset.sourceName || preset.name;
-                askInlineConfirm(actions, {
-                    message: presetHasLocalChanges(preset)
-                        ? `Update "${label}"? This will replace your changes.`
-                        : `Update "${label}" to the latest version?`,
-                    action: 'Update',
-                    busy: 'Updating...',
-                    run: () => updatePresetFromSource(preset),
-                    success: (name) => `Updated "${name}" to the latest version`,
-                    done: refresh,
-                });
+                const replaced = presetHasLocalChanges(preset);
+                const restore = snapshotState();
+                updateBtn.disabled = true;
+                updateBtn.textContent = 'Updating…';
+                try {
+                    const name = await updatePresetFromSource(preset);
+                    refresh();
+                    offerUndo(`Updated “${name}”`, replaced ? 'Your edits were replaced by the new version.' : `Now on version ${update.version}.`, restore);
+                } catch (err) {
+                    notify(`Update failed: ${err instanceof Error ? err.message : 'Unknown error'}`, true);
+                    updateBtn.disabled = false;
+                    updateBtn.textContent = 'Update available';
+                }
             });
             actions.appendChild(updateBtn);
         }
@@ -1347,25 +1314,15 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
                 : `Replace "${preset.name}" with the theme you have now`;
             overwrite.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (isModified) {
-                    saveCustomPreset(preset.name, preset.description);
-                    resolveBaseline();
-                    notify(`Saved your changes to "${preset.name}"`);
-                    refresh();
-                    return;
-                }
-                askInlineConfirm(actions, {
-                    message: `Replace "${preset.name}" with your current theme? ${differs} setting${differs === 1 ? '' : 's'} differ and the saved version is lost.`,
-                    action: 'Overwrite',
-                    busy: 'Saving...',
-                    run: async () => {
+                undoable(
+                    isModified ? `Saved your changes to “${preset.name}”` : `Overwrote “${preset.name}”`,
+                    `${differs} setting${differs === 1 ? '' : 's'} changed in the preset.`,
+                    () => {
                         saveCustomPreset(preset.name, preset.description);
                         resolveBaseline();
-                        return preset.name;
+                        refresh();
                     },
-                    success: (name) => `Overwrote "${name}" with your current theme`,
-                    done: refresh,
-                });
+                );
             });
             actions.appendChild(overwrite);
         }
@@ -1376,11 +1333,16 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
         apply.disabled = isActive;
         if (isModified) apply.title = `Discard your ${tweaks} tweak${tweaks === 1 ? '' : 's'} and go back to "${preset.name}"`;
         apply.addEventListener('click', () => {
-            applyPreset(preset);
-            resolveBaseline();
-            injectThemeStyles();
-            if (isModified) notify(`Reverted to "${preset.name}"`);
-            refresh();
+            undoable(
+                isModified ? `Reverted to “${preset.name}”` : `Applied “${preset.name}”`,
+                isModified ? `${tweaks} tweak${tweaks === 1 ? '' : 's'} discarded.` : undefined,
+                () => {
+                    applyPreset(preset);
+                    resolveBaseline();
+                    injectThemeStyles();
+                    refresh();
+                },
+            );
         });
         actions.appendChild(apply);
 
@@ -1390,9 +1352,11 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
             del.textContent = 'Delete';
             del.addEventListener('click', (e) => {
                 e.stopPropagation();
-                deleteCustomPreset(preset.name, preset.sourceId);
-                resolveBaseline();
-                refresh();
+                undoable(`Deleted “${preset.name}”`, undefined, () => {
+                    deleteCustomPreset(preset.name, preset.sourceId);
+                    resolveBaseline();
+                    refresh();
+                });
             });
             actions.appendChild(del);
         }
@@ -1425,10 +1389,11 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
             return;
         }
         const overwrites = themeState.customPresets.some(p => p.name === name);
-        saveCustomPreset(name, descInput.value.trim());
-        resolveBaseline();
-        notify(overwrites ? `Preset "${name}" overwritten` : `Preset "${name}" saved`);
-        refresh();
+        undoable(overwrites ? `Overwrote “${name}”` : `Saved “${name}”`, 'You can find it in your presets.', () => {
+            saveCustomPreset(name, descInput.value.trim());
+            resolveBaseline();
+            refresh();
+        });
     });
 
     tab.appendChild(grid);
@@ -1444,7 +1409,7 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
         <div class="st-m-mp-toolbar">
             <div class="st-m-mp-searchbar">
                 <span class="st-m-cz-search-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.6" y1="10.6" x2="14" y2="14"></line></svg></span>
-                <input type="text" class="st-m-mp-search" placeholder="Search themes, authors…" spellcheck="false">
+                <input type="text" class="st-m-mp-search" placeholder="Search themes, authors…" spellcheck="false" data-st-esc-local>
             </div>
             <div class="st-m-mp-sort">
                 <button class="st-m-chip active" data-sort="newest">Newest</button>
@@ -1503,19 +1468,26 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
             apply.textContent = 'Apply';
             apply.addEventListener('click', async () => {
                 apply.disabled = true;
-                apply.textContent = 'Applying...';
+                apply.textContent = 'Downloading…';
+                const restore = snapshotState();
                 try {
-                    const { config, source } = await downloadThemeWithSource(t.id);
+                    const { config, source, meta } = await downloadThemeWithSource(t.id);
                     const name = source.name || t.name;
-                    themeState.activeTheme = config;
-                    themeState.activePresetName = name;
-                    themeState.activeBasePreset = name;
-                    setActiveSource(source);
+                    const preset: ThemePreset = {
+                        name,
+                        description: meta?.description || t.description || `By ${t.author}`,
+                        config,
+                        sourceId: source.id,
+                        sourceVersion: source.version,
+                        sourceName: name,
+                        sourceFingerprint: source.fingerprint,
+                    };
+                    upsertCustomPreset(preset);
+                    applyPreset(preset);
                     baseline = { name, config: { ...themeState.activeTheme } };
-                    saveThemeState();
                     injectThemeStyles();
                     refresh();
-                    notify(`Applied "${name}" by ${t.author}`);
+                    offerUndo(`Applied “${name}”`, `By ${t.author}. Saved to your presets.`, restore);
                 } catch (e) {
                     notify(`Failed to apply: ${e instanceof Error ? e.message : 'Unknown error'}`, true);
                     apply.disabled = false;
@@ -1523,34 +1495,7 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
                 }
             });
 
-            const savePreset = document.createElement('button');
-            savePreset.className = 'st-m-btn';
-            savePreset.textContent = 'Save as preset';
-            savePreset.addEventListener('click', async () => {
-                savePreset.disabled = true;
-                try {
-                    const { config, source, meta } = await downloadThemeWithSource(t.id);
-                    const presetName = source.name || t.name;
-                    const preset: ThemePreset = {
-                        name: presetName,
-                        description: meta?.description || t.description || `By ${t.author}`,
-                        config,
-                        sourceId: source.id,
-                        sourceVersion: source.version,
-                        sourceName: presetName,
-                        sourceFingerprint: source.fingerprint,
-                    };
-                    upsertCustomPreset(preset);
-                    notify(`Saved preset "${presetName}"`);
-                } catch (e) {
-                    notify(`Failed to save: ${e instanceof Error ? e.message : 'Unknown error'}`, true);
-                } finally {
-                    savePreset.disabled = false;
-                }
-            });
-
             actions.appendChild(apply);
-            actions.appendChild(savePreset);
 
             card.appendChild(preview);
             card.appendChild(body);
@@ -1710,6 +1655,7 @@ function buildAboutTab(): HTMLElement {
             reader.onload = () => {
                 try {
                     const data = JSON.parse(reader.result as string);
+                    const restore = snapshotState();
                     if (data.theme) {
                         themeState.activeTheme = mergeThemeConfig(data.theme);
                         setActiveSource(sanitizeThemeSource(data.source));
@@ -1724,8 +1670,10 @@ function buildAboutTab(): HTMLElement {
                         themeState.activeBasePreset = undefined;
                     }
                     saveThemeState();
+                    resolveBaseline();
                     injectThemeStyles();
-                    notify('Theme imported');
+                    rerenderLive?.();
+                    offerUndo('Theme imported', file.name, restore);
                 } catch {
                     notify('Invalid theme file', true);
                 }
@@ -1737,24 +1685,21 @@ function buildAboutTab(): HTMLElement {
 
     const resetBtn = tab.querySelector('#st-m-reset') as HTMLButtonElement;
     resetBtn.addEventListener('click', () => {
-        applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Default') || BUILTIN_PRESETS[0]);
-        injectThemeStyles();
-        notify('Theme reset to default');
+        undoable('Reset to Default', 'Your custom presets were kept.', () => {
+            applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Default') || BUILTIN_PRESETS[0]);
+            resolveBaseline();
+            injectThemeStyles();
+            rerenderLive?.();
+        });
     });
 
     const changelogBtn = tab.querySelector('#st-m-changelog') as HTMLButtonElement;
     changelogBtn.addEventListener('click', async () => {
         if (changelogBtn.disabled) return;
         changelogBtn.disabled = true;
-        changelogBtn.textContent = 'Loading changelog...';
+        changelogBtn.textContent = 'Loading changelog…';
         try {
-            await showCurrentChangelog({
-                expanded: true,
-                beforeShow: async () => {
-                    hideModal();
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                }
-            });
+            await showCurrentChangelog({ expanded: true });
         } catch {
             notify('Could not load the changelog', true);
         } finally {
@@ -1765,12 +1710,7 @@ function buildAboutTab(): HTMLElement {
 
     const checkBtn = tab.querySelector('#st-m-check') as HTMLButtonElement;
     checkBtn.addEventListener('click', () => {
-        runManualUpdateCheck(checkBtn, {
-            beforePrompt: async () => {
-                hideModal();
-                await new Promise(resolve => setTimeout(resolve, 300));
-            }
-        });
+        runManualUpdateCheck(checkBtn);
     });
 
     return tab;
@@ -1849,18 +1789,17 @@ function hideEnabledTipSoon(): void {
 
 function positionEnabledTip(tip: HTMLElement, anchor: HTMLElement): void {
     const a = anchor.getBoundingClientRect();
+    const side = anchor.closest('.st-m-side')?.getBoundingClientRect();
     const t = tip.getBoundingClientRect();
     const margin = 8;
 
-    let top = a.bottom + 6;
-    if (top + t.height > window.innerHeight - margin) {
-        const above = a.top - t.height - 6;
-        top = above >= margin ? above : Math.max(margin, window.innerHeight - t.height - margin);
+    let left = side ? side.right + 10 : a.left;
+    let top = side ? a.top - 14 : a.bottom + 6;
+    if (left + t.width > window.innerWidth - margin) {
+        left = Math.max(margin, window.innerWidth - t.width - margin);
+        top = a.bottom + 6;
     }
-
-    let left = a.left;
-    if (left + t.width > window.innerWidth - margin) left = window.innerWidth - t.width - margin;
-    if (left < margin) left = margin;
+    if (top + t.height > window.innerHeight - margin) top = Math.max(margin, window.innerHeight - t.height - margin);
 
     tip.style.top = `${Math.round(top)}px`;
     tip.style.left = `${Math.round(left)}px`;
@@ -1872,27 +1811,28 @@ function showEnabledTip(anchor: HTMLElement): void {
     const tip = document.createElement('div');
     tip.className = 'st-m-enabled-tip';
     tip.setAttribute('role', 'tooltip');
+    paintTone(tip, 'accent');
 
     if (!themeState.isEnabled) {
         tip.innerHTML = `
             <div class="st-m-enabled-tip-head">Styling is off</div>
-            <div class="st-m-enabled-tip-empty">Spicy Lyrics is rendering its stock look. Your settings are kept.</div>
+            <div class="st-m-enabled-tip-empty">Spicy Lyrics is showing its stock look. Your settings are kept.</div>
         `;
     } else {
         const groups = collectEnabledFeatures();
         const total = groups.reduce((sum, g) => sum + g.items.length, 0);
         if (!total) {
             tip.innerHTML = `
-                <div class="st-m-enabled-tip-head">Nothing extra enabled</div>
-                <div class="st-m-enabled-tip-empty">Only colours, fonts and sizes are in play — no effects are switched on.</div>
+                <div class="st-m-enabled-tip-head">No effects on</div>
+                <div class="st-m-enabled-tip-empty">Only colours, fonts and sizes are in play.</div>
             `;
         } else {
             tip.innerHTML = `
-                <div class="st-m-enabled-tip-head">${total} effect${total === 1 ? '' : 's'} enabled</div>
+                <div class="st-m-enabled-tip-head">${total} effect${total === 1 ? '' : 's'} on</div>
                 ${groups.map(group => `
                     <div class="st-m-enabled-tip-group">
-                        <div class="st-m-enabled-tip-cat"><span class="st-m-enabled-tip-icon" aria-hidden="true">${escapeHtml(group.icon)}</span>${escapeHtml(group.label)}</div>
-                        <ul class="st-m-enabled-tip-list">${group.items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+                        <div class="st-m-enabled-tip-cat">${escapeHtml(group.label)}</div>
+                        <div class="st-m-enabled-tip-list">${group.items.map(item => `<span>${escapeHtml(item)}</span>`).join('')}</div>
                     </div>
                 `).join('')}
             `;
@@ -1924,24 +1864,24 @@ function showEnabledTip(anchor: HTMLElement): void {
     };
 }
 
-function buildMasterBar(onChange: () => void): HTMLElement {
+
+function buildMasterBar(): HTMLElement {
     const bar = document.createElement('div');
     bar.className = 'st-m-enabled-bar';
     bar.innerHTML = `
         <div class="st-m-enabled-text">
-            <div class="st-m-enabled-title">Spicy Themes</div>
+            <div class="st-m-enabled-title">Styling</div>
             <div class="st-m-enabled-sub"></div>
         </div>
-        <button type="button" class="st-m-btn st-m-enabled-reset">Reset all</button>
         <label class="st-m-toggle" title="Turn all Spicy Themes styling on or off">
             <input type="checkbox" aria-label="Enable Spicy Themes">
             <span class="st-m-toggle-slider"></span>
         </label>
     `;
 
+    const title = bar.querySelector('.st-m-enabled-title') as HTMLElement;
     const sub = bar.querySelector('.st-m-enabled-sub') as HTMLElement;
     const input = bar.querySelector('input') as HTMLInputElement;
-    const resetBtn = bar.querySelector('.st-m-enabled-reset') as HTMLButtonElement;
 
     sub.tabIndex = 0;
     sub.addEventListener('mouseenter', () => {
@@ -1955,12 +1895,9 @@ function buildMasterBar(onChange: () => void): HTMLElement {
     const sync = () => {
         input.checked = themeState.isEnabled;
         bar.classList.toggle('st-m-enabled-off', !themeState.isEnabled);
-        const changed = changedFieldCount(baseline.config);
+        title.textContent = themeState.isEnabled ? 'Styling on' : 'Styling off';
         const base = baseline.name === 'default' ? 'Default' : baseline.name;
-        sub.textContent = themeState.isEnabled
-            ? `Based on “${base}”${changed ? ` · ${changed} tweak${changed === 1 ? '' : 's'}` : ''}`
-            : 'Styling is off — Spicy Lyrics looks stock';
-        sub.title = '';
+        sub.textContent = themeState.isEnabled ? `Based on “${base}”` : 'Spicy Lyrics looks stock';
         if (enabledTip) showEnabledTip(sub);
     };
 
@@ -1969,14 +1906,6 @@ function buildMasterBar(onChange: () => void): HTMLElement {
         saveThemeState();
         injectThemeStyles();
         sync();
-    });
-
-    resetBtn.addEventListener('click', () => {
-        applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Default') || BUILTIN_PRESETS[0]);
-        resolveBaseline();
-        injectThemeStyles();
-        notify('Everything reset to default');
-        onChange();
     });
 
     syncChrome.push(sync);
@@ -2000,36 +1929,32 @@ function buildUpdateBanner(onChange: () => void): HTMLElement {
         const label = themeState.activeSourceName || themeState.activePresetName;
         const text = document.createElement('div');
         text.className = 'st-m-update-banner-text';
-        text.textContent = `"${label}" has a new version on the Marketplace`;
-
-        const actions = document.createElement('div');
-        actions.className = 'st-m-update-banner-actions';
+        text.textContent = `“${label}” has a new version on the Marketplace`;
 
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'st-m-btn st-m-btn-update';
-        btn.textContent = 'Update';
-        btn.addEventListener('click', () => {
-            askInlineConfirm(banner, {
-                message: activeThemeHasLocalChanges()
-                    ? `Update "${label}"? This will replace your changes.`
-                    : `Update "${label}" to the latest version?`,
-                action: 'Update',
-                busy: 'Updating...',
-                run: async () => {
-                    const name = await updateActiveThemeFromSource();
-                    resolveBaseline();
-                    injectThemeStyles();
-                    return name;
-                },
-                success: (name) => `Updated "${name}" to the latest version`,
-                done: onChange,
-            });
+        btn.className = 'st-m-btn st-m-btn-primary';
+        btn.textContent = 'Update theme';
+        btn.addEventListener('click', async () => {
+            const replaced = activeThemeHasLocalChanges();
+            const restore = snapshotState();
+            btn.disabled = true;
+            btn.textContent = 'Updating…';
+            try {
+                const name = await updateActiveThemeFromSource();
+                resolveBaseline();
+                injectThemeStyles();
+                onChange();
+                offerUndo(`Updated “${name}”`, replaced ? 'Your edits were replaced by the new version.' : `Now on version ${update.version}.`, restore);
+            } catch (e) {
+                notify(`Update failed: ${e instanceof Error ? e.message : 'Unknown error'}`, true);
+                btn.disabled = false;
+                btn.textContent = 'Update theme';
+            }
         });
 
-        actions.appendChild(btn);
         banner.appendChild(text);
-        banner.appendChild(actions);
+        banner.appendChild(btn);
     };
 
     syncChrome.push(sync);
@@ -2037,75 +1962,717 @@ function buildUpdateBanner(onChange: () => void): HTMLElement {
     return banner;
 }
 
-export function createSettingsModal(): HTMLElement {
+export type TabId = 'customize' | 'presets' | 'marketplace' | 'about';
+
+const TAB_META: Record<TabId, { label: string; description: string }> = {
+    customize: { label: 'Customize', description: 'Every part of how the lyrics look and move.' },
+    presets: { label: 'Presets', description: 'Built-in looks and the ones you saved.' },
+    marketplace: { label: 'Marketplace', description: 'Themes shared by the community.' },
+    about: { label: 'About', description: 'Version, updates and your configuration.' },
+};
+
+let activeTabId: TabId = 'customize';
+let goToLive: ((tab: TabId, category?: string) => void) | null = null;
+
+const EYE_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>';
+const BELL_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M4 11V7a4 4 0 118 0v4l1.2 1.5H2.8zM6.5 13.5a1.6 1.6 0 003 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+const DIFF_SVG = '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M5 2.5v7M1.5 6h7M9 11.5h5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+
+function dedupedSchema(): FieldDef[] {
+    const seen = new Set<keyof ThemeConfig>();
+    return SCHEMA.filter(d => {
+        if (d.comingSoon || seen.has(d.id)) return false;
+        seen.add(d.id);
+        return true;
+    });
+}
+
+function categoryOf(def: FieldDef): CzCategory | undefined {
+    return CZ_CATEGORIES.find(c => c.sections.includes(def.section));
+}
+
+function whereLabel(def: FieldDef): string {
+    const cat = categoryOf(def);
+    if (!cat || cat.label === def.section) return def.section;
+    return `${cat.label} · ${def.section}`;
+}
+
+export function settingById(id: string): { id: string; label: string } | null {
+    const def = SCHEMA.find(d => d.id === id && !d.comingSoon);
+    return def ? { id: def.id, label: def.label } : null;
+}
+
+const GENERIC_LABELS = new Set(['enabled', 'opacity', 'intensity', 'color', 'colour', 'amount', 'style', 'speed', 'size']);
+
+export function matchSettingInText(input: string): { id: string; label: string } | null {
+    const haystack = ` ${input.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ')} `;
+    let best: FieldDef | null = null;
+    dedupedSchema().forEach(def => {
+        const label = def.label.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').trim();
+        if (label.length < 7 || !label.includes(' ') || GENERIC_LABELS.has(label)) return;
+        if (!haystack.includes(` ${label} `)) return;
+        if (!best || label.length > best.label.length) best = def;
+    });
+    const found = best as FieldDef | null;
+    return found ? { id: found.id, label: found.label } : null;
+}
+
+export function isSettingsOpen(): boolean {
+    return !!liveContainer && liveContainer.isConnected;
+}
+
+export function goToSettings(tab: TabId, category?: string): void {
+    goToLive?.(tab, category);
+}
+
+export function revealSetting(id: string): void {
+    if (!liveContainer || !goToLive) return;
+    const index = SCHEMA.findIndex(d => d.id === id);
+    if (index < 0) return;
+    let def = SCHEMA[index];
+    goToLive('customize', categoryOf(def)?.id);
+    let row = liveContainer.querySelector<HTMLElement>(`.st-m-field[data-st-idx="${index}"]`);
+    while (row && row.style.display === 'none' && def.parent) {
+        const parentIndex = SCHEMA.findIndex(d => d.id === def.parent);
+        if (parentIndex < 0) break;
+        def = SCHEMA[parentIndex];
+        row = liveContainer.querySelector<HTMLElement>(`.st-m-field[data-st-idx="${parentIndex}"]`);
+    }
+    if (!row) return;
+    const target = row;
+    target.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    target.classList.remove('st-m-spot');
+    void target.offsetWidth;
+    target.classList.add('st-m-spot');
+    window.setTimeout(() => target.classList.remove('st-m-spot'), 2400);
+    const control = target.querySelector<HTMLElement>('input, select, button:not(.st-m-field-reset)');
+    control?.focus({ preventScroll: true });
+}
+
+function describeValue(def: FieldDef, value: unknown): HTMLElement {
+    const node = el('span', { class: 'st-m-rv-value' });
+    if (def.type === 'color') {
+        const swatch = el('span', { class: 'st-m-rv-swatch' });
+        swatch.style.background = String(value || 'transparent');
+        node.append(swatch, String(value || '—'));
+        return node;
+    }
+    if (def.type === 'toggle') {
+        node.textContent = value ? 'On' : 'Off';
+        return node;
+    }
+    if (def.type === 'dropdown') {
+        const option = (def.options || []).find(o => o.value === value);
+        node.textContent = option ? option.text : String(value || '—');
+        return node;
+    }
+    if (def.type === 'image') {
+        node.textContent = value ? 'Custom image' : 'None';
+        return node;
+    }
+    if (def.type === 'slider') {
+        node.textContent = formatFieldValue(value, def.unit || '');
+        return node;
+    }
+    const str = String(value ?? '');
+    node.textContent = str ? (str.length > 28 ? `${str.slice(0, 27)}…` : str) : '—';
+    return node;
+}
+
+function changedDefs(): FieldDef[] {
+    return dedupedSchema().filter(d => themeState.activeTheme[d.id] !== baseline.config[d.id]);
+}
+
+function openReviewChanges(): void {
+    const list = el('div', { class: 'st-m-rv-list' });
+    const summary = el('p', { class: 'st-ui-text' });
+    let dialog: SurfaceHandle | null = null;
+
+    const render = () => {
+        const defs = changedDefs();
+        const base = baseline.name === 'default' ? 'Default' : baseline.name;
+        list.innerHTML = '';
+        summary.textContent = defs.length
+            ? `${defs.length} setting${defs.length === 1 ? ' differs' : 's differ'} from “${base}”.`
+            : `Nothing differs from “${base}” right now.`;
+        defs.forEach(def => {
+            const row = el('div', { class: 'st-m-rv-row' },
+                el('div', { class: 'st-m-rv-head' },
+                    el('button', { class: 'st-m-rv-label', type: 'button', text: def.label, title: 'Show this setting' }),
+                    el('span', { class: 'st-m-rv-where', text: whereLabel(def) }),
+                ),
+                el('div', { class: 'st-m-rv-diff' },
+                    describeValue(def, baseline.config[def.id]),
+                    el('span', { class: 'st-m-rv-arrow', 'aria-hidden': 'true' }),
+                    describeValue(def, themeState.activeTheme[def.id]),
+                ),
+                el('button', { class: 'st-m-btn st-m-rv-revert', type: 'button', text: 'Revert' }),
+            );
+            row.querySelector('.st-m-rv-label')?.addEventListener('click', () => {
+                dialog?.close();
+                revealSetting(def.id);
+            });
+            row.querySelector('.st-m-rv-revert')?.addEventListener('click', () => {
+                const before = themeState.activeTheme[def.id];
+                liveUpdate(def.id, baseline.config[def.id]);
+                syncAllFields();
+                render();
+                toast({
+                    kind: 'success',
+                    key: 'st-undo',
+                    title: `Reverted “${def.label}”`,
+                    duration: 6000,
+                    undo: () => {
+                        liveUpdate(def.id, before as any);
+                        syncAllFields();
+                        if (dialog && !dialog.closed) render();
+                    },
+                });
+            });
+            list.append(row);
+        });
+        list.hidden = defs.length === 0;
+        const revertAll = dialog?.footer.querySelector('[data-action="revert-all"]') as HTMLButtonElement | null;
+        if (revertAll) revertAll.disabled = defs.length === 0;
+    };
+
+    dialog = openDialog({
+        eyebrow: 'Spicy Themes · Review',
+        title: 'Your changes',
+        size: 'lg',
+        body: [summary, list],
+        actions: [
+            {
+                id: 'reset-default',
+                label: 'Reset everything',
+                kind: 'danger',
+                onClick: () => undoable('Everything reset to Default', 'Your custom presets were kept.', () => {
+                    applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Default') || BUILTIN_PRESETS[0]);
+                    resolveBaseline();
+                    injectThemeStyles();
+                    rerenderLive?.();
+                }),
+            },
+            {
+                id: 'save-preset',
+                label: 'Save as preset',
+                kind: 'quiet',
+                onClick: () => {
+                    goToLive?.('presets');
+                    window.setTimeout(() => liveContainer?.querySelector<HTMLInputElement>('#st-m-save-name')?.focus(), 60);
+                },
+            },
+            {
+                id: 'revert-all',
+                label: 'Revert all',
+                kind: 'ghost',
+                keepOpen: true,
+                onClick: () => {
+                    const count = changedDefs().length;
+                    const base = baseline;
+                    undoable(`Reverted ${count} setting${count === 1 ? '' : 's'}`, `Back to “${base.name === 'default' ? 'Default' : base.name}”.`, () => {
+                        themeState.activeTheme = mergeThemeConfig({ ...base.config });
+                        themeState.activePresetName = base.name === 'default' ? 'Default' : base.name;
+                        saveThemeState();
+                        injectThemeStyles();
+                        rerenderLive?.();
+                    });
+                    render();
+                },
+            },
+            { label: 'Done', kind: 'primary' },
+        ],
+    });
+    render();
+}
+
+interface PaletteItem {
+    group: string;
+    label: string;
+    hint?: string;
+    keywords?: string;
+    run: () => void;
+}
+
+function paletteItems(close: () => void): PaletteItem[] {
+    const items: PaletteItem[] = [];
+    (Object.keys(TAB_META) as TabId[]).forEach(tab => {
+        items.push({ group: 'Go to', label: TAB_META[tab].label, hint: TAB_META[tab].description, run: () => { close(); goToLive?.(tab); } });
+    });
+    CZ_CATEGORIES.forEach(cat => {
+        items.push({ group: 'Go to', label: `Customize › ${cat.label}`, hint: cat.description, run: () => { close(); goToLive?.('customize', cat.id); } });
+    });
+    dedupedSchema().forEach(def => {
+        items.push({
+            group: 'Settings',
+            label: def.label,
+            hint: whereLabel(def),
+            keywords: `${def.section} ${def.hint || ''} ${def.keywords || ''}`,
+            run: () => { close(); revealSetting(def.id); },
+        });
+    });
+    getAllPresets().forEach(preset => {
+        items.push({
+            group: 'Presets',
+            label: `Apply “${preset.name}”`,
+            hint: preset.description,
+            keywords: 'preset theme apply',
+            run: () => {
+                close();
+                undoable(`Applied “${preset.name}”`, undefined, () => {
+                    applyPreset(preset);
+                    resolveBaseline();
+                    injectThemeStyles();
+                    rerenderLive?.();
+                });
+            },
+        });
+    });
+    items.push(
+        { group: 'Actions', label: 'Review changes', hint: 'See everything that differs from your preset', run: () => { close(); openReviewChanges(); } },
+        {
+            group: 'Actions',
+            label: themeState.isEnabled ? 'Turn styling off' : 'Turn styling on',
+            keywords: 'enable disable toggle',
+            run: () => {
+                close();
+                themeState.isEnabled = !themeState.isEnabled;
+                saveThemeState();
+                injectThemeStyles();
+                syncChrome.forEach(fn => fn());
+            },
+        },
+        { group: 'Actions', label: 'Check for updates', keywords: 'version update', run: () => { close(); runManualUpdateCheck(null); } },
+        { group: 'Actions', label: 'Show changelog', keywords: 'whats new release notes', run: () => { close(); showCurrentChangelog({ expanded: true }).catch(() => notify('Could not load the changelog', true)); } },
+        { group: 'Actions', label: 'Notifications', keywords: 'inbox bell history', run: () => { close(); openInbox(); } },
+    );
+    return items;
+}
+
+function scoreItem(item: PaletteItem, q: string): number {
+    const label = item.label.toLowerCase();
+    if (label.startsWith(q)) return 100 - label.length * 0.1;
+    const words = label.split(/[\s›·“”]+/);
+    if (words.some(w => w.startsWith(q))) return 70 - label.length * 0.1;
+    if (label.includes(q)) return 50;
+    if (`${item.hint || ''} ${item.keywords || ''}`.toLowerCase().includes(q)) return 20;
+    return -1;
+}
+
+function openPalette(): void {
+    if (document.querySelector('.st-m-pal')) return;
+    let dialog: SurfaceHandle | null = null;
+    const close = () => dialog?.close();
+    const all = paletteItems(close);
+    const input = el('input', {
+        class: 'st-m-pal-input',
+        type: 'text',
+        placeholder: 'Search settings, presets, themes and actions…',
+        spellcheck: 'false',
+        'aria-label': 'Search Spicy Themes',
+        'data-st-autofocus': true,
+        'data-st-esc-local': true,
+    });
+    const results = el('div', { class: 'st-m-pal-results', role: 'listbox' });
+    const foot = el('div', { class: 'st-m-pal-foot' },
+        el('span', { html: '<kbd>↑</kbd><kbd>↓</kbd> move' }),
+        el('span', { html: '<kbd>Enter</kbd> open' }),
+        el('span', { html: '<kbd>Esc</kbd> close' }),
+    );
+    const box = el('div', { class: 'st-m-pal' },
+        el('div', { class: 'st-m-pal-bar' }, el('span', { class: 'st-m-pal-icon', html: SEARCH_SVG }), input),
+        results,
+        foot,
+    );
+
+    let shown: PaletteItem[] = [];
+    let active = 0;
+    let remoteTimer: number | null = null;
+    let remote: PaletteItem[] = [];
+    let remoteQuery = '';
+
+    const paint = () => {
+        results.innerHTML = '';
+        let lastGroup = '';
+        shown.forEach((item, i) => {
+            if (item.group !== lastGroup) {
+                lastGroup = item.group;
+                results.append(el('div', { class: 'st-m-pal-group', text: item.group }));
+            }
+            const row = el('button', { class: `st-m-pal-item${i === active ? ' active' : ''}`, type: 'button', role: 'option', 'aria-selected': String(i === active) },
+                el('span', { class: 'st-m-pal-label', text: item.label }),
+                item.hint ? el('span', { class: 'st-m-pal-hint', text: item.hint }) : null,
+            );
+            row.addEventListener('mousemove', () => {
+                if (active === i) return;
+                active = i;
+                results.querySelectorAll('.st-m-pal-item').forEach((n, j) => n.classList.toggle('active', j === i));
+            });
+            row.addEventListener('click', () => item.run());
+            results.append(row);
+        });
+        if (!shown.length) results.append(el('div', { class: 'st-m-pal-empty', text: input.value.trim() ? 'Nothing matches that.' : 'Start typing to search.' }));
+        results.querySelector('.st-m-pal-item.active')?.scrollIntoView({ block: 'nearest' });
+    };
+
+    const compute = () => {
+        const q = input.value.trim().toLowerCase();
+        if (!q) {
+            shown = all.filter(i => i.group === 'Go to' || i.group === 'Actions').slice(0, 10);
+        } else {
+            const scored = all
+                .map(item => ({ item, score: scoreItem(item, q) }))
+                .filter(x => x.score >= 0)
+                .sort((a, b) => b.score - a.score);
+            const byGroup = new Map<string, PaletteItem[]>();
+            scored.forEach(({ item }) => {
+                const list = byGroup.get(item.group) || [];
+                if (list.length < (item.group === 'Settings' ? 7 : 4)) list.push(item);
+                byGroup.set(item.group, list);
+            });
+            shown = ['Settings', 'Go to', 'Presets', 'Actions'].flatMap(g => byGroup.get(g) || []);
+            if (remoteQuery === q) shown = shown.concat(remote);
+        }
+        active = Math.min(active, Math.max(0, shown.length - 1));
+        paint();
+    };
+
+    const fetchRemote = () => {
+        const q = input.value.trim();
+        if (remoteTimer) window.clearTimeout(remoteTimer);
+        if (q.length < 2) return;
+        remoteTimer = window.setTimeout(async () => {
+            try {
+                const res = await Marketplace.listThemes({ page: 1, query: q });
+                if (input.value.trim() !== q || !dialog || dialog.closed) return;
+                remoteQuery = q.toLowerCase();
+                remote = (res.themes || []).slice(0, 4).map(t => ({
+                    group: 'Marketplace',
+                    label: t.name,
+                    hint: `by ${t.author}`,
+                    run: () => {
+                        close();
+                        goToLive?.('marketplace');
+                        const search = liveContainer?.querySelector<HTMLInputElement>('.st-m-mp-search');
+                        if (search) {
+                            search.value = t.name;
+                            search.dispatchEvent(new Event('input'));
+                        }
+                    },
+                }));
+                compute();
+            } catch {}
+        }, 320);
+    };
+
+    input.addEventListener('input', () => {
+        active = 0;
+        compute();
+        fetchRemote();
+    });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(shown.length - 1, active + 1); paint(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(0, active - 1); paint(); }
+        else if (e.key === 'Enter') { e.preventDefault(); shown[active]?.run(); }
+        else if (e.key === 'Escape' && input.value) { e.preventDefault(); input.value = ''; compute(); }
+    });
+
+    dialog = openDialog({ title: 'Search', bare: true, size: 'md', placement: 'top', className: 'st-m-pal-dialog', content: box });
+    compute();
+    input.focus();
+}
+
+function relativeTime(at: number): string {
+    const s = Math.max(0, Math.round((Date.now() - at) / 1000));
+    if (s < 60) return 'just now';
+    const m = Math.round(s / 60);
+    if (m < 60) return `${m} min ago`;
+    const h = Math.round(m / 60);
+    if (h < 24) return `${h} h ago`;
+    const d = Math.round(h / 24);
+    return `${d} day${d === 1 ? '' : 's'} ago`;
+}
+
+const INBOX_TONE: Record<InboxEntry['kind'], Tone> = {
+    info: 'accent',
+    success: 'success',
+    warning: 'hotfix',
+    error: 'error',
+    update: 'accent',
+};
+
+function openInbox(): void {
+    const list = el('div', { class: 'st-m-inbox' });
+    let dialog: SurfaceHandle | null = null;
+    const render = (items: InboxEntry[]) => {
+        list.innerHTML = '';
+        if (!items.length) {
+            list.append(el('div', { class: 'st-m-inbox-empty' },
+                el('div', { class: 'st-m-inbox-empty-title', text: 'All caught up' }),
+                el('div', { class: 'st-m-inbox-empty-sub', text: 'Updates, warnings and errors land here so you never miss one.' }),
+            ));
+            return;
+        }
+        items.forEach(entry => {
+            const dot = el('span', { class: 'st-m-inbox-dot', 'aria-hidden': 'true' });
+            paintTone(dot, INBOX_TONE[entry.kind] || 'accent');
+            const row = el('div', { class: `st-m-inbox-row${entry.read ? '' : ' unread'}` },
+                dot,
+                el('div', { class: 'st-m-inbox-text' },
+                    el('div', { class: 'st-m-inbox-title', text: entry.title }),
+                    entry.description ? el('div', { class: 'st-m-inbox-desc', text: entry.description }) : null,
+                    el('div', { class: 'st-m-inbox-time', text: relativeTime(entry.at) }),
+                ),
+            );
+            if (entry.actionId) {
+                const actionId = entry.actionId;
+                const btn = el('button', { class: 'st-m-btn', type: 'button', text: entry.actionLabel || 'Open' });
+                btn.addEventListener('click', () => {
+                    dialog?.close();
+                    runInboxAction(actionId);
+                });
+                row.append(btn);
+            }
+            list.append(row);
+        });
+    };
+    render(getInbox());
+    dialog = openDialog({
+        eyebrow: 'Spicy Themes',
+        title: 'Notifications',
+        size: 'md',
+        className: 'st-m-inbox-dialog',
+        content: list,
+        actions: [
+            { label: 'Clear all', kind: 'quiet', keepOpen: true, onClick: () => { clearInbox(); render([]); } },
+            { label: 'Done', kind: 'primary' },
+        ],
+    });
+    markInboxRead();
+}
+
+function iconButton(className: string, label: string, svg: string): HTMLButtonElement {
+    return el('button', { class: `st-m-icon-btn ${className}`, type: 'button', 'aria-label': label, title: label, html: svg });
+}
+
+function bindShortcuts(peekButton: HTMLElement, overlayOf: () => HTMLElement | null): () => void {
+    const on = () => overlayOf()?.classList.add('st-ui-peek');
+    const off = () => overlayOf()?.classList.remove('st-ui-peek');
+    peekButton.addEventListener('pointerdown', (e) => { e.preventDefault(); on(); });
+    peekButton.addEventListener('pointerup', off);
+    peekButton.addEventListener('pointerleave', off);
+    peekButton.addEventListener('blur', off);
+    peekButton.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); on(); } });
+    peekButton.addEventListener('keyup', off);
+    const editable = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+    const settingsOnTop = () => {
+        const surfaces = openSurfaces();
+        const top = surfaces[surfaces.length - 1];
+        return !!top && !!liveContainer && top.root.contains(liveContainer);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+        if (!liveContainer?.isConnected) return;
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+            if (!settingsOnTop()) return;
+            e.preventDefault();
+            e.stopPropagation();
+            openPalette();
+            return;
+        }
+        if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat && !editable(e.target) && settingsOnTop()) {
+            on();
+        }
+    };
+    const onKeyUp = (e: KeyboardEvent) => { if (e.key.toLowerCase() === 'p') off(); };
+    document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('keyup', onKeyUp, true);
+    window.addEventListener('blur', off);
+    return () => {
+        document.removeEventListener('keydown', onKeyDown, true);
+        document.removeEventListener('keyup', onKeyUp, true);
+        window.removeEventListener('blur', off);
+    };
+}
+
+let teardownLive: (() => void) | null = null;
+
+export function destroySettingsModal(): void {
+    teardownLive?.();
+    teardownLive = null;
     hideEnabledTip();
+    liveContainer = null;
+    goToLive = null;
+    rerenderLive = null;
+}
+
+export function createSettingsModal(options: { tab?: TabId; category?: string } = {}): HTMLElement {
+    hideEnabledTip();
+    teardownLive?.();
     const container = document.createElement('div');
     container.className = 'st-modal-root';
     liveContainer = container;
     syncChrome = [];
     resolveBaseline();
 
-    const tabBar = document.createElement('div');
-    tabBar.className = 'st-m-tabbar';
-    tabBar.setAttribute('role', 'tablist');
+    if (options.tab) activeTabId = options.tab;
+    if (options.category) activeCategoryId = options.category;
 
-    const tabContent = document.createElement('div');
-    tabContent.className = 'st-m-tab-host';
+    const renderers: Record<TabId, () => HTMLElement> = {
+        customize: () => buildCustomizeTab(),
+        presets: () => buildPresetsTab(rerender),
+        marketplace: () => buildMarketplaceTab(rerender),
+        about: () => buildAboutTab(),
+    };
 
-    const tabs: { id: string; label: string; render: () => HTMLElement }[] = [
-        { id: 'customize', label: 'Customize', render: () => buildCustomizeTab() },
-        { id: 'presets', label: 'Presets', render: () => buildPresetsTab(rerender) },
-        { id: 'marketplace', label: 'Marketplace', render: () => buildMarketplaceTab(rerender) },
-        { id: 'about', label: 'About', render: () => buildAboutTab() },
-    ];
-    let activeTab = tabs[0].id;
+    const tabContent = el('div', { class: 'st-m-tab-host' });
+    const crumbTitle = el('div', { class: 'st-m-crumb-title' });
+    const crumbSub = el('div', { class: 'st-m-crumb-sub' });
 
     function rerender(): void {
-        const current = tabs.find(t => t.id === activeTab) || tabs[0];
         tabContent.innerHTML = '';
-        tabContent.appendChild(current.render());
+        tabContent.appendChild(renderers[activeTabId]());
         applyCustomizeFilter();
         syncChrome.forEach(fn => fn());
     }
+    rerenderLive = rerender;
 
-    const masterBar = buildMasterBar(rerender);
-    const updateBanner = buildUpdateBanner(rerender);
-
-    tabs.forEach(t => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = `st-m-tab${t.id === activeTab ? ' active' : ''}`;
-        btn.textContent = t.label;
-        btn.setAttribute('role', 'tab');
-        btn.setAttribute('aria-selected', String(t.id === activeTab));
-        btn.addEventListener('click', () => {
-            activeTab = t.id;
-            tabBar.querySelectorAll('.st-m-tab').forEach(b => {
-                b.classList.remove('active');
-                b.setAttribute('aria-selected', 'false');
-            });
-            btn.classList.add('active');
-            btn.setAttribute('aria-selected', 'true');
+    function goTo(tab: TabId, category?: string): void {
+        const sameTab = tab === activeTabId;
+        activeTabId = tab;
+        if (category) activeCategoryId = category;
+        if (!sameTab || tab !== 'customize') {
             rerender();
-        });
-        tabBar.appendChild(btn);
+        } else {
+            const search = container.querySelector<HTMLInputElement>('.st-m-cz-search');
+            if (search) search.value = '';
+            applyCustomizeFilter();
+            syncChrome.forEach(fn => fn());
+        }
+        tabContent.scrollTop = 0;
+        if (!prefersReducedMotion()) {
+            tabContent.firstElementChild?.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(0.2, 0.9, 0.1, 1)' });
+        }
+    }
+    goToLive = goTo;
+
+    const side = el('aside', { class: 'st-m-side' });
+    const brand = el('div', { class: 'st-m-brand' },
+        el('span', { class: 'st-m-brand-mark', html: Icons.Palette }),
+        el('div', { class: 'st-m-brand-text' },
+            el('div', { class: 'st-m-brand-name', text: 'Spicy Themes' }),
+            el('div', { class: 'st-m-brand-ver', text: `v${getCurrentVersion().text}` }),
+        ),
+    );
+    side.append(brand, buildMasterBar());
+
+    const nav = el('nav', { class: 'st-m-side-nav', 'aria-label': 'Settings sections' });
+    nav.append(el('div', { class: 'st-m-side-label', text: 'Customize' }));
+    const catNav = el('div', { class: 'st-m-cz-nav', role: 'tablist' });
+    CZ_CATEGORIES.forEach(cat => {
+        const btn = el('button', { class: 'st-m-cz-nav-item st-m-side-item', type: 'button', role: 'tab', 'data-target': cat.id },
+            el('span', { class: 'st-m-cz-nav-icon', 'aria-hidden': 'true', text: cat.icon }),
+            el('span', { class: 'st-m-side-item-label', text: cat.label }),
+        );
+        btn.addEventListener('click', () => goTo('customize', cat.id));
+        catNav.append(btn);
+    });
+    nav.append(catNav, el('div', { class: 'st-m-side-label', text: 'Library' }));
+    const tabButtons = new Map<TabId, HTMLButtonElement>();
+    ([['presets', '◆'], ['marketplace', '✺'], ['about', 'i']] as [TabId, string][]).forEach(([tab, icon]) => {
+        const btn = el('button', { class: 'st-m-side-item st-m-side-tab', type: 'button', 'data-tab': tab },
+            el('span', { class: 'st-m-cz-nav-icon', 'aria-hidden': 'true', text: icon }),
+            el('span', { class: 'st-m-side-item-label', text: TAB_META[tab].label }),
+        );
+        btn.addEventListener('click', () => goTo(tab));
+        tabButtons.set(tab, btn);
+        nav.append(btn);
+    });
+    side.append(nav);
+
+    const searchHint = el('button', { class: 'st-m-side-search', type: 'button' },
+        el('span', { class: 'st-m-side-search-icon', html: SEARCH_SVG }),
+        el('span', { class: 'st-m-side-search-label', text: 'Search everything' }),
+        el('kbd', { text: 'Ctrl K' }),
+    );
+    searchHint.addEventListener('click', openPalette);
+    side.append(searchHint);
+
+    const main = el('div', { class: 'st-m-main' });
+    const topbar = el('header', { class: 'st-m-topbar' });
+    const crumb = el('div', { class: 'st-m-crumb' }, crumbTitle, crumbSub);
+    const tools = el('div', { class: 'st-m-tools' });
+
+    const updateChip = el('button', { class: 'st-m-update-chip', type: 'button' });
+    updateChip.addEventListener('click', () => openWaitingUpdate(updateChip.getBoundingClientRect()));
+
+    const reviewBtn = el('button', { class: 'st-m-review-btn', type: 'button', title: 'Review everything you changed' },
+        el('span', { class: 'st-m-review-icon', html: DIFF_SVG }),
+        el('span', { class: 'st-m-review-label' }),
+    );
+    reviewBtn.addEventListener('click', openReviewChanges);
+
+    const peekBtn = iconButton('st-m-peek', 'Hold to peek at the lyrics (or hold P)', EYE_SVG);
+    const bellBtn = iconButton('st-m-bell', 'Notifications', BELL_SVG);
+    const closeBtn = iconButton('st-m-close', 'Close', CLOSE_SVG);
+    closeBtn.addEventListener('click', () => {
+        openSurfaces().find(s => s.root.contains(container))?.close();
     });
 
-    const header = document.createElement('div');
-    header.className = 'st-m-header';
-    header.appendChild(masterBar);
-    header.appendChild(updateBanner);
-    header.appendChild(tabBar);
+    tools.append(updateChip, reviewBtn, peekBtn, bellBtn, closeBtn);
+    topbar.append(crumb, tools);
+    main.append(topbar, buildUpdateBanner(rerender), tabContent);
+    container.append(side, main);
 
-    container.appendChild(header);
-    container.appendChild(tabContent);
+    const syncBell = () => {
+        const unread = unreadCount();
+        bellBtn.classList.toggle('st-m-has-unread', unread > 0);
+        bellBtn.title = unread ? `Notifications (${unread} new)` : 'Notifications';
+    };
+    bellBtn.addEventListener('click', () => {
+        openInbox();
+        syncBell();
+    });
+
+    const syncShell = () => {
+        const searching = !!container.querySelector<HTMLInputElement>('.st-m-cz-search')?.value.trim();
+        catNav.querySelectorAll<HTMLElement>('.st-m-cz-nav-item').forEach(btn => {
+            const on = activeTabId === 'customize' && !searching && btn.dataset.target === activeCategoryId;
+            btn.classList.toggle('active', on);
+            btn.setAttribute('aria-selected', String(on));
+        });
+        catNav.classList.toggle('st-m-cz-nav-muted', activeTabId === 'customize' && searching);
+        tabButtons.forEach((btn, tab) => btn.classList.toggle('active', tab === activeTabId));
+        const cat = CZ_CATEGORIES.find(c => c.id === activeCategoryId);
+        const onCustomize = activeTabId === 'customize' && !!cat;
+        crumbTitle.textContent = onCustomize ? cat!.label : TAB_META[activeTabId].label;
+        crumbSub.textContent = onCustomize ? cat!.description : TAB_META[activeTabId].description;
+        container.dataset.tab = activeTabId;
+        const changed = changedFieldCount(baseline.config);
+        reviewBtn.classList.toggle('st-m-has-changes', changed > 0);
+        (reviewBtn.querySelector('.st-m-review-label') as HTMLElement).textContent = changed ? `${changed} change${changed === 1 ? '' : 's'}` : 'No changes';
+        const waiting = hasWaitingUpdate();
+        updateChip.hidden = !waiting;
+        if (waiting) updateChip.textContent = waiting.kind === 'hotfix' ? 'Patch ready' : `v${waiting.version} ready`;
+        syncBell();
+    };
+    syncChrome.push(syncShell);
 
     rerender();
+
+    const stopShortcuts = bindShortcuts(peekBtn, () => container.closest<HTMLElement>('.st-ui-overlay'));
+    const stopInbox = onInboxChange(syncBell);
+    const waitObserver = new MutationObserver(syncShell);
+    waitObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    teardownLive = () => {
+        stopShortcuts();
+        stopInbox();
+        waitObserver.disconnect();
+    };
 
     scanForUpdates()
         .then(changed => {
             if (!changed || liveContainer !== container || !container.isConnected) return;
-            if (activeTab === 'presets') rerender();
+            if (activeTabId === 'presets') rerender();
             else syncChrome.forEach(fn => fn());
         })
         .catch(() => {});

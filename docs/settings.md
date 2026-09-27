@@ -127,7 +127,7 @@ Requires [Spicy Lyric Translator](https://github.com/7xeh/SpicyLyricTranslator) 
 
 ## Miscellaneous
 
-Check for updates, reset to default, export, and import live at the bottom of the in-page settings section and in the Presets tab of the modal.
+Check for updates, reset to default, export, and import live at the bottom of the in-page settings section and in the modal's **About** page. The modal's **Changes** button lists everything you've changed and can revert it.
 
 ---
 

@@ -1,9 +1,10 @@
 import { storage } from './storage';
 import { themeState, saveThemeState, applyPreset, getAllPresets, saveCustomPreset, deleteCustomPreset, updateThemeProperty, mergeThemeConfig, BUILTIN_PRESETS } from './state';
 import { injectThemeStyles } from './themeEngine';
-import { getCurrentVersion, runManualUpdateCheck } from './updater';
-import { createSettingsModal, SCHEMA, FONT_OPTIONS, FieldDef } from './settingsModal';
-import { displayModal } from './modal';
+import { getCurrentVersion, runManualUpdateCheck, registerSettingLinker } from './updater';
+import { createSettingsModal, destroySettingsModal, isSettingsOpen, revealSetting, goToSettings, matchSettingInText, settingById, SCHEMA, FONT_OPTIONS, FieldDef, TabId } from './settingsModal';
+import { openDialog, el } from './surface';
+import { toast } from './toast';
 import { ThemeConfig } from './state';
 import { Icons } from './icons';
 
@@ -420,17 +421,11 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
         'st-settings.save-preset',
         'Save Current as Preset',
         'Save Preset',
-        () => {
-            const name = prompt('Enter preset name:');
-            if (name && name.trim()) {
-                const desc = prompt('Enter description (optional):') || '';
-                saveCustomPreset(name.trim(), desc.trim());
-                refreshSettings();
-                if (Spicetify.showNotification) {
-                    Spicetify.showNotification(`Preset "${name.trim()}" saved!`);
-                }
-            }
-        }
+        () => askPresetName((name, desc) => {
+            saveCustomPreset(name, desc);
+            refreshSettings();
+            toast({ kind: 'success', title: `Saved “${name}”`, description: 'You can find it in your presets.' });
+        })
     ));
 
     renderSchemaFields(optionsContainer);
@@ -456,9 +451,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
             applyPreset(BUILTIN_PRESETS.find(p => p.name === 'Default') || BUILTIN_PRESETS[0]);
             injectThemeStyles();
             refreshSettings();
-            if (Spicetify.showNotification) {
-                Spicetify.showNotification('Theme reset to default!');
-            }
+            toast({ kind: 'success', title: 'Theme reset to Default' });
         }
     ));
 
@@ -510,13 +503,9 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
                         saveThemeState();
                         injectThemeStyles();
                         refreshSettings();
-                        if (Spicetify.showNotification) {
-                            Spicetify.showNotification('Theme imported successfully!');
-                        }
+                        toast({ kind: 'success', title: 'Theme imported', description: file.name });
                     } catch (e) {
-                        if (Spicetify.showNotification) {
-                            Spicetify.showNotification('Invalid theme file', true);
-                        }
+                        toast({ kind: 'error', title: "That file isn't a Spicy Themes config", description: file.name });
                     }
                 };
                 reader.readAsText(file);
@@ -677,13 +666,61 @@ function watchForSettingsPage(): void {
 }
 
 
-export function openSettingsModal(): void {
-    displayModal({
-        title: 'Spicy Themes',
-        content: createSettingsModal(),
-        isLarge: true
+function askPresetName(onSave: (name: string, description: string) => void): void {
+    const nameInput = el('input', { class: 'st-ui-input', type: 'text', placeholder: 'Preset name', maxlength: '60', 'data-st-autofocus': true });
+    const descInput = el('input', { class: 'st-ui-input', type: 'text', placeholder: 'Description (optional)', maxlength: '200' });
+    const error = el('p', { class: 'st-ui-text st-ui-text-quiet', hidden: true, text: 'Give the preset a name first.' });
+    const submit = () => {
+        const name = nameInput.value.trim();
+        if (!name) {
+            error.hidden = false;
+            nameInput.focus();
+            return false;
+        }
+        onSave(name, descInput.value.trim());
+        return true;
+    };
+    const form = el('div', { class: 'st-ui-form' },
+        el('label', { class: 'st-ui-field' }, el('span', { text: 'Name' }), nameInput),
+        el('label', { class: 'st-ui-field' }, el('span', { text: 'Description' }), descInput),
+        error,
+    );
+    const dialog = openDialog({
+        title: 'Save as preset',
+        size: 'sm',
+        body: [el('p', { class: 'st-ui-text', text: 'Keep the look you have now so you can come back to it any time.' }), form],
+        actions: [
+            { label: 'Cancel', kind: 'quiet' },
+            { label: 'Save preset', kind: 'primary', keepOpen: true, onClick: (handle) => { if (submit()) handle.close(); } },
+        ],
     });
+    [nameInput, descInput].forEach(input => input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && submit()) dialog.close();
+    }));
 }
+
+export function openSettingsModal(options: { reveal?: string; tab?: TabId; category?: string } = {}): void {
+    if (isSettingsOpen()) {
+        if (options.reveal) revealSetting(options.reveal);
+        else if (options.tab) goToSettings(options.tab, options.category);
+        return;
+    }
+    openDialog({
+        title: 'Spicy Themes settings',
+        bare: true,
+        size: 'xl',
+        className: 'st-settings-dialog',
+        content: createSettingsModal({ tab: options.tab, category: options.category }),
+        onClose: () => destroySettingsModal(),
+    });
+    if (options.reveal) revealSetting(options.reveal);
+}
+
+registerSettingLinker({
+    match: matchSettingInText,
+    byId: settingById,
+    reveal: (id) => openSettingsModal({ reveal: id }),
+});
 
 export async function registerSettings(): Promise<void> {
     while (
