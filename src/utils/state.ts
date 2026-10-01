@@ -113,6 +113,8 @@ export function resolveWordTrigger(effect: string, trigger: string): WordEffectT
 }
 
 export interface ThemeConfig {
+    lyricsStylingEnabled: boolean;
+
     activeLineColor: string;
     sungLineColor: string;
     notSungLineColor: string;
@@ -321,6 +323,8 @@ export interface ThemeConfig {
     musicVideoCompact: boolean;
     musicVideoFullscreenCompact: boolean;
     musicVideoDim: number;
+    musicVideoBackdrop: string;
+    musicVideoBlend: number;
 
     eqEnabled: boolean;
     eqStyle: string;
@@ -333,6 +337,8 @@ export interface ThemeConfig {
 }
 
 export const DEFAULT_THEME: ThemeConfig = {
+    lyricsStylingEnabled: true,
+
     activeLineColor: '#ffffff',
     sungLineColor: '#b6beca',
     notSungLineColor: '#6b7280',
@@ -541,6 +547,8 @@ export const DEFAULT_THEME: ThemeConfig = {
     musicVideoCompact: false,
     musicVideoFullscreenCompact: false,
     musicVideoDim: 0.3,
+    musicVideoBackdrop: 'solid',
+    musicVideoBlend: 0.5,
 
     eqEnabled: false,
     eqStyle: 'equalizer',
@@ -573,9 +581,11 @@ export interface ThemeSource {
 export const BUILTIN_PRESETS: ThemePreset[] = [
     {
         name: 'Default',
-        description: 'Balanced baseline with clean contrast and comfortable spacing. A neutral starting point to build from.',
+        description: 'The stock Spicy Lyrics look, untouched. Change any lyric setting to start styling from a clean, balanced baseline.',
         config: {
             ...DEFAULT_THEME,
+            lyricsStylingEnabled: false,
+            pageBgOverlay: false,
             activeLineColor: '#ffffff',
             sungLineColor: '#cbd5e1',
             notSungLineColor: '#64748b',
@@ -908,6 +918,8 @@ export interface ThemeState {
     activePresetName: string;
     customPresets: ThemePreset[];
     isEnabled: boolean;
+    videoMode: boolean;
+    videoAuto: boolean;
     activeBasePreset?: string;
     activeSourceId?: string;
     activeSourceVersion?: number;
@@ -1008,6 +1020,7 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     playerArtRadius: [0, 50],
     playerProgressThickness: [0.5, 5],
     musicVideoDim: [0, 1],
+    musicVideoBlend: [0.1, 1],
     eqSize: [0.4, 2.5],
     eqSpeed: [0.3, 3.0],
 };
@@ -1166,6 +1179,12 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         normalized.animBgBackdrop = 'solid';
     }
 
+    if (!['solid', 'blend'].includes(normalized.musicVideoBackdrop)) {
+        normalized.musicVideoBackdrop = 'solid';
+    }
+
+    normalized.lyricsStylingEnabled = normalized.lyricsStylingEnabled !== false;
+
     if (!['performance', 'balanced', 'quality'].includes(normalized.animBgQuality)) {
         normalized.animBgQuality = 'balanced';
     }
@@ -1287,14 +1306,24 @@ function loadActiveTheme(): ThemeConfig {
             return mergeThemeConfig(JSON.parse(raw));
         }
     } catch (e) {}
-    return mergeThemeConfig(null);
+    return mergeThemeConfig(BUILTIN_PRESETS[0].config);
 }
 
+function loadVideoAuto(theme: ThemeConfig): boolean {
+    const stored = storage.get('video-auto');
+    if (stored === null) return !!theme.musicVideoEnabled;
+    return stored === 'true';
+}
+
+const initialTheme = loadActiveTheme();
+
 export const themeState: ThemeState = {
-    activeTheme: loadActiveTheme(),
+    activeTheme: initialTheme,
     activePresetName: storage.get('active-preset') || 'Default',
     customPresets: loadCustomPresets(),
     isEnabled: storage.get('enabled') !== 'false',
+    videoMode: storage.get('video-mode') === 'true',
+    videoAuto: loadVideoAuto(initialTheme),
     activeBasePreset: storage.get('active-base-preset') || undefined,
     activeSourceId: storage.get('active-source-id') || undefined,
     activeSourceVersion: loadStoredNumber('active-source-version'),
@@ -1342,6 +1371,8 @@ export function saveThemeState(): void {
     storage.set('active-preset', themeState.activePresetName);
     storage.set('custom-presets', JSON.stringify(themeState.customPresets));
     storage.set('enabled', String(themeState.isEnabled));
+    storage.set('video-mode', String(themeState.videoMode));
+    storage.set('video-auto', String(themeState.videoAuto));
     persistOptional('active-base-preset', themeState.activeBasePreset);
     persistOptional('active-source-id', themeState.activeSourceId);
     persistOptional('active-source-version', themeState.activeSourceVersion);
@@ -1350,6 +1381,17 @@ export function saveThemeState(): void {
 }
 
 migrateFingerprintFormat();
+
+function migrateNativeDefault(): void {
+    if (storage.get('native-default') === '1') return;
+    storage.set('native-default', '1');
+    if (storage.get('active-preset') !== 'Default') return;
+    if (!themeState.activeTheme.lyricsStylingEnabled) return;
+    themeState.activeTheme = mergeThemeConfig(BUILTIN_PRESETS[0].config);
+    saveThemeState();
+}
+
+migrateNativeDefault();
 
 export function setActiveSource(source: ThemeSource | null): void {
     themeState.activeSourceId = source ? source.id : undefined;
@@ -1521,7 +1563,10 @@ function seedTranslationStyle(theme: ThemeConfig): void {
     theme.sltHighlightColor = theme.highlightColor;
 }
 
+const NON_LYRIC_KEY_RE = /^(lyricsStylingEnabled|musicVideo|eq|animBg|pageBg|player)/;
+
 export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]): void {
+    const restyles = !themeState.activeTheme.lyricsStylingEnabled && !NON_LYRIC_KEY_RE.test(key);
     if (typeof value === 'number') {
         const range = CLAMPS[key];
         if (range) {
@@ -1532,6 +1577,9 @@ export function updateThemeProperty<K extends keyof ThemeConfig>(key: K, value: 
         }
     } else if (typeof value === 'string') {
         value = sanitizeThemeString(key, value);
+    }
+    if (restyles && themeState.activeTheme[key] !== value) {
+        themeState.activeTheme.lyricsStylingEnabled = true;
     }
     themeState.activeTheme[key] = value;
 

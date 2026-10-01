@@ -5,9 +5,13 @@
 ## First run
 
 1. Play a track and open the lyrics view.
-2. Click the **palette icon** in the lyrics controls to toggle Spicy Themes on and off.
+2. Click the **palette icon** in the lyrics controls to cycle **Off → Theme → Video**. The Video step only appears when the current track has a music video; it plays the video behind your theme.
 3. **Right-click the palette icon** to open the settings modal — or use **ST Settings** in the Spicetify profile menu.
 4. Pick a preset, or jump into **Customize** and start tweaking. Every change previews live.
+
+The **Default** preset is the stock Spicy Lyrics look, untouched, so turning Spicy Themes on changes nothing until you pick a preset or change a setting. Changing any lyric setting turns on **Restyle lyrics** and styles from a balanced baseline; turn it off to go back to the stock look.
+
+To skip the button, turn on **Switch to video automatically** (Customize → Background → Music video). Tracks with a video then play it on their own. Clicking the button while a video plays switches to the theme alone for the rest of that song.
 
 A condensed version of the same settings also appears under **Spotify Settings → Spicy Themes**, next to the Spicy Lyrics section.
 

@@ -1144,7 +1144,8 @@ class Renderer {
             const video = page && page.classList.contains('st-mv-active')
                 ? page.querySelector<HTMLElement>(`:scope > #${MUSIC_VIDEO_ID}`)
                 : null;
-            this.videoCovering = !!video && video.getClientRects().length > 0;
+            this.videoCovering = !!video && video.getClientRects().length > 0
+                && parseFloat(getComputedStyle(video).opacity) >= 0.999;
         }
         const shown = this.layer.isConnected && !this.videoCovering && this.cssW > 1 && this.cssH > 1;
         if (shown !== this.shown) {

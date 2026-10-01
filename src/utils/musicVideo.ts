@@ -117,6 +117,9 @@ const QUALITY_CONFIRM_MS = 2500;
 const TICKET_RESEND_GAP_MS = 5000;
 const TICKET_MAX_RESENDS = 2;
 const qualityListeners = new Set<() => void>();
+const availabilityListeners = new Set<() => void>();
+let lastAvailability: boolean | null = null;
+let probedId: string | null = null;
 
 export interface VideoQualityStatus {
     engine: 'ytmodule' | 'iframe_api' | 'mp4' | null;
@@ -397,8 +400,41 @@ function uriToId(uri: string | null): string | null {
     return id || null;
 }
 
-function currentTrackId(): string | null {
+export function currentTrackId(): string | null {
     return uriToId(currentTrackUri());
+}
+
+function emitAvailability(): void {
+    const next = currentVideoAvailable();
+    if (next === lastAvailability) return;
+    lastAvailability = next;
+    availabilityListeners.forEach(fn => {
+        try {
+            fn();
+        } catch (e) {}
+    });
+}
+
+export function onVideoAvailabilityChange(fn: () => void): () => void {
+    availabilityListeners.add(fn);
+    return () => availabilityListeners.delete(fn);
+}
+
+export function currentVideoAvailable(): boolean {
+    const id = currentTrackId();
+    if (!id || officialForId === id) return false;
+    if ((failCounts.get(id) || 0) >= MAX_SOURCE_ATTEMPTS) return false;
+    if (!videoCache.get(id)) return false;
+    return !spotifyHasOwnVideo();
+}
+
+export async function probeCurrentVideo(): Promise<void> {
+    const id = currentTrackId();
+    if (id && id !== probedId && !videoCache.has(id)) {
+        probedId = id;
+        await fetchVideo(id);
+    }
+    emitAvailability();
 }
 
 function currentSongMs(): number {
@@ -552,12 +588,14 @@ async function fetchVideo(id: string): Promise<VideoMeta | null> {
         const res = await fetchWithTimeout(`${API_BASE}?action=get&track=${encodeURIComponent(id)}`);
         if (res.status === 404) {
             videoCache.set(id, null);
+            emitAvailability();
             return null;
         }
         if (!res.ok) return null;
         const data = await res.json();
         const meta = normalizeMeta(data?.video, id);
         videoCache.set(id, meta);
+        emitAvailability();
         return meta;
     } catch (e) {
         return null;
@@ -1085,6 +1123,7 @@ function failSource(): void {
     const id = currentId;
     if (id) failCounts.set(id, (failCounts.get(id) || 0) + 1);
     teardownSource();
+    emitAvailability();
 }
 
 function isMediaReady(): boolean {
@@ -1229,6 +1268,7 @@ async function evaluate(): Promise<void> {
         if (spotifyHasOwnVideo()) {
             officialForId = id;
             teardownSource();
+            emitAvailability();
             return;
         }
         const meta = await fetchVideo(id);
@@ -1277,6 +1317,7 @@ function tick(ts: number): void {
         if (spotifyHasOwnVideo()) {
             officialForId = currentId;
             teardownSource();
+            emitAvailability();
             return;
         }
     }

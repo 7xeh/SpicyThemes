@@ -1,6 +1,7 @@
 import { storage } from './storage';
 import { themeState, saveThemeState, applyPreset, getAllPresets, saveCustomPreset, deleteCustomPreset, updateThemeProperty, mergeThemeConfig, BUILTIN_PRESETS } from './state';
 import { injectThemeStyles } from './themeEngine';
+import { setVideoAuto } from './videoMode';
 import { getCurrentVersion, runManualUpdateCheck, registerSettingLinker } from './updater';
 import { createSettingsModal, destroySettingsModal, isSettingsOpen, revealSetting, goToSettings, matchSettingInText, settingById, SCHEMA, FONT_OPTIONS, FieldDef, TabId } from './settingsModal';
 import { openDialog, el } from './surface';
@@ -412,6 +413,16 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
             themeState.isEnabled = checked;
             saveThemeState();
             optionsContainer.style.display = checked ? '' : 'none';
+        }
+    ));
+
+    optionsContainer.appendChild(createToggleRow(
+        'st-settings.video-auto',
+        'Switch to music video automatically',
+        themeState.videoAuto,
+        (checked) => {
+            setVideoAuto(checked);
+            injectThemeStyles();
         }
     ));
 

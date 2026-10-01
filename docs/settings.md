@@ -8,6 +8,7 @@ Every setting below lives in the **Customize** tab of the settings modal, groupe
 
 | Setting | What it does |
 |---|---|
+| Restyle lyrics | Off keeps Spicy Lyrics' own lyric look. Changing any lyric setting turns it back on. Off in the Default preset. |
 | Active line | Color of the line currently being sung. Replaced by the gradient when gradient text is on. |
 | Already sung | Color of lines that have passed. |
 | Not yet sung | Color of upcoming lines. |
@@ -75,9 +76,18 @@ Every setting below lives in the **Customize** tab of the settings modal, groupe
 | Image | Choose, replace, or remove the picture. Anything larger than 4K is scaled down; GIFs are kept as-is. It's saved on this device only, so exports and shared themes don't carry it. |
 | Fit / Focus point | Fill, fit, stretch, or tile — and which part stays in view when the image is cropped. |
 | Blur / Dimming | Soften and darken the image so lyrics stay readable. |
-| Synced music videos | Plays the track's music video behind the lyrics when one is available. |
-| Also in compact player | Extends videos to the compact player. |
+
+## Music video
+
+Videos play in **Video** mode, which you reach by clicking the palette button in the lyrics controls (Off → Theme → Video) when the track has one.
+
+| Setting | What it does |
+|---|---|
+| Switch to video automatically | Plays the music video whenever the track has one, without clicking the button. Applies to every theme. |
 | Video dimming | Darkens the video so lyrics stay readable. |
+| Video backdrop | Replace covers Spicy Lyrics' background; Blend mixes the video with it or your custom image. |
+| Video strength | How much of the video shows through in Blend. |
+| Also in compact player / fullscreen compact | Extends videos to the compact layouts. |
 
 ## Animated background
 

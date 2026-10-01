@@ -8,6 +8,7 @@ import { setDebugMode, isDebugEnabled } from './debug';
 import { updateBackgroundImage, backgroundImageNeedsMount } from './backgroundImage';
 import { updateAnimatedBackground, animatedBackgroundNeedsMount } from './animatedBackground';
 import { initTubeAccess } from './tubeAccess';
+import { initVideoMode, themeMode } from './videoMode';
 import { ensureSurfaceStyles } from './surface';
 
 
@@ -59,6 +60,8 @@ export async function initialize(): Promise<void> {
     await registerSettings();
 
     initTubeAccess();
+
+    initVideoMode();
 
     startUpdateChecker(30 * 60 * 1000);
 
@@ -135,6 +138,7 @@ export async function initialize(): Promise<void> {
             removeThemeStyles();
         },
         getState: () => ({ ...themeState }),
+        getMode: themeMode,
         applyPreset: (name: string) => {
             const preset = getAllPresets().find(p => p.name === name);
             if (preset) {

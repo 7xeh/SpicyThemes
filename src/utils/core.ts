@@ -1,11 +1,74 @@
-import { themeState, saveThemeState } from './state';
+import { themeState } from './state';
 import { injectThemeStyles, removeThemeStyles, startBlurPreviewObserver, stopBlurPreviewObserver, stopSungWordTagger } from './themeEngine';
 import { Icons } from './icons';
 import { openSettingsModal } from './settings';
 
 import { setViewingLyrics } from './connectivity';
+import { themeMode, nextThemeMode, cycleThemeMode, onThemeModeChange, ThemeMode } from './videoMode';
 
 let themeButton: HTMLElement | null = null;
+
+const MODE_ICONS: Record<ThemeMode, string> = {
+    off: Icons.PaletteOff,
+    theme: Icons.Palette,
+    video: Icons.Video,
+};
+
+const NEXT_LABELS: Record<ThemeMode, string> = {
+    off: 'Disable Theme',
+    theme: 'Switch to Theme',
+    video: 'Switch to Video Background',
+};
+
+function modeTooltip(): string {
+    if (themeMode() === 'off') return 'Enable Theme';
+    return NEXT_LABELS[nextThemeMode()];
+}
+
+function paintModeButton(button: HTMLElement): void {
+    const mode = themeMode();
+    if (button.dataset.stMode !== mode) {
+        button.dataset.stMode = mode;
+        button.innerHTML = MODE_ICONS[mode];
+    }
+    button.classList.toggle('active', mode !== 'off');
+    const tip = modeTooltip();
+    button.setAttribute('aria-label', tip);
+    const tippy = (button as any)._tippy;
+    if (tippy) tippy.setContent(tip);
+}
+
+function applyModeClick(): void {
+    cycleThemeMode();
+    if (themeState.isEnabled) {
+        injectThemeStyles();
+    } else {
+        removeThemeStyles();
+    }
+}
+
+function modeButtons(): HTMLElement[] {
+    const buttons: HTMLElement[] = [];
+    const main = document.getElementById('ThemeToggle');
+    if (main) buttons.push(main);
+    try {
+        const pip = (window as any).documentPictureInPicture?.window?.document.getElementById('ThemeToggle');
+        if (pip) buttons.push(pip);
+    } catch (e) {}
+    return buttons;
+}
+
+export function refreshThemeButton(): void {
+    modeButtons().forEach(paintModeButton);
+}
+
+onThemeModeChange((reinject) => {
+    if (reinject && themeState.isEnabled) {
+        injectThemeStyles();
+        return;
+    }
+    refreshThemeButton();
+});
 
 export function isSpicyLyricsOpen(): boolean {
     if (document.querySelector('#SpicyLyricsPage')) return true;
@@ -36,37 +99,17 @@ export function createThemeButton(): void {
     const button = document.createElement('button');
     button.id = 'ThemeToggle';
     button.className = 'ViewControl';
-    button.innerHTML = themeState.isEnabled ? Icons.Palette : Icons.PaletteOff;
-
-    if (themeState.isEnabled) {
-        button.classList.add('active');
-    }
 
     if (typeof Spicetify !== 'undefined' && Spicetify.Tippy) {
         Spicetify.Tippy(button, {
             ...Spicetify.TippyProps,
-            content: themeState.isEnabled ? 'Disable Theme' : 'Enable Theme'
+            content: modeTooltip()
         });
     }
 
-    button.addEventListener('click', () => {
-        themeState.isEnabled = !themeState.isEnabled;
-        saveThemeState();
+    paintModeButton(button);
 
-        if (themeState.isEnabled) {
-            button.classList.add('active');
-            button.innerHTML = Icons.Palette;
-            injectThemeStyles();
-        } else {
-            button.classList.remove('active');
-            button.innerHTML = Icons.PaletteOff;
-            removeThemeStyles();
-        }
-
-        if ((button as any)._tippy) {
-            (button as any)._tippy.setContent(themeState.isEnabled ? 'Disable Theme' : 'Enable Theme');
-        }
-    });
+    button.addEventListener('click', applyModeClick);
 
     button.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -127,20 +170,9 @@ export function injectIntoPiP(): void {
         const button = pipDoc.createElement('button') as HTMLElement;
         button.id = 'ThemeToggle';
         button.className = 'ViewControl';
-        button.innerHTML = themeState.isEnabled ? Icons.Palette : Icons.PaletteOff;
-        if (themeState.isEnabled) button.classList.add('active');
+        paintModeButton(button);
 
-        button.addEventListener('click', () => {
-            themeState.isEnabled = !themeState.isEnabled;
-            saveThemeState();
-            button.classList.toggle('active', themeState.isEnabled);
-            button.innerHTML = themeState.isEnabled ? Icons.Palette : Icons.PaletteOff;
-            if (themeState.isEnabled) {
-                injectThemeStyles();
-            } else {
-                removeThemeStyles();
-            }
-        });
+        button.addEventListener('click', applyModeClick);
 
         button.addEventListener('contextmenu', (e) => {
             e.preventDefault();

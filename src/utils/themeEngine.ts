@@ -4,6 +4,7 @@ import { startEqAudio, stopEqAudio, refreshEqElements } from './eqAudio';
 import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer, setMusicVideoCompactAllowed } from './musicVideo';
 import { BG_IMAGE_LAYER_ID, BG_IMAGE_ACTIVE_CLASS, updateBackgroundImage, removeBackgroundImage, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
 import { ANIM_BG_LAYER_ID, ANIM_BG_SOLID_CLASS, updateAnimatedBackground, removeAnimatedBackground } from './animatedBackground';
+import { videoWanted, noteThemeModeApplied } from './videoMode';
 
 
 const STYLE_ID = 'spicy-themes-injected-styles';
@@ -769,6 +770,7 @@ ${scope(['.slt-learning-pos'])} {
 
 export function generateThemeCSS(config: ThemeConfig): string {
     const css: string[] = [];
+    const lyrics: string[] = config.lyricsStylingEnabled ? css : [];
 
     const activeRgb = hexToRgb(config.activeLineColor);
     const sungRgb = hexToRgb(config.sungLineColor);
@@ -840,7 +842,7 @@ export function generateThemeCSS(config: ThemeConfig): string {
         `font-weight: ${config.fontWeight} !important;`,
     );
 
-    css.push(`
+    lyrics.push(`
 @property --gradient-position {
     syntax: '<percentage>';
     inherits: true;
@@ -866,7 +868,7 @@ export function generateThemeCSS(config: ThemeConfig): string {
 }
 `);
 
-    css.push(`
+    lyrics.push(`
 ${sel(ALL, '.line')} {
     ${buildProps(
         `--Vocal-Active-opacity: ${config.activeLineOpacity} !important;`,
@@ -892,7 +894,7 @@ ${sel(ALL, '.line')} {
 }
 `);
 
-    css.push(`
+    lyrics.push(`
 ${ALL.flatMap(b => [
     `${b} .line .word`,
     `${b} .line .letter`,
@@ -908,7 +910,7 @@ ${ALL.flatMap(b => [
 `);
 
     if (config.textTransform !== 'none') {
-        css.push(`
+        lyrics.push(`
 ${ALL.map(b => `${b} .line`).join(',\n')} {
     text-transform: ${config.textTransform} !important;
 }
@@ -922,7 +924,7 @@ ${ALL.map(b => `${b} .line`).join(',\n')} {
             right: 'margin-inline: auto 0 !important;',
             left: 'margin-inline: 0 auto !important;',
         };
-        css.push(`
+        lyrics.push(`
 ${ALL.map(b => `${b} .line`).join(',\n')} {
     ${buildProps(
         config.textAlign !== 'default' && `text-align: ${config.textAlign} !important;`,
@@ -934,7 +936,7 @@ ${ALL.map(b => `${b} .line`).join(',\n')} {
     }
 
     if (config.activeLineWeight > 0) {
-        css.push(`
+        lyrics.push(`
 ${ALL.flatMap(b => [
     `${b} .line.Active`,
     `${b} .line.Active .word`,
@@ -961,7 +963,7 @@ ${ALL.flatMap(b => [
             `${base} ${prefix} .letter`,
             `${base} ${prefix} .letterGroup`,
         ];
-        css.push(`
+        lyrics.push(`
 ${ALL.flatMap(b => paints(b, '.line:not(.rtl)')).join(',\n')} {
     --gradient-degrees: ${ltr}deg !important;
 }
@@ -971,13 +973,13 @@ ${ALL.flatMap(b => paints(b, '.line.rtl')).join(',\n')} {
 `);
     }
 
-    css.push(`
+    lyrics.push(`
 ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
     will-change: opacity, filter, transform !important;
 }
 `);
 
-    css.push(`
+    lyrics.push(`
 ${lineSelectors(ALL, 'Active')} {
     ${activeGrad}
 }
@@ -987,7 +989,7 @@ ${ALL.map(b => `${syllableScope(b)} .line.Active`).join(',\n')} {
 `);
 
     if (scaleEffect) {
-        css.push(`
+        lyrics.push(`
 ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
     ${scaleEffect}
 }
@@ -995,14 +997,14 @@ ${lineOriginRules(ALL.map(b => `${b} .line.Active`))}
 `);
     }
 
-    css.push(`
+    lyrics.push(`
 ${lineSelectors(ALL, 'Sung')} {
     ${sungGrad}
     ${silhouetteRule(config.sungLineColor, '--gradient-alpha', 0.85)}
 }
 `);
 
-    css.push(`
+    lyrics.push(`
 ${lineSelectors(ALL, 'NotSung')} {
     ${notSungGrad}
     ${silhouetteRule(config.notSungLineColor, '--gradient-alpha-end', 0.35)}
@@ -1010,7 +1012,7 @@ ${lineSelectors(ALL, 'NotSung')} {
 `);
 
     if (config.glowEnabled || config.textShadowEnabled) {
-        css.push(`
+        lyrics.push(`
 ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
     ${glowActive}
 }
@@ -1022,14 +1024,14 @@ ${ALL.map(b => `${b} .line.NotSung`).join(',\n')} {
     }
 
     if (glowPulseOn) {
-        css.push(`
+        lyrics.push(`
 @keyframes st-glow-pulse {
     0%, 100% { filter: ${filterList(`drop-shadow(0 0 ${clampedActiveGlow}px ${config.activeGlowColor})`, shadowFilter)}; }
     50% { filter: ${filterList(`drop-shadow(0 0 ${pulsePeak}px ${config.activeGlowColor})`, shadowFilter)}; }
 }
 `);
         if (!config.scaleInEffect) {
-            css.push(`
+            lyrics.push(`
 ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
     animation: ${pulseAnim} !important;
     will-change: filter !important;
@@ -1051,7 +1053,7 @@ ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
             ]),
         ].join(',\n');
         const blurFilter = filterDecl(`blur(${config.blurAmount}px)`, glowNormalFn, shadowFilter);
-        css.push(`
+        lyrics.push(`
 ${blurTargets} {
     ${blurFilter}
     will-change: filter, opacity, transform;
@@ -1075,7 +1077,7 @@ ${blurTargets} {
                 const amount = Math.round(config.blurAmount * factor * 100) / 100;
                 return `${targets} {\n    ${filterDecl(`blur(${amount}px)`, glowNormalFn, shadowFilter)}\n}`;
             });
-            css.push(rampRules.join('\n'));
+            lyrics.push(rampRules.join('\n'));
         }
 
         const unblurFilter = filterDecl(glowNormalFn, shadowFilter) || `filter: none !important;`;
@@ -1094,7 +1096,7 @@ ${blurTargets} {
                 '.line.Active + .slt-interleaved-translation',
             ]),
         ];
-        css.push(`
+        lyrics.push(`
 ${unblurTargets.join(',\n')} {
     ${unblurFilter}
 }
@@ -1110,7 +1112,7 @@ ${unblurTargets.join(',\n')} {
             `${b} .line.Active .word`,
             `${b} .line.Active .letterGroup`,
         ]).join(',\n');
-        css.push(`
+        lyrics.push(`
 ${sungWordTransitions} {
     transition-property: color, -webkit-text-fill-color, filter !important;
     transition-duration: 180ms !important;
@@ -1130,7 +1132,7 @@ ${sungWordTargets} {
                 '.slt-interleaved-translation',
             ]),
         ].join(',\n');
-        css.push(`
+        lyrics.push(`
 ${shadowTargets} {
     ${filterDecl(shadowFilter)}
 }
@@ -1151,7 +1153,7 @@ ${shadowTargets} {
                 '.slt-interleaved-translation .slt-sync-word',
             ]),
         ].join(',\n');
-        css.push(`
+        lyrics.push(`
 ${strokeTargets} {
     -webkit-text-stroke: ${strokeWidth}px ${config.textStrokeColor} !important;
     paint-order: stroke fill !important;
@@ -1167,7 +1169,7 @@ ${strokeTargets} {
             `${b} [data-index]:has(> .line.Sung)`,
             `${b} [data-index]:has(> .line.NotSung)`,
         ]).join(',\n');
-        css.push(`
+        lyrics.push(`
 ${hideTargets} {
     opacity: 0 !important;
     visibility: hidden !important;
@@ -1187,7 +1189,7 @@ ${hideTargets} {
             const inner = parts.join(' ');
             showTargets.push(...ALL.map(b => `${b} [data-index]:has(${inner})`));
         }
-        css.push(`
+        lyrics.push(`
 ${showTargets.join(',\n')} {
     opacity: 1 !important;
     visibility: visible !important;
@@ -1204,7 +1206,7 @@ ${showTargets.join(',\n')} {
             `${b} .line.Active .letter`,
             `${b} .line.Active .letterGroup`,
         ]).join(',\n');
-        css.push(`
+        lyrics.push(`
 ${bgGlowTargets} {
     ${bgGlowDecl}
 }
@@ -1231,7 +1233,7 @@ ${bgGlowTargets} {
                 `${b} .line.${s} .letterGroup`,
             ])
         ).join(',\n');
-        css.push(`
+        lyrics.push(`
 ${highlightTargets} {
     ${colorRule(config.highlightColor)}
     transition-property: color, -webkit-text-fill-color, opacity, filter, transform !important;
@@ -1361,11 +1363,11 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
     }
 
     if (sltIndep) {
-        css.push(...translationCSS(config));
+        lyrics.push(...translationCSS(config));
     }
 
     if (config.sltStylingEnabled) {
-        css.push(learningCSS(config));
+        lyrics.push(learningCSS(config));
     }
 
     if (config.sltStylingEnabled && !config.sltIndependent) {
@@ -1380,7 +1382,7 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
         : '';
     const sltKaraokeGlowDecl = `text-shadow: 0 0 7px ${hexToRgba(useSltGlow ? config.sltGlowColor : (config.gradientEnabled ? config.gradientStartColor : config.activeLineColor), 0.5)} !important;`;
     if (sltFontFamilyDecl) {
-        css.push(`
+        lyrics.push(`
 #SpicyLyricsPage .slt-interleaved-translation.slt-interleaved-translation,
 #SpicyLyricsPage .slt-interleaved-translation.slt-interleaved-translation *,
 #SpicyLyricsPage .slt-replace-line.slt-replace-line,
@@ -1398,7 +1400,7 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
     const sltActiveOpacity = Math.round(config.activeLineOpacity * config.sltTranslationOpacity * 1000) / 1000;
     const sltSungOpacity = Math.round(config.sungLineOpacity * config.sltTranslationOpacity * 1000) / 1000;
     const sltNotSungOpacity = Math.round(config.notSungLineOpacity * config.sltTranslationOpacity * 1000) / 1000;
-    css.push(`
+    lyrics.push(`
 .slt-replace-line {
     ${buildProps(notSungGrad, `opacity: ${config.sltTranslationOpacity} !important;`, sltFontOverrides)}
     transition-property: opacity, filter, transform, color, -webkit-text-fill-color, --gradient-position, --gradient-offset, --gradient-alpha, --gradient-alpha-end !important;
@@ -1570,7 +1572,7 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
     ${notSungGrad}
 }
 `);
-    css.push(learningHeaderCSS(
+    lyrics.push(learningHeaderCSS(
         config.sltHighlightStartColor,
         sltCombinedScale,
         `opacity: ${sltActiveOpacity} !important;`,
@@ -1581,7 +1583,7 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
     ));
     }
 
-    css.push(...wordEffectCSS(config, ALL, wordBaseShadow, !sltIndep));
+    lyrics.push(...wordEffectCSS(config, ALL, wordBaseShadow, !sltIndep));
 
     if (config.scaleInEffect) {
         const scaleInTargets = [
@@ -1595,7 +1597,7 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
                 '.line.Active + .slt-interleaved-translation',
             ]),
         ].join(',\n');
-        css.push(`
+        lyrics.push(`
 @keyframes st-line-scale-in {
     from { transform: scale3d(${config.scaleInFrom}, ${config.scaleInFrom}, 1); }
     to { transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1); }
@@ -1615,7 +1617,7 @@ ${lineOriginRules([
     }
 
     if (config.glowEnabled || config.textShadowEnabled) {
-        css.push(`
+        lyrics.push(`
 ${SIDEBAR.map(b => `${b} .line.Active`).join(',\n')} {
     ${glowSidebar}
 }
@@ -1715,6 +1717,26 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
 
     if (config.musicVideoEnabled) {
         const mvDim = Math.min(Math.max(config.musicVideoDim, 0), 1);
+        const mvMix = round(clamp(config.musicVideoBlend, 0.1, 1), 3);
+        const mvBackdrop = config.musicVideoBackdrop === 'blend' ? `
+#SpicyLyricsPage.st-mv-active .spicy-dynamic-bg {
+    opacity: ${round(1 - mvMix, 3)} !important;
+    transition: opacity 0.4s ease !important;
+}
+#SpicyLyricsPage.st-mv-active.${BG_IMAGE_ACTIVE_CLASS}:not(.CardMode) #${MUSIC_VIDEO_ID},
+#SpicyLyricsPage.st-mv-active.${ANIM_BG_SOLID_CLASS}:not(.CardMode) #${MUSIC_VIDEO_ID} {
+    opacity: ${mvMix} !important;
+}
+` : `
+#SpicyLyricsPage.st-mv-active .spicy-dynamic-bg {
+    opacity: 0 !important;
+    transition: opacity 0.4s ease !important;
+}
+#SpicyLyricsPage.st-mv-active .LyricsContainer::before,
+#SpicyLyricsPage.st-mv-active.CompactMode::before {
+    background: transparent !important;
+}
+`;
         css.push(`
 #SpicyLyricsPage #${MUSIC_VIDEO_ID} {
     position: absolute !important;
@@ -1765,16 +1787,7 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
     inset: 0 !important;
     background: rgba(0, 0, 0, ${mvDim}) !important;
     pointer-events: none !important;
-}
-#SpicyLyricsPage.st-mv-active .spicy-dynamic-bg {
-    opacity: 0 !important;
-    transition: opacity 0.4s ease !important;
-}
-#SpicyLyricsPage.st-mv-active .LyricsContainer::before,
-#SpicyLyricsPage.st-mv-active.CompactMode::before {
-    background: transparent !important;
-}
-`);
+}${mvBackdrop}`);
         if (!config.musicVideoCompact) {
             const bgImageGuard = (config.pageBgImageEnabled && config.pageBgImage ? `:not(.${BG_IMAGE_ACTIVE_CLASS})` : '')
                 + (config.animBgEnabled ? `:not(.${ANIM_BG_SOLID_CLASS})` : '');
@@ -2178,7 +2191,7 @@ ${styleRule('helix', '', (b, i) => `--st-eq-amp: var(--st-eq-b${b}); animation-d
         css.push(blocks[config.eqStyle] || blocks.equalizer);
     }
 
-    css.push(`
+    lyrics.push(`
 #SpicyLyricsPage .Credits,
 #SpicyLyricsPage .SongInfo,
 #SpicyLyricsPage .LyricsProvider,
@@ -2283,12 +2296,13 @@ function themeCreditText(): string {
 function updateThemeCreditIn(doc: Document): void {
     const existing = Array.from(doc.querySelectorAll<HTMLElement>(`.${THEME_CREDIT_CLASS}`));
 
-    const songInfo = themeState.isEnabled
+    const shown = themeState.isEnabled && themeState.activeTheme.lyricsStylingEnabled;
+    const songInfo = shown
         ? doc.querySelector<HTMLElement>('#SpicyLyricsPage .SongInfo')
         : null;
     const provider = songInfo
         ? null
-        : (themeState.isEnabled ? doc.querySelector<HTMLElement>('#SpicyLyricsPage .LyricsProvider') : null);
+        : (shown ? doc.querySelector<HTMLElement>('#SpicyLyricsPage .LyricsProvider') : null);
     const parent = songInfo || provider?.parentElement || null;
 
     existing.forEach(el => {
@@ -2322,9 +2336,15 @@ function removeThemeCredit(): void {
     if (pipWindow) pipWindow.document.querySelectorAll(`.${THEME_CREDIT_CLASS}`).forEach(el => el.remove());
 }
 
+function renderedTheme(): ThemeConfig {
+    const theme = themeState.activeTheme;
+    const video = videoWanted();
+    return theme.musicVideoEnabled === video ? theme : { ...theme, musicVideoEnabled: video };
+}
+
 export function updateMusicVideo(): void {
     try {
-        if (themeState.isEnabled && themeState.activeTheme.musicVideoEnabled) {
+        if (videoWanted()) {
             setMusicVideoCompactAllowed(themeState.activeTheme.musicVideoCompact, themeState.activeTheme.musicVideoFullscreenCompact);
             startMusicVideo();
             refreshMusicVideoLayer();
@@ -2527,7 +2547,7 @@ export function injectThemeStyles(): void {
         return;
     }
 
-    const css = generateThemeCSS(themeState.activeTheme);
+    const css = generateThemeCSS(renderedTheme());
 
     const old = document.getElementById(STYLE_ID);
     if (old) old.remove();
@@ -2544,8 +2564,9 @@ export function injectThemeStyles(): void {
     updateBackgroundImage();
     updateAnimatedBackground();
     updateThemeCredit();
-    const needSung = themeState.activeTheme.blurSungWords;
-    const needLive = wordEffectTrigger(themeState.activeTheme) === 'word';
+    const styled = themeState.activeTheme.lyricsStylingEnabled;
+    const needSung = styled && themeState.activeTheme.blurSungWords;
+    const needLive = styled && wordEffectTrigger(themeState.activeTheme) === 'word';
     if (needSung || needLive) {
         if (!needLive) clearLiveTags();
         startWordTagger(needSung, needLive, needSung && !!themeState.activeTheme.blurSungWholeWords);
@@ -2553,6 +2574,7 @@ export function injectThemeStyles(): void {
         stopSungWordTagger();
     }
     scheduleBlurPreview();
+    noteThemeModeApplied();
 }
 
 export function removeThemeStyles(): void {
@@ -2573,6 +2595,7 @@ export function removeThemeStyles(): void {
     removeAnimatedBackground();
     removeThemeCredit();
     stopSungWordTagger();
+    noteThemeModeApplied();
 }
 
 export function injectBaseStyles(): void {

@@ -24,6 +24,7 @@ import {
 } from './state';
 import { injectThemeStyles } from './themeEngine';
 import { buildVideoQualityPanel } from './videoQualityPanel';
+import { setVideoAuto } from './videoMode';
 import { saveBackgroundImage, pruneBackgroundImages, getCachedBackgroundUrl, getBackgroundImageUrl, getBackgroundImageInfo, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
 import { getCurrentVersion, getDisplayHash, runManualUpdateCheck, showCurrentChangelog, hasWaitingUpdate, openWaitingUpdate } from './updater';
 import { el, openDialog, openSurfaces, prefersReducedMotion, paintTone, CLOSE_SVG, SurfaceHandle, Tone } from './surface';
@@ -115,6 +116,7 @@ const WORD_EFFECT_OPTIONS = [
 const EQ_STYLE_OPTIONS = EQ_STYLES.map(s => ({ value: s.id, text: `${s.group} — ${s.label}` }));
 
 const VIDEO_QUALITY_SECTION = 'Video quality';
+const MUSIC_VIDEO_SECTION = 'Music video';
 const ANIM_BG_SECTION = 'Animated background';
 
 const ANIM_BG_STYLE_OPTIONS = ANIM_BG_STYLES.map(s => ({ value: s.id, text: s.label, hint: s.description }));
@@ -124,6 +126,7 @@ function animStyle(t: ThemeConfig) {
 }
 
 export const SCHEMA: FieldDef[] = [
+    { id: 'lyricsStylingEnabled', label: 'Restyle lyrics', type: 'toggle', section: 'Line colors', hint: 'Off keeps Spicy Lyrics’ own lyric look, untouched. Changing any lyric setting turns it back on.', keywords: 'stock native original spicy lyrics look default plain' },
     { id: 'activeLineColor', label: 'Active line', type: 'color', section: 'Line colors', when: (t) => !t.gradientEnabled, hint: 'The line currently being sung. Replaced by the gradient when gradient text is on.', keywords: 'current karaoke highlight' },
     { id: 'sungLineColor', label: 'Already sung', type: 'color', section: 'Line colors', keywords: 'past previous' },
     { id: 'notSungLineColor', label: 'Not yet sung', type: 'color', section: 'Line colors', keywords: 'upcoming future next' },
@@ -241,10 +244,14 @@ export const SCHEMA: FieldDef[] = [
     ], hint: 'Which part of the image stays in view when it’s cropped.', keywords: 'position align anchor crop' },
     { id: 'pageBgImageBlur', label: 'Blur', type: 'slider', section: 'Background', min: 0, max: 40, step: 1, unit: 'px', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, keywords: 'soften frosted' },
     { id: 'pageBgImageDim', label: 'Dimming', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, hint: 'Darkens the image so lyrics stay readable.', keywords: 'darken brightness' },
-    { id: 'musicVideoEnabled', label: 'Synced music videos', type: 'toggle', section: 'Background', hint: 'Plays the track’s music video behind the lyrics when one is available.', keywords: 'video clip mv youtube background' },
-    { id: 'musicVideoCompact', label: 'Also in compact player', type: 'toggle', section: 'Background', parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled },
-    { id: 'musicVideoFullscreenCompact', label: 'Also in fullscreen compact', type: 'toggle', section: 'Background', parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled && !t.musicVideoCompact, hint: 'Keeps the video behind the compact layout while fullscreen, without turning it on for the windowed or popout player.', keywords: 'fullscreen compact video' },
-    { id: 'musicVideoDim', label: 'Video dimming', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'musicVideoEnabled', when: (t) => t.musicVideoEnabled, hint: 'Darkens the video so lyrics stay readable.' },
+    { id: 'musicVideoDim', label: 'Video dimming', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 1, step: 0.05, hint: 'Darkens the video so lyrics stay readable.', keywords: 'music video darken brightness mv' },
+    { id: 'musicVideoBackdrop', label: 'Video backdrop', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
+        { value: 'solid', text: 'Replace the background' },
+        { value: 'blend', text: 'Blend over Spicy Lyrics / image' },
+    ], hint: 'Blend mixes the video with the album background or your custom image instead of covering it.', keywords: 'music video behind transparent overlay mix mv' },
+    { id: 'musicVideoBlend', label: 'Video strength', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0.1, max: 1, step: 0.05, parent: 'musicVideoBackdrop', when: (t) => t.musicVideoBackdrop === 'blend', hint: 'How much of the video shows through. Lower values keep more of the background.', keywords: 'music video opacity mix amount mv' },
+    { id: 'musicVideoCompact', label: 'Also in compact player', type: 'toggle', section: MUSIC_VIDEO_SECTION, keywords: 'music video compact card mv' },
+    { id: 'musicVideoFullscreenCompact', label: 'Also in fullscreen compact', type: 'toggle', section: MUSIC_VIDEO_SECTION, when: (t) => !t.musicVideoCompact, hint: 'Keeps the video behind the compact layout while fullscreen, without turning it on for the windowed or popout player.', keywords: 'music video fullscreen compact mv' },
 
     { id: 'animBgEnabled', label: 'Animated background', type: 'toggle', section: ANIM_BG_SECTION, hint: 'Draws a live, music-reactive scene behind the lyrics. Music videos still play over it when one is available.', keywords: 'visualizer visualiser animated moving live webgl shader reactive audio spectrum unknown pleasures waves lines' },
     { id: 'animBgStyle', label: 'Style', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: ANIM_BG_STYLE_OPTIONS, hint: 'Hover a style in the list for a description. Controls that don’t apply to it are hidden.', keywords: 'ridgelines silk halo aurora orbs horizon synthwave rings mode preset' },
@@ -432,7 +439,7 @@ let baseline: { name: string; config: ThemeConfig } = { name: 'default', config:
 
 function resolveBaseline(): void {
     if (!storage.get('active-preset')) {
-        baseline = { name: 'default', config: DEFAULT_THEME };
+        baseline = { name: 'default', config: mergeThemeConfig(BUILTIN_PRESETS[0].config) };
         return;
     }
     if (!themeState.activeBasePreset) {
@@ -670,10 +677,15 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
 }
 
 function liveUpdate<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]): void {
+    const wasNative = !themeState.activeTheme.lyricsStylingEnabled;
     updateThemeProperty(key, value);
     injectThemeStyles();
-    if (key === 'sltIndependent' && value === true) {
+    const leftNative = wasNative && key !== 'lyricsStylingEnabled' && themeState.activeTheme.lyricsStylingEnabled;
+    if ((key === 'sltIndependent' && value === true) || leftNative) {
         syncAllFields();
+    }
+    if (leftNative) {
+        toast({ kind: 'info', title: 'Lyric styling turned on', description: 'Spicy Themes now styles the lyrics. Turn off “Restyle lyrics” to go back to the stock look.' });
     }
     applyCustomizeFilter();
     refreshResetIndicators();
@@ -1076,7 +1088,7 @@ const CZ_CATEGORIES: CzCategory[] = [
         label: 'Background',
         icon: '▦',
         description: 'What sits behind the lyrics.',
-        sections: ['Background', ANIM_BG_SECTION, VIDEO_QUALITY_SECTION],
+        sections: ['Background', MUSIC_VIDEO_SECTION, VIDEO_QUALITY_SECTION, ANIM_BG_SECTION],
     },
     {
         id: 'cz-player',
@@ -1111,9 +1123,45 @@ const VIDEO_QUALITY_DEF: FieldDef = {
     label: 'Video quality',
     type: 'toggle',
     section: VIDEO_QUALITY_SECTION,
-    when: (t) => t.musicVideoEnabled,
     keywords: 'music video quality premium hd 4k 1080p 1440p 720p resolution discord link account unlink',
 };
+
+const VIDEO_AUTO_DEF: FieldDef = {
+    id: 'musicVideoEnabled',
+    label: 'Switch to video automatically',
+    type: 'toggle',
+    section: MUSIC_VIDEO_SECTION,
+    hint: 'Plays the track’s music video behind the lyrics whenever one is available. Otherwise, click the theme button in Spicy Lyrics to cycle Off → Theme → Video.',
+    keywords: 'music video auto automatic switch clip mv youtube background synced',
+};
+
+function buildVideoAutoRow(): FieldHandle {
+    const row = document.createElement('div');
+    row.className = 'st-m-field st-m-field-toggle';
+    const labelBox = document.createElement('div');
+    labelBox.className = 'st-m-field-labelbox';
+    const label = document.createElement('label');
+    label.className = 'st-m-field-label';
+    label.textContent = VIDEO_AUTO_DEF.label;
+    const hint = document.createElement('div');
+    hint.className = 'st-m-field-hint';
+    hint.textContent = VIDEO_AUTO_DEF.hint || '';
+    labelBox.append(label, hint);
+    const control = document.createElement('div');
+    control.className = 'st-m-field-control';
+    const wrap = document.createElement('label');
+    wrap.className = 'st-m-toggle';
+    wrap.innerHTML = '<input type="checkbox"><span class="st-m-toggle-slider"></span>';
+    const input = wrap.querySelector('input') as HTMLInputElement;
+    input.checked = themeState.videoAuto;
+    input.addEventListener('change', () => {
+        setVideoAuto(input.checked);
+        injectThemeStyles();
+    });
+    control.appendChild(wrap);
+    row.append(labelBox, control);
+    return { row, def: VIDEO_AUTO_DEF, sync: () => { input.checked = themeState.videoAuto; }, refreshReset: () => {} };
+}
 
 function buildVideoQualitySection(): HTMLElement {
     const section = document.createElement('div');
@@ -1214,6 +1262,13 @@ function buildCustomizeTab(): HTMLElement {
     });
 
     sectionEls.set(VIDEO_QUALITY_SECTION, buildVideoQualitySection());
+
+    const videoSection = sectionEls.get(MUSIC_VIDEO_SECTION);
+    if (videoSection) {
+        const auto = buildVideoAutoRow();
+        videoSection.querySelector('.st-m-section-title')?.after(auto.row);
+        czFields.push(auto);
+    }
 
     CZ_CATEGORIES.forEach(cat => {
         const catEl = document.createElement('div');

@@ -8,7 +8,7 @@ Each preset showcases a different corner of the feature set, not just a palette.
 
 | Preset | What it demonstrates |
 |---|---|
-| **Default** | Balanced baseline with clean contrast and comfortable spacing. A neutral starting point. |
+| **Default** | The stock Spicy Lyrics look, untouched. Change any lyric setting to start styling from a clean, balanced baseline. |
 | **Cinematic** | Synced music videos and dramatic depth — dark overlay, deep text shadow, scale-in, and a tight line window. |
 | **Neon Arcade** | The song-title equalizer and punchy effects — Spectrum Ring on both sides, layered glow, Pop word animation, animated player controls. |
 | **Focus** | Distraction-free reading — a couple of sharp lines, sung words softening behind you, scale-in on the current line. |
