@@ -610,7 +610,7 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
         active.style.transform = `scale(${t.scaleActive})`;
         if (t.gradientEnabled) {
             const DIRECTION_ANGLES: Record<string, number> = { horizontal: 90, vertical: 180, diagonal: 135 };
-            const angle = DIRECTION_ANGLES[t.gradientDirection] ?? t.gradientAngle;
+            const angle = DIRECTION_ANGLES[t.gradientDirection] ?? (t.gradientDirection === 'custom' ? t.gradientAngle : 90);
             const feather = Math.min(Math.max(t.gradientFeather, 0), 60);
             active.style.background = `linear-gradient(${angle}deg, ${t.gradientStartColor} ${Math.max(0, 50 - feather / 2)}%, ${t.gradientEndColor} ${Math.min(100, 50 + feather / 2)}%)`;
             active.style.backgroundClip = 'text';

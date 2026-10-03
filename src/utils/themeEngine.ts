@@ -909,7 +909,6 @@ ${sel(ALL, '.line')} {
         `--Vocal-Active-opacity: ${config.activeLineOpacity} !important;`,
         `--Vocal-Sung-opacity: ${config.sungLineOpacity} !important;`,
         `--Vocal-NotSung-opacity: ${config.notSungLineOpacity} !important;`,
-        `--gradient-degrees: ${config.gradientAngle}deg !important;`,
         `--st-lyric-transition: ${lyricTransitionMs}ms !important;`,
         `--st-lyric-snap: ${lyricSnapMs}ms !important;`,
         fontFamily && `font-family: ${fontFamily}, system-ui, sans-serif !important;`,
