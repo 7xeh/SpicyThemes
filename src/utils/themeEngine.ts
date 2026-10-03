@@ -90,7 +90,6 @@ function lineSelectors(bases: string[], state: string): string {
         `${base} .line.${state}`,
         `${base} .line.${state} .word`,
         `${base} .line.${state} .letter`,
-        `${base} .line.${state} .letterGroup`,
     ]).join(',\n');
 }
 
@@ -1220,7 +1219,6 @@ ${bgGlowTargets} {
                 `${b} .line.${s}`,
                 `${b} .line.${s} .word`,
                 `${b} .line.${s} .letter`,
-                `${b} .line.${s} .letterGroup`,
                 `${b} .line.${s} .syllable`,
                 `${b} .line.${s} .syllableGroup`,
             ])
@@ -1230,7 +1228,6 @@ ${bgGlowTargets} {
                 `${b} .line.${s}`,
                 `${b} .line.${s} .word`,
                 `${b} .line.${s} .letter`,
-                `${b} .line.${s} .letterGroup`,
             ])
         ).join(',\n');
         lyrics.push(`
