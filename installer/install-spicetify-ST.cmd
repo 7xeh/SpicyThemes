@@ -21,7 +21,7 @@ exit /b 1
 echo [INFO] Using: %PWSH%
 echo.
 
-set "SPICETIFY_MIN=2.45.1"
+set "SPICETIFY_MIN=2.45.3"
 
 echo [STEP 1] Checking Spicetify installation...
 where spicetify >nul 2>&1

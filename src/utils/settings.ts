@@ -26,32 +26,66 @@ function nativeElements(root: ParentNode, selector: string): HTMLElement[] {
     }
 }
 
-function nativeSettingsClass(selector: string, fallback: string): string {
-    for (const el of nativeElements(document, selector)) {
-        if (typeof el.className === 'string' && el.className.trim()) return el.className;
+function nativeSettingsClass(selectors: string | string[], fallback: string): string {
+    for (const selector of Array.isArray(selectors) ? selectors : [selectors]) {
+        for (const el of nativeElements(document, selector)) {
+            if (typeof el.className === 'string' && el.className.trim()) return el.className;
+        }
     }
     return fallback;
 }
 
+function withClasses(...lists: (string | undefined)[]): string {
+    return Array.from(new Set(lists.join(' ').split(/\s+/).filter(Boolean))).join(' ');
+}
+
+const SETTINGS_PAGE = '[data-testid="settings-page"]';
+
 function settingsLabelClass(): string {
     return nativeSettingsClass(
-        '.x-settings-section .x-settings-firstColumn label',
+        ['.x-settings-section .x-settings-firstColumn label', `${SETTINGS_PAGE} label.encore-text-body-small`],
         'encore-text-body-small encore-internal-color-text-subdued'
     );
 }
 
 function settingsButtonClass(): string {
     return nativeSettingsClass(
-        '.x-settings-section button.x-settings-button',
+        [
+            '.x-settings-section button.x-settings-button',
+            `${SETTINGS_PAGE} button[data-encore-id="buttonSecondary"]:not([class*="--trailing"]):not([class*="--leading"])`,
+        ],
         'encore-text-body-small-bold encore-internal-color-text-base x-settings-button'
     );
 }
 
 function settingsHeadingClass(): string {
     return nativeSettingsClass(
-        '.x-settings-section h2',
+        ['.x-settings-section h2', `${SETTINGS_PAGE} h2.encore-text-body-medium-bold`],
         'encore-text-body-medium-bold encore-internal-color-text-base'
     );
+}
+
+function settingsSelectClass(): string {
+    return withClasses('main-dropDown-dropDown', nativeSettingsClass(
+        ['select.main-dropDown-dropDown', `${SETTINGS_PAGE} select`],
+        ''
+    ));
+}
+
+function settingsToggleClasses(): { wrapper: string; input: string; track: string; knob: string } {
+    const input = nativeElements(document, `${SETTINGS_PAGE} label > input[type="checkbox"]`)
+        .find(el => !el.classList.contains('x-toggle-input') && el.nextElementSibling?.firstElementChild);
+    const track = input?.nextElementSibling;
+    return {
+        wrapper: withClasses('x-toggle-wrapper', input?.parentElement?.className),
+        input: withClasses('x-toggle-input', input?.className),
+        track: withClasses('x-toggle-indicatorWrapper', track?.className),
+        knob: withClasses('x-toggle-indicator', track?.firstElementChild?.className),
+    };
+}
+
+function nativeClassSignature(): string {
+    return [settingsLabelClass(), settingsButtonClass(), settingsHeadingClass(), settingsSelectClass(), settingsToggleClasses().input].join('|');
 }
 
 function createColorRow(id: string, label: string, currentValue: string, onChange: (value: string) => void): HTMLElement {
@@ -101,6 +135,7 @@ function createSliderRow(id: string, label: string, min: number, max: number, st
 }
 
 function createToggleRow(id: string, label: string, checked: boolean, onChange: (checked: boolean) => void): HTMLElement {
+    const toggle = settingsToggleClasses();
     const row = document.createElement('div');
     row.className = 'x-settings-row';
     row.innerHTML = `
@@ -108,10 +143,10 @@ function createToggleRow(id: string, label: string, checked: boolean, onChange: 
             <label class="${settingsLabelClass()}" for="${id}">${label}</label>
         </div>
         <div class="x-settings-secondColumn">
-            <label class="x-toggle-wrapper">
-                <input id="${id}" class="x-toggle-input" type="checkbox" ${checked ? 'checked' : ''}>
-                <span class="x-toggle-indicatorWrapper">
-                    <span class="x-toggle-indicator"></span>
+            <label class="${toggle.wrapper}">
+                <input id="${id}" class="${toggle.input}" type="checkbox" ${checked ? 'checked' : ''}>
+                <span class="${toggle.track}">
+                    <span class="${toggle.knob}"></span>
                 </span>
             </label>
         </div>
@@ -133,7 +168,7 @@ function createDropdownRow(id: string, label: string, options: { value: string; 
         </div>
         <div class="x-settings-secondColumn">
             <span>
-                <select class="main-dropDown-dropDown" id="${id}">
+                <select class="${settingsSelectClass()}" id="${id}">
                     ${options.map(opt => `<option value="${opt.value}" ${opt.value === currentValue ? 'selected' : ''}${opt.hint ? ` title="${opt.hint.replace(/"/g, '&quot;')}"` : ''}>${opt.text}</option>`).join('')}
                 </select>
             </span>
@@ -176,7 +211,7 @@ function createTextInputRow(id: string, label: string, currentValue: string, pla
             <label class="${settingsLabelClass()}" for="${id}">${label}</label>
         </div>
         <div class="x-settings-secondColumn">
-            <input type="text" id="${id}" class="main-dropDown-dropDown" style="width: 200px;" value="" placeholder="${placeholder}">
+            <input type="text" id="${id}" class="${settingsSelectClass()}" style="width: 200px;" value="" placeholder="${placeholder}">
         </div>
     `;
     const input = row.querySelector('input') as HTMLInputElement;
@@ -393,6 +428,7 @@ function createSettingsSection(id: string = SETTINGS_ID): HTMLElement {
     const section = document.createElement('div');
     section.id = id;
     section.className = 'spicy-themes-settings';
+    section.dataset.stNative = nativeClassSignature();
     section.innerHTML = `
         <div class="x-settings-section">
             <h2 class="${settingsHeadingClass()}">Spicy Themes</h2>
@@ -594,6 +630,9 @@ function injectSettingsIntoPage(): void {
     }
 
     const existingSections = Array.from(document.querySelectorAll(`#${SETTINGS_ID}`)) as HTMLElement[];
+    if (existingSections.length === 0 && nativeElements(settingsContainer, 'input[type="checkbox"], select').length === 0) {
+        return;
+    }
     const inContainerSections = existingSections.filter(section => settingsContainer.contains(section));
     const existingSection = inContainerSections[0] || existingSections[0] || null;
 
@@ -669,7 +708,13 @@ function watchForSettingsPage(): void {
         }
 
         const container = settingsPageContainer();
-        if (existing && container && container.contains(existing)) return;
+        if (existing && container && container.contains(existing)) {
+            schedule(() => {
+                const current = document.getElementById(SETTINGS_ID);
+                if (current && current.dataset.stNative !== nativeClassSignature()) refreshSettings();
+            });
+            return;
+        }
 
         schedule(injectSettingsIntoPage);
     });
@@ -776,4 +821,75 @@ export async function registerSettings(): Promise<void> {
         }, 500);
     }
 
+    watchProfileMenu();
+}
+
+const MENU_LABEL = 'ST Settings';
+const MENU_ROW_ID = 'st-profile-menu-item';
+const PROFILE_BUTTON = '[data-testid="user-widget-link"]';
+const PROFILE_MENU = '#context-menu ul[role="menu"]';
+
+function syncProfileMenu(): void {
+    const profile = document.querySelector<HTMLElement>(PROFILE_BUTTON);
+    const owned = document.getElementById(MENU_ROW_ID);
+    const menu = document.querySelector<HTMLUListElement>(PROFILE_MENU);
+    if (profile?.getAttribute('aria-expanded') !== 'true' || !menu) {
+        owned?.remove();
+        return;
+    }
+
+    const rows = Array.from(menu.querySelectorAll<HTMLLIElement>(':scope > li[role="presentation"]'));
+    if (rows.some(row => row.id !== MENU_ROW_ID && row.textContent?.trim() === MENU_LABEL)) {
+        owned?.remove();
+        return;
+    }
+    if (owned?.parentElement === menu) return;
+    owned?.remove();
+
+    const template = rows.find(row => row.querySelector('[role="menuitem"]'));
+    const nativeButton = template?.querySelector<HTMLElement>('[role="menuitem"]');
+    if (!template || !nativeButton) return;
+
+    const row = document.createElement('li');
+    row.id = MENU_ROW_ID;
+    row.className = template.className;
+    row.setAttribute('role', 'presentation');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = nativeButton.className;
+    button.setAttribute('role', 'menuitem');
+    button.tabIndex = -1;
+    const label = document.createElement('span');
+    label.className = 'encore-text-body-small ellipsis-one-line';
+    label.dir = 'auto';
+    label.style.flex = '1';
+    label.textContent = MENU_LABEL;
+    const graphic = new DOMParser().parseFromString(Icons.Palette, 'image/svg+xml').documentElement;
+    graphic.setAttribute('aria-hidden', 'true');
+    button.append(document.importNode(graphic, true), label);
+    button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (profile.getAttribute('aria-expanded') === 'true') profile.click();
+        openSettingsModal();
+    });
+    row.append(button);
+
+    const firstLinkRow = rows.find(candidate => candidate.querySelector('a[role="menuitem"][href]'));
+    if (firstLinkRow) firstLinkRow.before(row);
+    else menu.prepend(row);
+}
+
+function watchProfileMenu(): void {
+    new MutationObserver((records) => {
+        const relevant = records.some(record => {
+            const target = record.target;
+            if (target instanceof Element && (target.matches(PROFILE_BUTTON) || target.closest('#context-menu'))) return true;
+            return [...Array.from(record.addedNodes), ...Array.from(record.removedNodes)].some(node =>
+                node instanceof Element && (node.matches('#context-menu') || !!node.querySelector('#context-menu'))
+            );
+        });
+        if (relevant) syncProfileMenu();
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded'] });
+    syncProfileMenu();
 }

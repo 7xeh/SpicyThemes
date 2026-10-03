@@ -672,6 +672,16 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
         const dim = `rgba(0, 0, 0, ${t.pageBgImageDim})`;
         layers.push(`linear-gradient(${dim}, ${dim})`);
         layers.push(`url("${imageUrl}") ${bgImagePosition(t.pageBgImagePosition)} / ${bgImageSize(t.pageBgImageFit)} ${bgImageRepeat(t.pageBgImageFit)}`);
+    } else if (t.animBgEnabled) {
+        const [first, second] = t.animBgPalette === 'custom'
+            ? [t.animBgColor, t.animBgColor2]
+            : t.animBgPalette === 'spectrum' ? ['#ff4d6d', '#4cc9f0'] : ['#a78bfa', '#34d399'];
+        const a = hexToRgb(first);
+        const b = hexToRgb(second);
+        const glow = Math.min(0.6, 0.3 + t.animBgGlow * 0.2);
+        layers.push(`radial-gradient(circle at 18% 85%, rgba(${a.r}, ${a.g}, ${a.b}, ${glow}), transparent 60%)`);
+        layers.push(`radial-gradient(circle at 85% 15%, rgba(${b.r}, ${b.g}, ${b.b}, ${glow}), transparent 65%)`);
+        layers.push(t.animBgBackdrop === 'solid' ? t.animBgBgColor : 'rgba(8, 8, 10, 0.95)');
     }
     host.style.background = layers.join(', ');
 }
@@ -1330,7 +1340,7 @@ function buildPresetsTab(refresh: () => void): HTMLElement {
         const isCustom = !BUILTIN_PRESETS.some(b => b.name === preset.name);
         const update = presetUpdate(preset);
         meta.innerHTML = `
-            <div class="st-m-preset-name">${escapeHtml(preset.name)}${isCustom ? ' <span class="st-m-preset-tag">custom</span>' : ''}${update ? ' <span class="st-m-preset-tag st-m-preset-tag-update">update</span>' : ''}${isModified ? ' <span class="st-m-preset-tag st-m-preset-tag-modified">modified</span>' : ''}</div>
+            <div class="st-m-preset-name">${escapeHtml(preset.name)}${preset.badge ? ` <span class="st-m-preset-tag st-m-preset-tag-seasonal">${escapeHtml(preset.badge)}</span>` : ''}${isCustom ? ' <span class="st-m-preset-tag">custom</span>' : ''}${update ? ' <span class="st-m-preset-tag st-m-preset-tag-update">update</span>' : ''}${isModified ? ' <span class="st-m-preset-tag st-m-preset-tag-modified">modified</span>' : ''}</div>
             <div class="st-m-preset-desc">${escapeHtml(preset.description || '')}</div>
             ${isModified ? `<div class="st-m-preset-note st-m-preset-note-edit">${tweaks} unsaved tweak${tweaks === 1 ? '' : 's'}</div>` : ''}
             ${preset.sourceRemoved ? '<div class="st-m-preset-note">No longer on the Marketplace</div>' : ''}

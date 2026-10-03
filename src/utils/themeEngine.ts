@@ -142,7 +142,22 @@ interface WordAnimSpec {
     easing: string;
     origin?: string;
     perspective?: boolean;
-    frames: (intensity: number, baseShadow: string) => string;
+    frames: (intensity: number, baseShadow: string, accents: [string, string]) => string;
+}
+
+const GLITCH_FALLBACK: [string, string] = ['#ff005c', '#00e8ff'];
+
+function saturation(color: string): number {
+    const { r, g, b } = hexToRgb(color);
+    const max = Math.max(r, g, b) / 255;
+    const min = Math.min(r, g, b) / 255;
+    const light = (max + min) / 2;
+    if (max === min) return 0;
+    return (max - min) / (1 - Math.abs(2 * light - 1));
+}
+
+function effectAccents(primary: string, secondary: string): [string, string] {
+    return saturation(primary) >= 0.3 && saturation(secondary) >= 0.3 ? [primary, secondary] : GLITCH_FALLBACK;
 }
 
 const WORD_ANIMS: Record<string, WordAnimSpec> = {
@@ -202,19 +217,18 @@ const WORD_ANIMS: Record<string, WordAnimSpec> = {
     glitch: {
         duration: 0.45,
         easing: 'steps(1, end)',
-        frames: (i, baseShadow) => {
-            const tail = baseShadow ? `, ${baseShadow}` : '';
-            const rest = baseShadow || 'none';
-            const chroma = (offset: number) =>
-                `${round(offset)}em 0 rgba(255, 0, 92, 0.72), ${round(-offset)}em 0 rgba(0, 232, 255, 0.72)${tail}`;
+        frames: (i, _baseShadow, accents) => {
+            const [left, right] = accents.map(c => hexToRgba(c, 0.85));
+            const split = (offset: number) =>
+                `drop-shadow(${round(offset)}em 0 0 ${left}) drop-shadow(${round(-offset)}em 0 0 ${right})`;
             return `
-    0% { translate: 0 0; opacity: 1; text-shadow: ${rest}; }
-    14% { translate: -${round(0.07 * i)}em 0; opacity: 1; text-shadow: ${chroma(0.05 * i)}; }
-    26% { translate: ${round(0.055 * i)}em 0; opacity: 0.78; text-shadow: ${chroma(-0.05 * i)}; }
-    38% { translate: -${round(0.03 * i)}em 0; opacity: 1; text-shadow: ${chroma(0.028 * i)}; }
-    54% { translate: ${round(0.03 * i)}em 0; opacity: 0.9; text-shadow: ${chroma(-0.028 * i)}; }
-    70% { translate: -${round(0.014 * i)}em 0; opacity: 1; text-shadow: ${rest}; }
-    100% { translate: 0 0; opacity: 1; text-shadow: ${rest}; }`;
+    0% { translate: 0 0; opacity: 1; filter: none; }
+    14% { translate: -${round(0.07 * i)}em 0; opacity: 1; filter: ${split(0.05 * i)}; }
+    26% { translate: ${round(0.055 * i)}em 0; opacity: 0.78; filter: ${split(-0.05 * i)}; }
+    38% { translate: -${round(0.03 * i)}em 0; opacity: 1; filter: ${split(0.028 * i)}; }
+    54% { translate: ${round(0.03 * i)}em 0; opacity: 0.9; filter: ${split(-0.028 * i)}; }
+    70% { translate: -${round(0.014 * i)}em 0; opacity: 1; filter: none; }
+    100% { translate: 0 0; opacity: 1; filter: none; }`;
         },
     },
 
@@ -306,6 +320,7 @@ interface WordAnimOptions {
     speed: number;
     stagger: number;
     baseShadow: string;
+    accents: [string, string];
     name: string;
     scope: string;
     words: (root: string, nth: string, gate: string) => string[];
@@ -331,7 +346,7 @@ function wordAnimCSS(options: WordAnimOptions): string[] {
     const out: string[] = [];
 
     out.push(`
-@keyframes ${name} {${spec.frames(intensity, options.baseShadow)}
+@keyframes ${name} {${spec.frames(intensity, options.baseShadow, options.accents)}
 }
 ${targets(options.scope, '')} {
     ${buildProps(
@@ -376,6 +391,13 @@ ${lines.join(',\n')} {
     return out;
 }
 
+function lyricAccents(config: ThemeConfig): [string, string] {
+    return effectAccents(
+        config.glowEnabled ? config.activeGlowColor : config.gradientEnabled ? config.gradientEndColor : config.activeLineColor,
+        config.sungLineColor,
+    );
+}
+
 function wordEffectCSS(config: ThemeConfig, bases: string[], baseShadow: string, includeTranslations: boolean): string[] {
     const scope = `:is(${bases.join(', ')})`;
     return wordAnimCSS({
@@ -385,6 +407,7 @@ function wordEffectCSS(config: ThemeConfig, bases: string[], baseShadow: string,
         speed: config.wordEffectSpeed,
         stagger: config.wordEffectStagger,
         baseShadow,
+        accents: lyricAccents(config),
         name: `st-word-${config.wordEffect}`,
         scope,
         words: (root, nth, gate) => [
@@ -680,6 +703,12 @@ ${lineOriginRules(SLT_ACTIVE_LINE)}
         speed: config.sltWordEffectSpeed,
         stagger: config.sltWordEffectStagger,
         baseShadow: wordBaseShadow,
+        accents: config.sltIndependent
+            ? effectAccents(
+                config.sltGlowEnabled ? config.sltActiveGlowColor : config.sltGradientEnabled ? config.sltGradientEndColor : config.sltActiveLineColor,
+                config.sltSungLineColor,
+            )
+            : lyricAccents(config),
         name: `st-slt-word-${config.sltWordEffect}`,
         scope: '#SpicyLyricsPage',
         words: (_root, nth, gate) => (gate
@@ -706,6 +735,13 @@ ${lineOriginRules(SLT_ACTIVE_LINE)}
             && `-webkit-text-stroke: ${round(clamp(config.sltTextStrokeWidth, 0, 3), 2)}px ${config.sltTextStrokeColor} !important;\n    paint-order: stroke fill !important;`,
         activeFilter,
     ));
+
+    out.push(`
+#SpicyLyricsPage .slt-replace-line:has(.slt-replace-word),
+#SpicyLyricsPage ${SLT_SYNC_LINE}:has(.slt-sync-word) {
+    background-image: none !important;
+}
+`);
 
     return out;
 }
@@ -982,7 +1018,7 @@ ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
 ${lineSelectors(ALL, 'Active')} {
     ${activeGrad}
 }
-${ALL.map(b => `${syllableScope(b)} .line.Active`).join(',\n')} {
+${ALL.flatMap(b => ['Active', 'Sung', 'NotSung'].map(state => `${syllableScope(b)} .line.${state}`)).join(',\n')} {
     background-image: none !important;
 }
 `);
@@ -3926,6 +3962,10 @@ const BASE_STYLES = `
 .st-modal-root .st-m-preset-tag-update {
     background: rgba(96, 165, 250, 0.18);
     color: #93c5fd;
+}
+.st-modal-root .st-m-preset-tag-seasonal {
+    background: rgba(255, 138, 31, 0.18);
+    color: #ffb067;
 }
 .st-modal-root .st-m-preset-tag-modified {
     background: rgba(250, 204, 21, 0.16);
