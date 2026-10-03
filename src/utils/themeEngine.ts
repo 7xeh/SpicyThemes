@@ -1604,6 +1604,11 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
 .slt-sync-word.slt-word-future {
     ${notSungGrad}
 }
+
+#SpicyLyricsPage .slt-replace-line:has(.slt-replace-word),
+#SpicyLyricsPage .slt-sync-translation.slt-interleaved-translation:has(.slt-sync-word) {
+    background-image: none !important;
+}
 `);
     lyrics.push(learningHeaderCSS(
         config.sltHighlightStartColor,
