@@ -245,6 +245,12 @@ export const SCHEMA: FieldDef[] = [
     { id: 'pageBgImageBlur', label: 'Blur', type: 'slider', section: 'Background', min: 0, max: 40, step: 1, unit: 'px', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, keywords: 'soften frosted' },
     { id: 'pageBgImageDim', label: 'Dimming', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, hint: 'Darkens the image so lyrics stay readable.', keywords: 'darken brightness' },
     { id: 'musicVideoDim', label: 'Video dimming', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 1, step: 0.05, hint: 'Darkens the video so lyrics stay readable.', keywords: 'music video darken brightness mv' },
+    { id: 'musicVideoFit', label: 'Video fit', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
+        { value: 'zoom', text: 'Zoom (hide player edges)' },
+        { value: 'cover', text: 'Fill (crop to fit)' },
+        { value: 'contain', text: 'Fit (show whole video)' },
+        { value: 'stretch', text: 'Stretch' },
+    ], hint: 'How the video is sized to the window. Zoom crops a little extra so YouTube’s player edges never show; Fit adds bars on screens that aren’t 16:9.', keywords: 'music video size scale zoom fill fit stretch crop aspect ratio 16:10 letterbox mv' },
     { id: 'musicVideoBackdrop', label: 'Video backdrop', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
         { value: 'solid', text: 'Replace the background' },
         { value: 'blend', text: 'Blend over Spicy Lyrics / image' },

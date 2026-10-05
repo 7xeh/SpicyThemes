@@ -1755,6 +1755,26 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
     if (config.musicVideoEnabled) {
         const mvDim = Math.min(Math.max(config.musicVideoDim, 0), 1);
         const mvMix = round(clamp(config.musicVideoBlend, 0.1, 1), 3);
+        const mvFit = config.musicVideoFit;
+        const mvIframeSizes: Record<string, string> = {
+            zoom: `    min-width: calc(100% + max(160px, 24%)) !important;
+    min-height: calc(100% + max(160px, 24%)) !important;
+    width: auto !important;
+    height: auto !important;`,
+            cover: `    min-width: 100% !important;
+    min-height: 100% !important;
+    width: auto !important;
+    height: auto !important;`,
+            contain: `    min-width: 0 !important;
+    min-height: 0 !important;
+    width: min(100cqw, calc(100cqh * 16 / 9)) !important;
+    height: auto !important;`,
+            stretch: `    min-width: 0 !important;
+    min-height: 0 !important;
+    width: 100cqw !important;
+    height: auto !important;`,
+        };
+        const mvIframeSize = mvIframeSizes[mvFit] ?? mvIframeSizes.zoom;
         const mvBackdrop = config.musicVideoBackdrop === 'blend' ? `
 #SpicyLyricsPage.st-mv-active .spicy-dynamic-bg {
     opacity: ${round(1 - mvMix, 3)} !important;
@@ -1780,6 +1800,7 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
     inset: 0 !important;
     z-index: -1 !important;
     overflow: hidden !important;
+    container-type: size !important;
     pointer-events: none !important;
     opacity: 0 !important;
     transition: opacity 0.4s ease !important;
@@ -1792,7 +1813,7 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
     inset: 0 !important;
     width: 100% !important;
     height: 100% !important;
-    object-fit: cover !important;
+    object-fit: ${mvFit === 'contain' ? 'contain' : mvFit === 'stretch' ? 'fill' : 'cover'} !important;
     object-position: center !important;
     display: block !important;
     background: transparent !important;
@@ -1809,11 +1830,8 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
     position: absolute !important;
     top: 50% !important;
     left: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    min-width: calc(100% + max(160px, 24%)) !important;
-    min-height: calc(100% + max(160px, 24%)) !important;
-    width: auto !important;
-    height: auto !important;
+    transform: ${mvFit === 'stretch' ? 'translate(-50%, -50%) scaleY(var(--st-mv-stretch, 1))' : 'translate(-50%, -50%)'} !important;
+${mvIframeSize}
     aspect-ratio: 16 / 9 !important;
     border: 0 !important;
     pointer-events: none !important;

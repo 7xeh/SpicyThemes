@@ -324,6 +324,7 @@ export interface ThemeConfig {
     musicVideoFullscreenCompact: boolean;
     musicVideoDim: number;
     musicVideoBackdrop: string;
+    musicVideoFit: string;
     musicVideoBlend: number;
 
     eqEnabled: boolean;
@@ -548,6 +549,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     musicVideoFullscreenCompact: false,
     musicVideoDim: 0.3,
     musicVideoBackdrop: 'solid',
+    musicVideoFit: 'zoom',
     musicVideoBlend: 0.5,
 
     eqEnabled: false,
@@ -1297,6 +1299,10 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
 
     if (!['solid', 'blend'].includes(normalized.musicVideoBackdrop)) {
         normalized.musicVideoBackdrop = 'solid';
+    }
+
+    if (!['zoom', 'cover', 'contain', 'stretch'].includes(normalized.musicVideoFit)) {
+        normalized.musicVideoFit = 'zoom';
     }
 
     normalized.lyricsStylingEnabled = normalized.lyricsStylingEnabled !== false;

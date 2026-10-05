@@ -99,6 +99,7 @@ export class YtModulePlayer {
     private state: number = YTMODULE_STATE.unstarted;
     private ready = false;
     private muted = false;
+    private rate = 1;
     private capShowing = 0;
     private capTracks = 0;
     private ticketSent: string;
@@ -254,7 +255,7 @@ export class YtModulePlayer {
     getCurrentTime(): number {
         if (this.state !== YTMODULE_STATE.playing) return this.sec;
         const elapsed = Math.min(performance.now() - this.secAt, MAX_EXTRAPOLATION_MS);
-        return this.sec + Math.max(elapsed, 0) / 1000;
+        return this.sec + (Math.max(elapsed, 0) / 1000) * this.rate;
     }
 
     getCaptionsShowing(): number {
@@ -320,6 +321,8 @@ export class YtModulePlayer {
     }
 
     setPlaybackRate(v: number): void {
+        if (!isFinite(v) || v <= 0) return;
+        this.rate = v;
         this.send('rate', { v });
     }
 

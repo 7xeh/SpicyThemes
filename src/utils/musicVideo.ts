@@ -45,6 +45,15 @@ const AD_DURATION_MARGIN_MS = 1500;
 const LOAD_TIMEOUT_MS = 9000;
 const YTMODULE_LOAD_TIMEOUT_MS = 14000;
 const SEEK_COOLDOWN_MS = 400;
+const PAUSED_SEEK_THRESHOLD_MS = 80;
+const DRIFT_SEEK_MS = 1200;
+const DRIFT_NUDGE_ENTER_MS = 40;
+const DRIFT_NUDGE_EXIT_MS = 12;
+const RATE_GAIN_MS = 1500;
+const RATE_MAX_DELTA = 0.15;
+const SEEK_SETTLE_MS = 4000;
+const SEEK_LEAD_MAX_MS = 2000;
+const SEEK_LEAD_LEARN = 0.6;
 const PLAY_RETRY_MS = 400;
 const MAX_SOURCE_ATTEMPTS = 2;
 const MODE_CHECK_MS = 400;
@@ -60,6 +69,8 @@ const videoCache = new Map<string, VideoMeta | null>();
 const failCounts = new Map<string, number>();
 
 let running = false;
+let stretchObserver: ResizeObserver | null = null;
+let stretchObserved: HTMLElement | null = null;
 let rafId: number | null = null;
 let songChangeHooked = false;
 let recheckTimer: ReturnType<typeof setTimeout> | null = null;
@@ -94,6 +105,13 @@ let adSignalCount = 0;
 let lastSync = 0;
 let lastOfficialCheck = 0;
 let lastSeekAt = 0;
+let seekSettling = false;
+let seekLearn = false;
+let seekSettleTarget = 0;
+let seekSettleDeadline = 0;
+let seekLeadMs = 0;
+let videoRate = 1;
+let nudging = false;
 let lastPlayAttempt = 0;
 let lastModeCheck = 0;
 let lastStatePlayAttempt = 0;
@@ -192,10 +210,11 @@ function clearExpectation(): void {
 
 function flushQualityBuffer(player: YtModulePlayer): void {
     if (ytModulePlayer !== player || !currentMeta) return;
-    const ms = songMsToVideoMs(currentMeta, currentSongMs());
+    const live = songIsPlaying();
+    const ms = songMsToVideoMs(currentMeta, currentSongMs()) + (live ? seekLeadMs : 0);
     if (!isFinite(ms) || ms >= currentMeta.video_end_ms) return;
     player.seekTo(ms / 1000);
-    lastSeekAt = performance.now();
+    markSeek(ms, performance.now(), live, live);
 }
 
 function sendQuality(player: YtModulePlayer, target: number | 'auto'): void {
@@ -716,6 +735,13 @@ function setPageActive(active: boolean): void {
     if (page) page.classList.toggle('st-mv-active', active);
 }
 
+function updateStretch(c: HTMLElement): void {
+    const w = c.clientWidth;
+    const h = c.clientHeight;
+    if (!w || !h) return;
+    c.style.setProperty('--st-mv-stretch', String(Math.round((h / (w * 9 / 16)) * 10000) / 10000));
+}
+
 function ensureContainer(): HTMLElement | null {
     const page = document.querySelector('#SpicyLyricsPage');
     if (!page) return null;
@@ -725,10 +751,21 @@ function ensureContainer(): HTMLElement | null {
         c.id = CONTAINER_ID;
     }
     if (c.parentElement !== page) page.appendChild(c);
+    if (stretchObserved !== c) {
+        stretchObserver?.disconnect();
+        const target = c;
+        stretchObserver = new ResizeObserver(() => updateStretch(target));
+        stretchObserver.observe(target);
+        stretchObserved = target;
+    }
+    updateStretch(c);
     return c;
 }
 
 function removeContainer(): void {
+    stretchObserver?.disconnect();
+    stretchObserver = null;
+    stretchObserved = null;
     document.getElementById(CONTAINER_ID)?.remove();
 }
 
@@ -823,7 +860,12 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
                 ytReady = true;
                 player.mute();
                 player.setVolume(0);
-                if (currentMeta) player.seekTo(songMsToVideoMs(currentMeta, currentSongMs()) / 1000);
+                if (currentMeta) {
+                    const live = songIsPlaying();
+                    const target = songMsToVideoMs(currentMeta, currentSongMs()) + (live ? seekLeadMs : 0);
+                    player.seekTo(target / 1000);
+                    markSeek(target, performance.now(), live, live);
+                }
                 player.playVideo();
                 if (player.getCaptionsShowing() > 0) {
                     debug('music video: captions showing despite captions=0, forcing off');
@@ -911,6 +953,7 @@ function fallbackToIframeApi(reason: string, videoFault = false): void {
     adActive = false;
     adSignalCount = 0;
     lastSeekAt = 0;
+    resetSyncState();
     lastPlayAttempt = 0;
     lastStatePlayAttempt = 0;
     lastStatePauseAttempt = 0;
@@ -1032,6 +1075,7 @@ function buildSource(id: string, meta: VideoMeta): void {
     lastSync = 0;
     lastOfficialCheck = 0;
     lastSeekAt = 0;
+    resetSyncState();
     lastPlayAttempt = 0;
     lastStatePlayAttempt = 0;
     lastStatePauseAttempt = 0;
@@ -1185,7 +1229,70 @@ function getVideoMs(): number {
     return NaN;
 }
 
-function seekVideo(ms: number, ts: number): void {
+function resetSyncState(): void {
+    seekSettling = false;
+    seekLearn = false;
+    videoRate = 1;
+    nudging = false;
+}
+
+function markSeek(ms: number, ts: number, settle: boolean, learn: boolean): void {
+    lastSeekAt = ts;
+    seekSettling = settle;
+    seekLearn = settle && learn;
+    seekSettleTarget = ms;
+    seekSettleDeadline = ts + SEEK_SETTLE_MS;
+}
+
+function seekSettled(): boolean {
+    try {
+        if (activeSource === 'mp4_url' && mp4El) {
+            return !mp4El.seeking && !mp4El.paused && mp4El.readyState >= 3;
+        }
+        if (activeSource === 'youtube' && ytModulePlayer) {
+            return (
+                ytModulePlayer.getPlayerState() === YTMODULE_STATE.playing &&
+                ytModulePlayer.getSampleTime() * 1000 > seekSettleTarget + 30
+            );
+        }
+        if (activeSource === 'youtube' && ytPlayer) {
+            return ytPlayer.getPlayerState?.() === 1 && (ytPlayer.getCurrentTime?.() || 0) * 1000 > seekSettleTarget + 30;
+        }
+    } catch (e) {}
+    return true;
+}
+
+function canNudgeRate(): boolean {
+    return activeSource === 'mp4_url' || (activeSource === 'youtube' && ytEngine === 'ytmodule');
+}
+
+function songRate(): number {
+    try {
+        const r = Number((Spicetify.Player as any).data?.playbackSpeed);
+        return isFinite(r) && r > 0 ? r : 1;
+    } catch (e) {
+        return 1;
+    }
+}
+
+function setVideoRate(rate: number): void {
+    if (!canNudgeRate() || Math.abs(rate - videoRate) < 0.005) return;
+    videoRate = rate;
+    try {
+        if (activeSource === 'mp4_url' && mp4El) mp4El.playbackRate = rate;
+        else if (ytModulePlayer) ytModulePlayer.setPlaybackRate(rate);
+    } catch (e) {}
+}
+
+function nudgedRate(drift: number, base: number): number {
+    const limit = nudging ? DRIFT_NUDGE_EXIT_MS : DRIFT_NUDGE_ENTER_MS;
+    nudging = Math.abs(drift) >= limit;
+    if (!nudging) return base;
+    const delta = Math.min(Math.max(drift / RATE_GAIN_MS, -RATE_MAX_DELTA), RATE_MAX_DELTA);
+    return Math.round(base * (1 + delta) * 100) / 100;
+}
+
+function seekVideo(ms: number, ts: number, settle = false, learn = false): void {
     if (ts - lastSeekAt < SEEK_COOLDOWN_MS) return;
     try {
         if (activeSource === 'mp4_url' && mp4El) {
@@ -1199,7 +1306,7 @@ function seekVideo(ms: number, ts: number): void {
         } else {
             return;
         }
-        lastSeekAt = ts;
+        markSeek(ms, ts, settle, learn);
     } catch (e) {}
 }
 
@@ -1391,11 +1498,42 @@ function tick(ts: number): void {
         }
     }
 
-    if (!isFinite(actualVideoMs) || Math.abs(actualVideoMs - targetVideoMs) > SEEK_THRESHOLD_MS) {
-        seekVideo(targetVideoMs, ts);
+    const live = playing && !holding;
+    const base = songRate();
+    const drift = targetVideoMs - actualVideoMs;
+
+    if (seekSettling) {
+        if (!live || ts >= seekSettleDeadline) {
+            seekSettling = false;
+        } else if (seekSettled()) {
+            seekSettling = false;
+            if (seekLearn && isFinite(drift) && Math.abs(drift) < DRIFT_SEEK_MS) {
+                seekLeadMs = Math.min(Math.max(seekLeadMs + drift * SEEK_LEAD_LEARN, 0), SEEK_LEAD_MAX_MS);
+                debug('music video: seek settled, drift', Math.round(drift), 'lead now', Math.round(seekLeadMs));
+            }
+        } else {
+            setMediaPlaying(live, ts);
+            return;
+        }
     }
 
-    setMediaPlaying(playing && !holding, ts);
+    if (!isFinite(actualVideoMs)) {
+        seekVideo(targetVideoMs + (live ? seekLeadMs : 0), ts, live, live);
+    } else if (live) {
+        if (Math.abs(drift) > (canNudgeRate() ? DRIFT_SEEK_MS : SEEK_THRESHOLD_MS)) {
+            nudging = false;
+            setVideoRate(base);
+            seekVideo(targetVideoMs + seekLeadMs, ts, true, true);
+        } else {
+            setVideoRate(nudgedRate(drift, base));
+        }
+    } else {
+        nudging = false;
+        setVideoRate(base);
+        if (Math.abs(drift) > PAUSED_SEEK_THRESHOLD_MS) seekVideo(targetVideoMs, ts);
+    }
+
+    setMediaPlaying(live, ts);
 }
 
 function onSongChange(): void {
