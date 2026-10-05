@@ -4,6 +4,9 @@
     const VERSION_API_URL = `https://${API_HOST}/apps/spicythemes/api/version.php`;
     const GITHUB_REPO = '7xeh/SpicyThemes';
     const GITHUB_LATEST_RELEASE_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+    const BUNDLE_ASSET_NAME = 'spicy-themes.js';
+    const CORS_PROXY_TEMPLATE_KEY = 'spicetify:corsProxyTemplate';
+    const DEFAULT_CORS_PROXY_TEMPLATE = 'https://cors-proxy.spicetify.app/{url}';
     const STORAGE_PREFIX = 'spicy-themes:';
     const DEBUG_MODE = localStorage.getItem(STORAGE_PREFIX + 'debug-mode') === 'true';
 
@@ -19,6 +22,28 @@
     const appendCacheBust = (url) => `${url}${url.includes('?') ? '&' : '?'}_=${Date.now()}`;
 
     const normalizeVersion = (value) => String(value || '').trim().replace(/^v/i, '');
+
+    const normalizeHash = (value) => {
+        const hash = String(value || '').trim().replace(/^sha256:/i, '').toLowerCase();
+        return /^[0-9a-f]{64}$/.test(hash) ? hash : null;
+    };
+
+    const officialReleaseAssetUrl = (version) =>
+        `https://github.com/${GITHUB_REPO}/releases/download/v${encodeURIComponent(version)}/${BUNDLE_ASSET_NAME}`;
+
+    const corsProxyUrl = (targetUrl) => {
+        let template = DEFAULT_CORS_PROXY_TEMPLATE;
+        try {
+            template = localStorage.getItem(CORS_PROXY_TEMPLATE_KEY) || DEFAULT_CORS_PROXY_TEMPLATE;
+        } catch {}
+        if (typeof template !== 'string' || !template.includes('{url}')) return null;
+        try {
+            const proxied = new URL(template.replace('{url}', targetUrl));
+            return proxied.protocol === 'https:' ? proxied.toString() : null;
+        } catch {
+            return null;
+        }
+    };
 
     const computeSHA256 = async (text) => {
         try {
@@ -85,15 +110,15 @@
         const version = normalizeVersion(release.tag_name);
         if (!version) throw new Error('GitHub API did not return a valid release tag');
 
-        const jsAsset = Array.isArray(release.assets)
-            ? release.assets.find(asset => typeof asset?.name === 'string' && asset.name.endsWith('.js'))
+        const bundleAsset = Array.isArray(release.assets)
+            ? release.assets.find(asset => asset?.name === BUNDLE_ASSET_NAME)
             : null;
-        const hash = jsAsset?.digest ? String(jsAsset.digest).replace(/^sha256:/i, '').toLowerCase() : null;
+        const expectedUrl = officialReleaseAssetUrl(version);
 
         return {
             version,
-            hash,
-            downloadUrl: jsAsset?.browser_download_url || ''
+            hash: normalizeHash(bundleAsset?.digest),
+            downloadUrl: bundleAsset?.browser_download_url === expectedUrl ? expectedUrl : ''
         };
     };
 
@@ -107,45 +132,67 @@
     };
 
     const loadExtension = async (version, preferredDownloadUrl = '', expectedHash = null) => {
-        const candidates = [
-            preferredDownloadUrl,
-            `${EXTENSION_BASE_URL}/versions/v${version}/spicy-themes.js`,
-            `${EXTENSION_BASE_URL}/latest/spicy-themes.js`,
-        ].filter(Boolean);
+        const candidates = [];
+        if (preferredDownloadUrl) candidates.push({ url: preferredDownloadUrl, proxied: false });
 
-        let response = null;
+        const releaseUrl = officialReleaseAssetUrl(version);
+        if (preferredDownloadUrl === releaseUrl) {
+            const proxiedUrl = expectedHash ? corsProxyUrl(releaseUrl) : null;
+            if (proxiedUrl) candidates.push({ url: proxiedUrl, proxied: true });
+            else log.debug('CORS proxy fallback skipped: missing release digest or invalid proxy template');
+        }
+
+        candidates.push(
+            { url: `${EXTENSION_BASE_URL}/versions/v${version}/${BUNDLE_ASSET_NAME}`, proxied: false },
+            { url: `${EXTENSION_BASE_URL}/latest/${BUNDLE_ASSET_NAME}`, proxied: false },
+        );
+
+        const seen = new Set();
+        let code = null;
+        let contentHash = null;
         let resolvedUrl = '';
         let lastFetchError = null;
 
-        for (const baseUrl of [...new Set(candidates)]) {
-            const url = appendCacheBust(baseUrl);
+        for (const candidate of candidates) {
+            if (seen.has(candidate.url)) continue;
+            seen.add(candidate.url);
             try {
-                const currentResponse = await fetch(url);
-                if (!currentResponse.ok) {
-                    throw new Error(`HTTP ${currentResponse.status}`);
+                const response = await fetch(candidate.proxied ? candidate.url : appendCacheBust(candidate.url));
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
                 }
 
-                response = currentResponse;
-                resolvedUrl = baseUrl;
+                const text = await response.text();
+                const hash = await computeSHA256(text);
+
+                if (candidate.proxied) {
+                    if (!hash) throw new Error('Proxied download rejected: SHA-256 unavailable');
+                    if (hash !== expectedHash) {
+                        throw new Error(`Proxied download rejected: expected ${expectedHash.substring(0, 12)}, got ${hash.substring(0, 12)}`);
+                    }
+                } else if (expectedHash && hash && expectedHash !== hash) {
+                    throw Object.assign(
+                        new Error(`Integrity check failed: expected ${expectedHash.substring(0, 12)}, got ${hash.substring(0, 12)}`),
+                        { fatal: true }
+                    );
+                }
+
+                code = text;
+                contentHash = hash;
+                resolvedUrl = candidate.url;
                 break;
             } catch (e) {
+                if (e?.fatal) throw e;
                 lastFetchError = e;
-                log.debug(`Failed loader source ${baseUrl}:`, e);
+                log.debug(`Failed loader source ${candidate.url}:`, e);
             }
         }
 
-        if (!response) {
+        if (code === null) {
             throw new Error(`Failed to load extension from all sources: ${lastFetchError?.message || 'Unknown error'}`);
         }
 
         log.debug('Extension loaded from source:', resolvedUrl);
-
-        const code = await response.text();
-        const contentHash = await computeSHA256(code);
-
-        if (expectedHash && contentHash && expectedHash !== contentHash) {
-            throw new Error(`Integrity check failed: expected ${expectedHash.substring(0, 12)}, got ${contentHash.substring(0, 12)}`);
-        }
 
         const previousHash = storageGet('content-hash');
         const previousVersion = storageGet('loaded-version');

@@ -19,6 +19,7 @@
     "redeploy": "node deploy.js --no-bump",
     "reset": "spicetify config extensions spicy-themes.js- && spicetify apply",
     "apply": "spicetify apply",
+    "test": "node --test tests/loader-fallback.test.mjs",
     "release": "npm run build && copy dist\\spicy-themes.js builds\\spicy-themes.js"
   },
   "keywords": [
