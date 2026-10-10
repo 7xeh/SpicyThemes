@@ -1,5 +1,6 @@
 import { YtModulePlayer, YtModuleQualities, YTMODULE_STATE, ytModuleParentOrigin } from './ytmodule';
 import { debug } from './debug';
+import { storage } from './storage';
 import {
     BACKDROP_HEIGHT,
     FREE_MAX_HEIGHT,
@@ -57,6 +58,10 @@ const SEEK_LEAD_LEARN = 0.6;
 const PLAY_RETRY_MS = 400;
 const MAX_SOURCE_ATTEMPTS = 2;
 const MODE_CHECK_MS = 400;
+const AUTO_COMPACT_RELEASE_MS = 2500;
+const AUTO_COMPACT_SETTLE_MS = 1500;
+const AUTO_COMPACT_KEY = 'mv-auto-compact';
+export const MV_AUTO_COMPACT_CLASS = 'st-mv-auto-compact';
 const YTMODULE_COOLDOWN_MS = 10 * 60 * 1000;
 const YTMODULE_FAIL_LIMIT = 2;
 const YTMODULE_VIDEO_ERRORS = ['unavailable'];
@@ -119,6 +124,10 @@ let lastStatePauseAttempt = 0;
 let allowCompact = false;
 let allowFullscreenCompact = false;
 let compactBlocked = false;
+let autoCompactOwned = storage.get(AUTO_COMPACT_KEY) === '1';
+let autoCompactDeclinedId: string | null = null;
+let videoOffSince = 0;
+let fullscreenSince = 0;
 
 let liveQualities: YtModuleQualities | null = null;
 let qualityApplied = false;
@@ -713,9 +722,97 @@ function isCompactBlocked(): boolean {
     if (allowCompact) return false;
     const page = document.querySelector('#SpicyLyricsPage');
     if (!page) return false;
+    if (page.classList.contains(MV_AUTO_COMPACT_CLASS) && isFullscreenCompact(page)) return false;
     if (page.classList.contains('CardMode')) return true;
     if (!page.classList.contains('CompactMode') && !page.classList.contains('ForcedCompactMode')) return false;
     return !(allowFullscreenCompact && isFullscreenCompact(page));
+}
+
+function setAutoCompactOwned(owned: boolean): void {
+    autoCompactOwned = owned;
+    if (owned) storage.set(AUTO_COMPACT_KEY, '1');
+    else storage.remove(AUTO_COMPACT_KEY);
+}
+
+function fullscreenPage(): HTMLElement | null {
+    const page = document.querySelector<HTMLElement>('#SpicyLyricsPage');
+    if (!page || !page.classList.contains('Fullscreen') || page.closest('.spicy-pip-wrapper')) return null;
+    return page;
+}
+
+function clickCompactToggle(page: HTMLElement): boolean {
+    const toggle = page.querySelector<HTMLElement>('#CompactModeToggle');
+    if (!toggle) return false;
+    toggle.click();
+    return true;
+}
+
+function releaseAutoCompact(): void {
+    document.querySelector('#SpicyLyricsPage')?.classList.remove(MV_AUTO_COMPACT_CLASS);
+    if (!autoCompactOwned) return;
+    const page = fullscreenPage();
+    if (!page) return;
+    if (isFullscreenCompact(page) && !clickCompactToggle(page)) return;
+    setAutoCompactOwned(false);
+}
+
+function onFullscreenExitClick(e: MouseEvent): void {
+    if (!autoCompactOwned) return;
+    const page = fullscreenPage();
+    const target = e.target instanceof Element ? e.target : null;
+    if (!page || !target || !page.contains(target)) return;
+    if (!target.closest('#Close, a')) return;
+    releaseAutoCompact();
+}
+
+function clearStrandedCompact(): void {
+    const page = document.querySelector('#SpicyLyricsPage');
+    if (!page) return;
+    page.classList.remove(MV_AUTO_COMPACT_CLASS);
+    if (!autoCompactOwned || page.classList.contains('CardMode') || page.closest('.spicy-pip-wrapper')) return;
+    page.classList.remove('CompactMode', 'ForcedCompactMode', 'CompactifyEnabledCompactMode');
+}
+
+function syncAutoCompact(ts: number): void {
+    const page = fullscreenPage();
+    if (!page) {
+        if (fullscreenSince) clearStrandedCompact();
+        else document.querySelector('#SpicyLyricsPage')?.classList.remove(MV_AUTO_COMPACT_CLASS);
+        videoOffSince = 0;
+        fullscreenSince = 0;
+        autoCompactDeclinedId = null;
+        return;
+    }
+    if (!fullscreenSince) fullscreenSince = ts;
+    const settled = ts - fullscreenSince >= AUTO_COMPACT_SETTLE_MS;
+    const compact = isFullscreenCompact(page);
+    const videoOn = !!activeSource && !!currentMeta && mediaVisible;
+    const loading = !!activeSource || evaluating;
+    if (videoOn) videoOffSince = 0;
+    else if (!loading && !videoOffSince) videoOffSince = ts;
+
+    if (autoCompactOwned) {
+        if (!compact) {
+            if (!settled) return;
+            page.classList.remove(MV_AUTO_COMPACT_CLASS);
+            setAutoCompactOwned(false);
+            if (videoOn) autoCompactDeclinedId = currentId;
+            return;
+        }
+        if (!videoOn && videoOffSince && ts - videoOffSince > AUTO_COMPACT_RELEASE_MS) {
+            releaseAutoCompact();
+            return;
+        }
+        page.classList.add(MV_AUTO_COMPACT_CLASS);
+        return;
+    }
+    if (!settled || !videoOn || compact || autoCompactDeclinedId === currentId) return;
+    page.classList.add(MV_AUTO_COMPACT_CLASS);
+    if (!clickCompactToggle(page) || !isFullscreenCompact(page)) {
+        page.classList.remove(MV_AUTO_COMPACT_CLASS);
+        return;
+    }
+    setAutoCompactOwned(true);
 }
 
 export function setMusicVideoCompactAllowed(allowed: boolean, fullscreenAllowed?: boolean): void {
@@ -1399,6 +1496,7 @@ function tick(ts: number): void {
 
     if (ts - lastModeCheck > MODE_CHECK_MS) {
         lastModeCheck = ts;
+        syncAutoCompact(ts);
         const large = isLargeView();
         if (large !== largeView) {
             largeView = large;
@@ -1565,6 +1663,7 @@ export function startMusicVideo(): void {
     lastSync = 0;
     lastOfficialCheck = 0;
     lastModeCheck = 0;
+    document.addEventListener('click', onFullscreenExitClick, true);
     compactBlocked = isCompactBlocked();
     evaluate();
     batchPrefetch(queueIds());
@@ -1582,7 +1681,9 @@ export function stopMusicVideo(): void {
         clearTimeout(recheckTimer);
         recheckTimer = null;
     }
+    document.removeEventListener('click', onFullscreenExitClick, true);
     teardownSource();
+    releaseAutoCompact();
     removeContainer();
     officialForId = null;
 }

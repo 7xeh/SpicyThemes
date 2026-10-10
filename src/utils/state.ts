@@ -318,6 +318,8 @@ export interface ThemeConfig {
     playerHideShuffle: boolean;
     playerHideRepeat: boolean;
     playerHideLike: boolean;
+    playerHideVolume: boolean;
+    playerHideViewControls: boolean;
 
     musicVideoEnabled: boolean;
     musicVideoCompact: boolean;
@@ -326,6 +328,7 @@ export interface ThemeConfig {
     musicVideoBackdrop: string;
     musicVideoFit: string;
     musicVideoBlend: number;
+    musicVideoPlayerFade: number;
 
     eqEnabled: boolean;
     eqStyle: string;
@@ -543,6 +546,8 @@ export const DEFAULT_THEME: ThemeConfig = {
     playerHideShuffle: false,
     playerHideRepeat: false,
     playerHideLike: false,
+    playerHideVolume: false,
+    playerHideViewControls: false,
 
     musicVideoEnabled: false,
     musicVideoCompact: false,
@@ -551,6 +556,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     musicVideoBackdrop: 'solid',
     musicVideoFit: 'zoom',
     musicVideoBlend: 0.5,
+    musicVideoPlayerFade: 0,
 
     eqEnabled: false,
     eqStyle: 'equalizer',
@@ -1139,6 +1145,7 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     playerProgressThickness: [0.5, 5],
     musicVideoDim: [0, 1],
     musicVideoBlend: [0.1, 1],
+    musicVideoPlayerFade: [0, 100],
     eqSize: [0.4, 2.5],
     eqSpeed: [0.3, 3.0],
 };

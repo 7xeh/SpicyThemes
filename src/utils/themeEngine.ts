@@ -1,7 +1,7 @@
 import { themeState, ThemeConfig, WordEffectTrigger, resolveWordTrigger, eqStyleMeta, eqStyleBands } from './state';
 import { refreshSurfaceTokens } from './surface';
 import { startEqAudio, stopEqAudio, refreshEqElements } from './eqAudio';
-import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer, setMusicVideoCompactAllowed } from './musicVideo';
+import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer, setMusicVideoCompactAllowed, MV_AUTO_COMPACT_CLASS } from './musicVideo';
 import { BG_IMAGE_LAYER_ID, BG_IMAGE_ACTIVE_CLASS, updateBackgroundImage, removeBackgroundImage, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
 import { ANIM_BG_LAYER_ID, ANIM_BG_SOLID_CLASS, updateAnimatedBackground, removeAnimatedBackground } from './animatedBackground';
 import { videoWanted, noteThemeModeApplied } from './videoMode';
@@ -1382,7 +1382,7 @@ ${highlightSilhouetteTargets} {
 }
 `);
         if (config.animBgBackdrop === 'blend' && config.musicVideoEnabled) {
-            const mvHidden = config.musicVideoCompact ? [] : ['CardMode', config.musicVideoFullscreenCompact ? 'CompactMode:not(.Fullscreen)' : 'CompactMode'];
+            const mvHidden = config.musicVideoCompact ? [] : ['CardMode', config.musicVideoFullscreenCompact ? 'CompactMode:not(.Fullscreen)' : `CompactMode:not(.${MV_AUTO_COMPACT_CLASS})`];
             css.push(`
 #SpicyLyricsPage.st-mv-active .ContentBox > #${ANIM_BG_LAYER_ID} {
     opacity: 0 !important;
@@ -1730,6 +1730,20 @@ ${playerSel('.Exp_NewProgressBar', '.VolumeControl.IconOnFill .VolumeIcon')} {
         if (config.playerHideLike) {
             css.push(`${PLAYER.map(p => `${p} .NowBar .Heart`).join(',\n')} {\n    display: none !important;\n}`);
         }
+        if (config.playerHideVolume) {
+            css.push(`${PLAYER.map(p => `${p} .VolumeControl`).join(',\n')} {\n    display: none !important;\n}`);
+        }
+        if (config.playerHideViewControls) {
+            css.push(`
+${PLAYER.map(p => `${p}#SpicyLyricsPage .ContentBox .ViewControls`).join(',\n')} {
+    opacity: 0 !important;
+    transition: opacity 0.2s ease !important;
+}
+${PLAYER.map(p => `${p}#SpicyLyricsPage .ContentBox .ViewControls:is(:hover, :focus-within)`).join(',\n')} {
+    opacity: 1 !important;
+}
+`);
+        }
 
         if (config.playerControlsAnimation) {
             const notFs = PLAYER.map(p => `${p}:not(.Fullscreen)`);
@@ -1775,6 +1789,15 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
     height: auto !important;`,
         };
         const mvIframeSize = mvIframeSizes[mvFit] ?? mvIframeSizes.zoom;
+        const mvFade = clamp(Number(config.musicVideoPlayerFade) || 0, 0, 100);
+        const mvPlayerFade = mvFade > 0 ? `
+#SpicyLyricsPage.st-mv-active:not(.CardMode) .ContentBox .NowBar {
+    opacity: ${round(1 - mvFade / 100, 3)} !important;
+    transition: opacity 0.3s ease !important;
+}
+#SpicyLyricsPage.st-mv-active:not(.CardMode) .ContentBox .NowBar:hover {
+    opacity: 1 !important;
+}` : '';
         const mvBackdrop = config.musicVideoBackdrop === 'blend' ? `
 #SpicyLyricsPage.st-mv-active .spicy-dynamic-bg {
     opacity: ${round(1 - mvMix, 3)} !important;
@@ -1842,11 +1865,14 @@ ${mvIframeSize}
     inset: 0 !important;
     background: rgba(0, 0, 0, ${mvDim}) !important;
     pointer-events: none !important;
-}${mvBackdrop}`);
+}
+#SpicyLyricsPage.st-mv-active .LyricsContainer .LyricsNotice {
+    display: none !important;
+}${mvPlayerFade}${mvBackdrop}`);
         if (!config.musicVideoCompact) {
             const bgImageGuard = (config.pageBgImageEnabled && config.pageBgImage ? `:not(.${BG_IMAGE_ACTIVE_CLASS})` : '')
                 + (config.animBgEnabled ? `:not(.${ANIM_BG_SOLID_CLASS})` : '');
-            const compactScopes = ['CardMode', config.musicVideoFullscreenCompact ? 'CompactMode:not(.Fullscreen)' : 'CompactMode'];
+            const compactScopes = ['CardMode', config.musicVideoFullscreenCompact ? 'CompactMode:not(.Fullscreen)' : `CompactMode:not(.${MV_AUTO_COMPACT_CLASS})`];
             css.push(`
 ${compactScopes.map(c => `#SpicyLyricsPage.${c} #${MUSIC_VIDEO_ID}`).join(',\n')} {
     display: none !important;
