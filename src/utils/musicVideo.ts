@@ -956,7 +956,6 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
                 ytModuleFails = 0;
                 ytReady = true;
                 player.mute();
-                player.setVolume(0);
                 if (currentMeta) {
                     const live = songIsPlaying();
                     const target = songMsToVideoMs(currentMeta, currentSongMs()) + (live ? seekLeadMs : 0);

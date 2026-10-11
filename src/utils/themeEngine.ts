@@ -446,8 +446,6 @@ const SLT_SYNC_LINE = '.slt-sync-translation.slt-interleaved-translation';
 
 const LEARNING_HEADER = '#SpicyLyricsPage .slt-learning-row .slt-learning-translation';
 const LEARNING_HEADER_COMPACT = [
-    '#SpicyLyricsPage.SidebarMode .slt-learning-row .slt-learning-translation',
-    'body.SpicySidebarLyrics__Active #SpicyLyricsPage .slt-learning-row .slt-learning-translation',
     '#SpicyLyricsPage.CardMode .slt-learning-row .slt-learning-translation',
 ];
 
@@ -1289,8 +1287,7 @@ ${highlightSilhouetteTargets} {
     pointer-events: none;
     z-index: 0;
 }
-#SpicyLyricsPage .LyricsContainer,
-#SpicyLyricsPage.CompactMode {
+#SpicyLyricsPage .LyricsContainer {
     position: relative;
 }
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent,
