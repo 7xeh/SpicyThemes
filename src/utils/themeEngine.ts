@@ -1679,10 +1679,16 @@ ${artTargets.join(',\n')} {
 
         if (barT !== 1) {
             const SKINS = [
-                { mod: '.Exp_NewProgressBar', bar: 2.2, header: 1.7, barHover: 3, headerHover: 2.3 },
-                { mod: ':not(.Exp_NewProgressBar)', bar: 1.3, header: 1, barHover: 0, headerHover: 0 },
+                { mod: '.Exp_NewProgressBar', bar: 2.2, header: 1.7, barHover: 3, headerHover: 2.3, canvas: 1.5, canvasHover: 2.6 },
+                { mod: ':not(.Exp_NewProgressBar)', bar: 1.3, header: 1, barHover: 0, headerHover: 0, canvas: 0.9, canvasHover: 0 },
             ];
+            const CANVAS = '.CanvasImmersive:not(.CompactMode):not(.ForcedCompactMode)';
             const barHeight = (cqh: number) => `height: calc(${cqh}cqh * ${barT}) !important;`;
+            const canvasRules = (mod: string, state: string, cqw: number) => !cqw ? '' : `
+${playerSel(`${mod}${CANVAS}`, `.ContentBox .NowBar .Timeline .SliderBar${state}`)} {
+    height: min(calc(${cqw}cqw * ${barT}), 4cqw) !important;
+}
+`;
             const barRules = (mod: string, state: string, bar: number, header: number) => !bar ? '' : `
 ${playerSel(mod, `.Timeline .SliderBar${state}`)} {
     ${barHeight(bar)}
@@ -1693,7 +1699,9 @@ ${playerSel(mod, `.Header > .Timeline .SliderBar${state}`)} {
 `;
             css.push(SKINS.map(s =>
                 barRules(s.mod, '', s.bar, s.header) +
-                barRules(s.mod, ':is(:hover, .Dragging)', s.barHover, s.headerHover)
+                barRules(s.mod, ':is(:hover, .Dragging)', s.barHover, s.headerHover) +
+                canvasRules(s.mod, '', s.canvas) +
+                canvasRules(s.mod, ':is(:hover, .Dragging)', s.canvasHover)
             ).join('\n'));
         }
 

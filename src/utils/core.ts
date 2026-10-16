@@ -181,7 +181,9 @@ export function injectIntoPiP(): void {
             return false;
         });
 
-        pipViewControls.appendChild(button);
+        const pipClose = pipViewControls.querySelector('#Close');
+        if (pipClose) pipClose.before(button);
+        else pipViewControls.appendChild(button);
         if (themeState.isEnabled) {
             injectThemeStyles();
         }
