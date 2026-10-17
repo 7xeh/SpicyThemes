@@ -788,6 +788,9 @@ export async function registerSettings(): Promise<void> {
     }
 
     watchForSettingsPage();
+    watchProfileMenu();
+
+    if (usesDomOnlyProfileMenu()) return;
 
     const registerMenuItem = () => {
         const globalWindow = window as typeof window & { [MENU_REGISTERED_FLAG]?: boolean };
@@ -820,8 +823,13 @@ export async function registerSettings(): Promise<void> {
             }
         }, 500);
     }
+}
 
-    watchProfileMenu();
+function usesDomOnlyProfileMenu(): boolean {
+    const version = (Spicetify.Platform as { version?: unknown }).version;
+    if (typeof version !== 'string' || !version) return true;
+    const [major = 0, minor = 0, patch = 0] = version.split('.').map(part => Number.parseInt(part, 10) || 0);
+    return major > 1 || (major === 1 && (minor > 3 || (minor === 3 && patch >= 5)));
 }
 
 const MENU_LABEL = 'ST Settings';
