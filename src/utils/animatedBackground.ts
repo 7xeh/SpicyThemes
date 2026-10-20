@@ -1,6 +1,7 @@
 import { themeState, ThemeConfig, ANIM_BG_STYLE_IDS } from './state';
 import { acquireEqAudio, releaseEqAudio, eqSnapshot } from './eqAudio';
 import { warn } from './debug';
+import { currentCoverPalette, refreshCoverPalette, registerCoverConsumer } from './coverPalette';
 
 export const ANIM_BG_LAYER_ID = 'spicy-themes-animbg';
 export const ANIM_BG_ACTIVE_CLASS = 'st-animbg-active';
@@ -1178,10 +1179,7 @@ let focusSlowAll = 0;
 let focusSlowPart = 0;
 let focusSlowEnergy = 0;
 
-let albumColors: { a: Rgb; b: Rgb } | null = null;
-let albumUri = '';
-let albumToken = 0;
-let songHooked = false;
+let paletteHooked = false;
 
 function parseColor(value: string, fallback: Rgb): Rgb {
     const v = (value || '').trim();
@@ -1205,133 +1203,9 @@ function targetColors(config: ThemeConfig): { a: Rgb; b: Rgb } {
         a: parseColor(config.animBgColor, [0.37, 0.92, 0.83]),
         b: parseColor(config.animBgColor2, [0.15, 0.39, 0.92]),
     };
-    if (config.animBgPalette === 'album' && albumColors) return albumColors;
+    const album = config.animBgPalette === 'album' ? currentCoverPalette() : null;
+    if (album) return { a: album.primary, b: album.secondary };
     return custom;
-}
-
-function coverUrl(): string {
-    try {
-        const meta = (Spicetify?.Player?.data?.item as any)?.metadata || {};
-        const raw: string = meta.image_large_url || meta.image_url || meta.image_xlarge_url || meta.image_small_url || '';
-        if (raw.startsWith('spotify:image:')) return `https://i.scdn.co/image/${raw.slice('spotify:image:'.length)}`;
-        if (/^https:\/\//.test(raw)) return raw;
-    } catch (e) {}
-    return '';
-}
-
-function rgbToHsl([r, g, b]: Rgb): Rgb {
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const l = (max + min) / 2;
-    if (max === min) return [0, 0, l];
-    const d = max - min;
-    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    let h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-    h /= 6;
-    return [h, s, l];
-}
-
-function hslToRgb([h, s, l]: Rgb): Rgb {
-    if (s === 0) return [l, l, l];
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    const f = (t: number) => {
-        t = ((t % 1) + 1) % 1;
-        if (t < 1 / 6) return p + (q - p) * 6 * t;
-        if (t < 1 / 2) return q;
-        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-        return p;
-    };
-    return [f(h + 1 / 3), f(h), f(h - 1 / 3)];
-}
-
-function glowable(rgb: Rgb, grey: boolean): Rgb {
-    const [h, s, l] = rgbToHsl(rgb);
-    return hslToRgb([h, grey ? Math.min(s, 0.12) : Math.max(s, 0.6), Math.min(Math.max(l, 0.55), 0.72)]);
-}
-
-function paletteFromImage(img: HTMLImageElement): { a: Rgb; b: Rgb } | null {
-    const size = 40;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true } as CanvasRenderingContext2DSettings);
-    if (!ctx) return null;
-    ctx.drawImage(img, 0, 0, size, size);
-    const data = ctx.getImageData(0, 0, size, size).data;
-    const BUCKETS = 24;
-    const weight = new Array(BUCKETS).fill(0);
-    const sums = Array.from({ length: BUCKETS }, () => [0, 0, 0]);
-    const avg = [0, 0, 0];
-    let total = 0;
-    for (let i = 0; i < data.length; i += 4) {
-        const rgb: Rgb = [data[i] / 255, data[i + 1] / 255, data[i + 2] / 255];
-        avg[0] += rgb[0];
-        avg[1] += rgb[1];
-        avg[2] += rgb[2];
-        const max = Math.max(...rgb);
-        const min = Math.min(...rgb);
-        const sat = max > 0 ? (max - min) / max : 0;
-        const w = sat * sat * max * (max > 0.12 ? 1 : 0);
-        if (w <= 0) continue;
-        const k = Math.floor(rgbToHsl(rgb)[0] * BUCKETS) % BUCKETS;
-        weight[k] += w;
-        sums[k][0] += rgb[0] * w;
-        sums[k][1] += rgb[1] * w;
-        sums[k][2] += rgb[2] * w;
-        total += w;
-    }
-    const pixels = data.length / 4;
-    if (total < pixels * 0.02) {
-        const mean: Rgb = [avg[0] / pixels, avg[1] / pixels, avg[2] / pixels];
-        const light = glowable(mean, true);
-        return { a: light, b: light.map(v => v * 0.55) as Rgb };
-    }
-    const smooth = weight.map((w, k) => w + 0.5 * (weight[(k + 1) % BUCKETS] + weight[(k + BUCKETS - 1) % BUCKETS]));
-    const colorOf = (k: number): Rgb => {
-        const ks = [k, (k + 1) % BUCKETS, (k + BUCKETS - 1) % BUCKETS];
-        const w = ks.reduce((a, j) => a + weight[j], 0) || 1;
-        return [0, 1, 2].map(c => ks.reduce((a, j) => a + sums[j][c], 0) / w) as Rgb;
-    };
-    let first = 0;
-    smooth.forEach((w, k) => { if (w > smooth[first]) first = k; });
-    let second = -1;
-    smooth.forEach((w, k) => {
-        const dist = Math.min(Math.abs(k - first), BUCKETS - Math.abs(k - first));
-        if (dist >= 3 && w >= smooth[first] * 0.18 && (second < 0 || w > smooth[second])) second = k;
-    });
-    const a = glowable(colorOf(first), false);
-    if (second < 0) {
-        const [h, sat, l] = rgbToHsl(a);
-        return { a, b: hslToRgb([h + 0.09, sat, l * 0.8]) };
-    }
-    return { a, b: glowable(colorOf(second), false) };
-}
-
-function refreshAlbumColors(): void {
-    const t = themeState.activeTheme;
-    if (!themeState.isEnabled || !t.animBgEnabled || t.animBgPalette !== 'album') return;
-    const url = coverUrl();
-    if (!url || url === albumUri) return;
-    albumUri = url;
-    const token = ++albumToken;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = url;
-    img.decode().then(() => {
-        if (token !== albumToken) return;
-        const colors = paletteFromImage(img);
-        if (!colors) return;
-        albumColors = colors;
-        pushSettings();
-    }).catch(() => {
-        if (token === albumToken) albumUri = '';
-    });
-}
-
-function onSongChange(): void {
-    albumUri = '';
-    refreshAlbumColors();
 }
 
 function playingNow(): boolean {
@@ -1553,13 +1427,11 @@ export function updateAnimatedBackground(): void {
     syncAudio();
     syncMounts();
     pushSettings();
-    if (!songHooked) {
-        try {
-            Spicetify.Player.addEventListener('songchange', onSongChange);
-            songHooked = true;
-        } catch (e) {}
+    if (!paletteHooked) {
+        registerCoverConsumer(() => isWanted() && themeState.activeTheme.animBgPalette === 'album', () => pushSettings());
+        paletteHooked = true;
     }
-    if (themeState.activeTheme.animBgPalette === 'album') refreshAlbumColors();
+    refreshCoverPalette();
     if (renderers.size > 0) startLoop();
 }
 

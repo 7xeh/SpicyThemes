@@ -257,6 +257,11 @@ export const SCHEMA: FieldDef[] = [
     ], hint: 'Blend mixes the video with the album background or your custom image instead of covering it.', keywords: 'music video behind transparent overlay mix mv' },
     { id: 'musicVideoBlend', label: 'Video strength', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0.1, max: 1, step: 0.05, parent: 'musicVideoBackdrop', when: (t) => t.musicVideoBackdrop === 'blend', hint: 'How much of the video shows through. Lower values keep more of the background.', keywords: 'music video opacity mix amount mv' },
     { id: 'musicVideoPlayerFade', label: 'Player transparency', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 100, step: 5, unit: '%', hint: 'Fades the cover, title and progress bar while a video plays so more of it shows. 100% hides them until you hover.', keywords: 'music video player nowbar cover artwork title progress hide fade transparent opacity minimize mv' },
+    { id: 'musicVideoCredit', label: 'Video sync credit', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
+        { value: 'video', text: 'While the video is showing' },
+        { value: 'always', text: 'Whenever the song has a sync' },
+        { value: 'off', text: 'Never' },
+    ], hint: 'Adds “Video synced by …” under the song credits, linking to the uploader’s profile.', keywords: 'music video credit uploader synced by profile mv' },
     { id: 'musicVideoCompact', label: 'Also in compact player', type: 'toggle', section: MUSIC_VIDEO_SECTION, keywords: 'music video compact card mv' },
     { id: 'musicVideoFullscreenCompact', label: 'Also in fullscreen compact', type: 'toggle', section: MUSIC_VIDEO_SECTION, when: (t) => !t.musicVideoCompact, hint: 'Keeps the video behind the compact layout while fullscreen, without turning it on for the windowed or popout player.', keywords: 'music video fullscreen compact mv' },
 

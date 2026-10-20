@@ -1,4 +1,5 @@
 import { storage } from './storage';
+import type { CoverChoice } from './coverPalette';
 
 export type WordEffectTrigger = 'word' | 'line' | 'loop';
 
@@ -329,6 +330,7 @@ export interface ThemeConfig {
     musicVideoFit: string;
     musicVideoBlend: number;
     musicVideoPlayerFade: number;
+    musicVideoCredit: string;
 
     eqEnabled: boolean;
     eqStyle: string;
@@ -338,6 +340,8 @@ export interface ThemeConfig {
     eqSpeed: number;
     eqStereoSpread: boolean;
     eqStereoAmount: number;
+
+    coverColors: string;
 }
 
 export const DEFAULT_THEME: ThemeConfig = {
@@ -557,6 +561,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     musicVideoFit: 'zoom',
     musicVideoBlend: 0.5,
     musicVideoPlayerFade: 0,
+    musicVideoCredit: 'video',
 
     eqEnabled: false,
     eqStyle: 'equalizer',
@@ -566,6 +571,8 @@ export const DEFAULT_THEME: ThemeConfig = {
     eqSpeed: 1.0,
     eqStereoSpread: false,
     eqStereoAmount: 0.6,
+
+    coverColors: '',
 };
 
 export interface ThemePreset {
@@ -1197,6 +1204,71 @@ export function sanitizeThemeString<K extends keyof ThemeConfig>(key: K, value: 
     return value;
 }
 
+export const COVER_COLOR_KEYS: (keyof ThemeConfig)[] = COLOR_KEYS.filter(k => !String(k).startsWith('animBg'));
+
+export const COVER_HUE_RANGE = 180;
+export const COVER_SHIFT_RANGE = 100;
+
+export function parseCoverColors(raw: unknown): Partial<Record<keyof ThemeConfig, CoverChoice>> {
+    const out: Partial<Record<keyof ThemeConfig, CoverChoice>> = {};
+    if (typeof raw !== 'string' || !raw) return out;
+    let data: any;
+    try {
+        data = JSON.parse(raw);
+    } catch (e) {
+        return out;
+    }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return out;
+    for (const key of COVER_COLOR_KEYS) {
+        const c = data[key];
+        if (c && typeof c === 'object') out[key] = cleanCoverChoice(c);
+    }
+    return out;
+}
+
+function cleanCoverChoice(c: any): CoverChoice {
+    const num = (v: unknown, range: number) => {
+        const n = typeof v === 'number' && isFinite(v) ? Math.round(v) : 0;
+        return Math.min(Math.max(n, -range), range);
+    };
+    return {
+        src: c.src === 'secondary' ? 'secondary' : 'primary',
+        h: num(c.h, COVER_HUE_RANGE),
+        s: num(c.s, COVER_SHIFT_RANGE),
+        v: num(c.v, COVER_SHIFT_RANGE),
+    };
+}
+
+export function serializeCoverColors(map: Partial<Record<keyof ThemeConfig, CoverChoice>>): string {
+    const keys = COVER_COLOR_KEYS.filter(k => map[k]);
+    if (keys.length === 0) return '';
+    const out: Record<string, CoverChoice> = {};
+    keys.forEach(k => {
+        const c = map[k]!;
+        out[k] = { src: c.src, h: c.h, s: c.s, v: c.v };
+    });
+    return JSON.stringify(out);
+}
+
+export function coverChoiceFor(config: ThemeConfig, key: keyof ThemeConfig): CoverChoice | null {
+    return parseCoverColors(config.coverColors)[key] || null;
+}
+
+export function setCoverColor(key: keyof ThemeConfig, choice: CoverChoice | null): void {
+    if (!COVER_COLOR_KEYS.includes(key)) return;
+    const map = parseCoverColors(themeState.activeTheme.coverColors);
+    if (choice) map[key] = cleanCoverChoice(choice);
+    else delete map[key];
+    const next = serializeCoverColors(map);
+    if (next === themeState.activeTheme.coverColors) return;
+    if (!themeState.activeTheme.lyricsStylingEnabled && !NON_LYRIC_KEY_RE.test(key)) {
+        themeState.activeTheme.lyricsStylingEnabled = true;
+    }
+    themeState.activeTheme.coverColors = next;
+    themeState.activePresetName = 'Custom';
+    saveThemeState();
+}
+
 function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
     const normalized = { ...config };
     for (const [key, range] of Object.entries(CLAMPS) as [keyof ThemeConfig, [number, number]][]) {
@@ -1311,6 +1383,12 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
     if (!['zoom', 'cover', 'contain', 'stretch'].includes(normalized.musicVideoFit)) {
         normalized.musicVideoFit = 'zoom';
     }
+
+    if (!['video', 'always', 'off'].includes(normalized.musicVideoCredit)) {
+        normalized.musicVideoCredit = 'video';
+    }
+
+    normalized.coverColors = serializeCoverColors(parseCoverColors(normalized.coverColors));
 
     normalized.lyricsStylingEnabled = normalized.lyricsStylingEnabled !== false;
 

@@ -1,7 +1,9 @@
-import { themeState, ThemeConfig, WordEffectTrigger, resolveWordTrigger, eqStyleMeta, eqStyleBands } from './state';
+import { themeState, ThemeConfig, WordEffectTrigger, resolveWordTrigger, eqStyleMeta, eqStyleBands, parseCoverColors } from './state';
+import { coverColorHex, refreshCoverPalette, registerCoverConsumer } from './coverPalette';
 import { refreshSurfaceTokens } from './surface';
 import { startEqAudio, stopEqAudio, refreshEqElements } from './eqAudio';
-import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer, setMusicVideoCompactAllowed, MV_AUTO_COMPACT_CLASS } from './musicVideo';
+import { startMusicVideo, stopMusicVideo, refreshMusicVideoLayer, setMusicVideoCompactAllowed, MV_AUTO_COMPACT_CLASS, VideoUploader, currentVideoUploader, videoShowing, onVideoCreditChange } from './musicVideo';
+import { openExternal } from './tubeAccess';
 import { BG_IMAGE_LAYER_ID, BG_IMAGE_ACTIVE_CLASS, updateBackgroundImage, removeBackgroundImage, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
 import { ANIM_BG_LAYER_ID, ANIM_BG_SOLID_CLASS, updateAnimatedBackground, removeAnimatedBackground } from './animatedBackground';
 import { videoWanted, noteThemeModeApplied } from './videoMode';
@@ -14,6 +16,9 @@ const MUSIC_VIDEO_ID = 'spicy-themes-mv';
 const NPV_CARD = '#SpicyLyricsNPVCard';
 const METADATA_SELECTOR = '#SpicyLyricsPage:not(.CardMode) .ContentBox .NowBar .Header .Metadata';
 const THEME_CREDIT_CLASS = 'st-theme-credit';
+const VIDEO_CREDIT_CLASS = 'st-video-credit';
+const VIDEO_CREDIT_LINK_CLASS = 'st-video-credit-link';
+const UPLOADER_PROFILE_URL = 'https://7xeh.dev/apps/spicythemes/u/?id=';
 
 function hexToRgba(hex: string, alpha: number): string {
     if (hex.startsWith('rgba') || hex.startsWith('rgb')) return hex;
@@ -1278,8 +1283,8 @@ ${highlightSilhouetteTargets} {
 
     if (config.pageBgOverlay) {
         css.push(`
-#SpicyLyricsPage:not(.CardMode) .LyricsContainer::before,
-#SpicyLyricsPage.CompactMode::before {
+#SpicyLyricsPage:not(.CardMode):not(.CompactMode) .LyricsContainer::before,
+#SpicyLyricsPage.CompactMode .ContentBox::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -1292,19 +1297,12 @@ ${highlightSilhouetteTargets} {
 }
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent,
 .spicy-pip-wrapper #SpicyLyricsPage .LyricsContainer .LyricsContent,
-.spicy-pip-wrapper #SpicyLyricsPage .LyricsContent,
-#SpicyLyricsPage.CompactMode .ContentBox {
+.spicy-pip-wrapper #SpicyLyricsPage .LyricsContent {
     position: relative;
     z-index: 1;
 }
-#SpicyLyricsPage.CompactMode::before {
-    z-index: 1;
-}
 #SpicyLyricsPage.CompactMode .ContentBox {
-    z-index: 2;
-}
-#SpicyLyricsPage.CompactMode .LyricsContainer::before {
-    display: none !important;
+    position: relative;
 }
 `);
     }
@@ -1818,7 +1816,7 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
     transition: opacity 0.4s ease !important;
 }
 #SpicyLyricsPage.st-mv-active .LyricsContainer::before,
-#SpicyLyricsPage.st-mv-active.CompactMode::before {
+#SpicyLyricsPage.st-mv-active.CompactMode .ContentBox::after {
     background: transparent !important;
 }
 `;
@@ -1887,7 +1885,7 @@ ${compactScopes.map(c => `#SpicyLyricsPage.${c}.st-mv-active${bgImageGuard} .spi
 }
 ${compactScopes.flatMap(c => [
     `#SpicyLyricsPage.${c}.st-mv-active .LyricsContainer::before`,
-    `#SpicyLyricsPage.${c}.st-mv-active::before`,
+    `#SpicyLyricsPage.${c}.st-mv-active .ContentBox::after`,
 ]).join(',\n')} {
     background: revert !important;
 }
@@ -1909,7 +1907,7 @@ ${compactScopes.flatMap(c => [
         const glitchBar = 'scaleY(calc(0.12 + 0.88 * var(--st-eq-amp)))';
         const swayBar = 'scaleY(calc(0.5 + 0.65 * var(--st-eq-amp)))';
         css.push(`
-${METADATA_SELECTOR} {
+#SpicyLyricsPage:not(.CardMode):not(.CompactMode):not(.ForcedCompactMode) .ContentBox .NowBar .Header .Metadata {
     position: relative;
 }
 .st-eq {
@@ -2281,7 +2279,8 @@ ${styleRule('helix', '', (b, i) => `--st-eq-amp: var(--st-eq-b${b}); animation-d
 #SpicyLyricsPage .Credits,
 #SpicyLyricsPage .SongInfo,
 #SpicyLyricsPage .LyricsProvider,
-#SpicyLyricsPage .${THEME_CREDIT_CLASS} {
+#SpicyLyricsPage .${THEME_CREDIT_CLASS},
+#SpicyLyricsPage .${VIDEO_CREDIT_CLASS} {
     ${buildProps(
         `color: ${config.sungLineColor} !important;`,
         fontFamily && `font-family: ${fontFamily}, system-ui, sans-serif !important;`,
@@ -2290,7 +2289,7 @@ ${styleRule('helix', '', (b, i) => `--st-eq-amp: var(--st-eq-b${b}); animation-d
 #SpicyLyricsPage .${THEME_CREDIT_CLASS} {
     opacity: 0.5;
 }
-#SpicyLyricsPage .LyricsProvider + .${THEME_CREDIT_CLASS} {
+#SpicyLyricsPage .LyricsProvider ~ .${THEME_CREDIT_CLASS} {
     font-size: clamp(0.7rem, 3cqw, max(0.34em, 0.875rem));
     font-weight: 600;
     margin: max(0.3cqw, 0.3em) 1px 0;
@@ -2379,33 +2378,78 @@ function themeCreditText(): string {
     return `Theme: ${name || 'Custom'}`;
 }
 
-function updateThemeCreditIn(doc: Document): void {
-    const existing = Array.from(doc.querySelectorAll<HTMLElement>(`.${THEME_CREDIT_CLASS}`));
+function videoCreditUploader(): VideoUploader | null {
+    const mode = themeState.activeTheme.musicVideoCredit;
+    if (mode === 'off') return null;
+    if (mode === 'video' && !videoShowing()) return null;
+    return currentVideoUploader();
+}
 
-    const shown = themeState.isEnabled && themeState.activeTheme.lyricsStylingEnabled;
-    const songInfo = shown
-        ? doc.querySelector<HTMLElement>('#SpicyLyricsPage .SongInfo')
-        : null;
-    const provider = songInfo
-        ? null
-        : (shown ? doc.querySelector<HTMLElement>('#SpicyLyricsPage .LyricsProvider') : null);
+function creditElement(doc: Document, parent: HTMLElement, cls: string): HTMLElement {
+    const found = Array.from(parent.children).find(el => el.classList.contains(cls)) as HTMLElement | undefined;
+    if (found) return found;
+    const el = doc.createElement('div');
+    el.className = cls;
+    return el;
+}
+
+function paintVideoCredit(doc: Document, el: HTMLElement, uploader: VideoUploader): void {
+    if (el.dataset.uploader === `${uploader.id}|${uploader.name}`) return;
+    el.dataset.uploader = `${uploader.id}|${uploader.name}`;
+    el.textContent = 'Video synced by ';
+    const link = doc.createElement('a');
+    link.className = VIDEO_CREDIT_LINK_CLASS;
+    link.href = `${UPLOADER_PROFILE_URL}${encodeURIComponent(uploader.id)}`;
+    link.textContent = uploader.name;
+    link.title = `Open ${uploader.name}’s profile`;
+    link.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openExternal(link.href);
+    });
+    el.appendChild(link);
+}
+
+function updateThemeCreditIn(doc: Document): void {
+    const classes = [VIDEO_CREDIT_CLASS, THEME_CREDIT_CLASS];
+    const existing = Array.from(doc.querySelectorAll<HTMLElement>(classes.map(c => `.${c}`).join(', ')));
+
+    const enabled = themeState.isEnabled;
+    const songInfo = enabled ? doc.querySelector<HTMLElement>('#SpicyLyricsPage .SongInfo') : null;
+    const provider = songInfo || !enabled ? null : doc.querySelector<HTMLElement>('#SpicyLyricsPage .LyricsProvider');
     const parent = songInfo || provider?.parentElement || null;
 
-    existing.forEach(el => {
-        if (el.parentElement !== parent) el.remove();
-    });
-    if (!parent) return;
+    const uploader = parent ? videoCreditUploader() : null;
+    const showTheme = !!parent && themeState.activeTheme.lyricsStylingEnabled;
 
-    let credit = existing.find(el => el.parentElement === parent) || null;
-    if (!credit) {
-        credit = doc.createElement('div');
-        credit.className = THEME_CREDIT_CLASS;
-        if (songInfo) songInfo.appendChild(credit);
-        else provider!.after(credit);
+    const wanted: HTMLElement[] = [];
+    if (parent && uploader) {
+        const el = creditElement(doc, parent, VIDEO_CREDIT_CLASS);
+        paintVideoCredit(doc, el, uploader);
+        wanted.push(el);
+    }
+    if (parent && showTheme) {
+        const el = creditElement(doc, parent, THEME_CREDIT_CLASS);
+        const text = themeCreditText();
+        if (el.textContent !== text) el.textContent = text;
+        wanted.push(el);
     }
 
-    const text = themeCreditText();
-    if (credit.textContent !== text) credit.textContent = text;
+    existing.forEach(el => {
+        if (!wanted.includes(el)) el.remove();
+    });
+    if (!parent || wanted.length === 0) return;
+
+    if (songInfo) {
+        const tail = Array.from(songInfo.children).slice(-wanted.length);
+        if (wanted.some((el, i) => tail[i] !== el)) wanted.forEach(el => songInfo.appendChild(el));
+        return;
+    }
+    let ref: Element = provider!;
+    wanted.forEach(el => {
+        if (ref.nextElementSibling !== el) ref.after(el);
+        ref = el;
+    });
 }
 
 export function updateThemeCredit(): void {
@@ -2417,16 +2461,48 @@ export function updateThemeCredit(): void {
 }
 
 function removeThemeCredit(): void {
-    document.querySelectorAll(`.${THEME_CREDIT_CLASS}`).forEach(el => el.remove());
+    const sel = `.${THEME_CREDIT_CLASS}, .${VIDEO_CREDIT_CLASS}`;
+    document.querySelectorAll(sel).forEach(el => el.remove());
     const pipWindow = getPIPWindow();
-    if (pipWindow) pipWindow.document.querySelectorAll(`.${THEME_CREDIT_CLASS}`).forEach(el => el.remove());
+    if (pipWindow) pipWindow.document.querySelectorAll(sel).forEach(el => el.remove());
+}
+
+onVideoCreditChange(updateThemeCredit);
+
+function coverResolved(theme: ThemeConfig): Partial<ThemeConfig> {
+    const out: Partial<Record<keyof ThemeConfig, string>> = {};
+    if (!theme.coverColors) return {};
+    const choices = parseCoverColors(theme.coverColors);
+    (Object.keys(choices) as (keyof ThemeConfig)[]).forEach(key => {
+        const hex = coverColorHex(choices[key]!);
+        if (hex) out[key] = hex;
+    });
+    return out as unknown as Partial<ThemeConfig>;
 }
 
 function renderedTheme(): ThemeConfig {
     const theme = themeState.activeTheme;
     const video = videoWanted();
-    return theme.musicVideoEnabled === video ? theme : { ...theme, musicVideoEnabled: video };
+    const cover = coverResolved(theme);
+    if (theme.musicVideoEnabled === video && Object.keys(cover).length === 0) return theme;
+    return { ...theme, ...cover, musicVideoEnabled: video };
 }
+
+function coverColorsWanted(): boolean {
+    return themeState.isEnabled && !!themeState.activeTheme.coverColors;
+}
+
+function refreshThemeCss(): void {
+    if (!themeState.isEnabled) return;
+    const css = generateThemeCSS(renderedTheme());
+    const style = document.getElementById(STYLE_ID);
+    if (style && style.textContent !== css) style.textContent = css;
+    const pipWindow = getPIPWindow();
+    const pipStyle = pipWindow?.document.getElementById(STYLE_ID);
+    if (pipStyle && pipStyle.textContent !== css) pipStyle.textContent = css;
+}
+
+registerCoverConsumer(coverColorsWanted, refreshThemeCss);
 
 export function updateMusicVideo(): void {
     try {
@@ -2645,6 +2721,7 @@ export function injectThemeStyles(): void {
 
     injectIntoPIPDocument(css);
 
+    refreshCoverPalette();
     updateEqualizer();
     updateMusicVideo();
     updateBackgroundImage();
@@ -2694,6 +2771,29 @@ export function injectBaseStyles(): void {
 }
 
 const BASE_STYLES = `
+#SpicyLyricsPage .${VIDEO_CREDIT_CLASS} {
+    opacity: 0.5;
+    font-weight: 600;
+}
+#SpicyLyricsPage .LyricsProvider ~ .${VIDEO_CREDIT_CLASS} {
+    font-size: clamp(0.7rem, 3cqw, max(0.34em, 0.875rem));
+    margin: max(0.3cqw, 0.3em) 1px 0;
+}
+#SpicyLyricsPage .${VIDEO_CREDIT_LINK_CLASS} {
+    color: inherit;
+    cursor: pointer;
+    text-decoration: underline 1px color-mix(in srgb, currentColor 45%, transparent);
+    text-underline-offset: 0.18em;
+    transition: text-decoration-color 0.21s;
+}
+#SpicyLyricsPage .${VIDEO_CREDIT_LINK_CLASS}:hover,
+#SpicyLyricsPage .${VIDEO_CREDIT_LINK_CLASS}:focus-visible {
+    text-decoration-color: currentColor;
+}
+#SpicyLyricsPage.CreditsFollowLastLine .EndsOnOppositeLine > .SongCredits :is(.${THEME_CREDIT_CLASS}, .${VIDEO_CREDIT_CLASS}) {
+    text-align: right;
+}
+
 .spicy-themes-settings {
     position: relative;
     z-index: 1;
