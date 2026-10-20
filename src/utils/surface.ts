@@ -618,11 +618,13 @@ function placeRegion(): void {
     const bar = document.querySelector<HTMLElement>('.Root__now-playing-bar') ??
         document.querySelector<HTMLElement>('[data-testid="now-playing-bar"]')?.parentElement ??
         null;
+    const vh = window.innerHeight;
     let bottom = 16;
     if (bar) {
         const rect = bar.getBoundingClientRect();
-        if (rect.height > 0 && rect.top < window.innerHeight) bottom = Math.max(16, window.innerHeight - rect.top + 12);
+        if (rect.height > 0 && rect.top < vh && rect.top > vh * 0.5) bottom = Math.max(16, vh - rect.top + 12);
     }
+    bottom = Math.min(bottom, Math.max(16, vh - 240));
     region.style.setProperty('--st-ui-region-bottom', `${Math.round(bottom)}px`);
     if (bar !== observedBar && typeof ResizeObserver !== 'undefined') {
         regionObserver?.disconnect();
@@ -955,7 +957,7 @@ const SURFACE_STYLES = `
 .st-ui-dock-wrap { width: 100%; }
 .st-ui-dock {
     width: 100%;
-    max-height: min(70vh, 560px);
+    max-height: min(70vh, 560px, calc(100vh - var(--st-ui-region-bottom, 96px) - 16px));
     box-shadow:
         inset 0 1px 0 color-mix(in oklab, var(--st-ui-ink) 10%, transparent),
         0 22px 50px -18px rgba(0, 0, 0, 0.8);
