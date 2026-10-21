@@ -21,7 +21,13 @@ import {
     resolveWordTrigger,
     ThemeConfig,
     ThemePreset,
+    COVER_COLOR_KEYS,
+    COVER_HUE_RANGE,
+    COVER_SHIFT_RANGE,
+    coverChoiceFor,
+    setCoverColor,
 } from './state';
+import { CoverChoice, CoverSource, currentCoverPalette, coverColorHex, registerCoverConsumer, refreshCoverPalette, rgbToHex } from './coverPalette';
 import { injectThemeStyles } from './themeEngine';
 import { buildVideoQualityPanel } from './videoQualityPanel';
 import { setVideoAuto } from './videoMode';
@@ -701,11 +707,19 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
 }
 
 function liveUpdate<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]): void {
+    liveApply(key, () => updateThemeProperty(key, value), key === 'sltIndependent' && value === true);
+}
+
+function liveCoverUpdate(key: keyof ThemeConfig, choice: CoverChoice | null): void {
+    liveApply(key, () => setCoverColor(key, choice));
+}
+
+function liveApply(key: keyof ThemeConfig, apply: () => void, resync = false): void {
     const wasNative = !themeState.activeTheme.lyricsStylingEnabled;
-    updateThemeProperty(key, value);
+    apply();
     injectThemeStyles();
     const leftNative = wasNative && key !== 'lyricsStylingEnabled' && themeState.activeTheme.lyricsStylingEnabled;
-    if ((key === 'sltIndependent' && value === true) || leftNative) {
+    if (resync || leftNative) {
         syncAllFields();
     }
     if (leftNative) {
@@ -718,7 +732,177 @@ function liveUpdate<K extends keyof ThemeConfig>(key: K, value: ThemeConfig[K]):
 
 function matchesQuery(def: FieldDef, q: string): boolean {
     if (!q) return true;
-    return `${def.label} ${def.section} ${def.hint || ''} ${def.keywords || ''}`.toLowerCase().includes(q);
+    const cover = isCoverField(def) ? ' cover album artwork art song colour color hue saturation brightness hsv' : '';
+    return `${def.label} ${def.section} ${def.hint || ''} ${def.keywords || ''}${cover}`.toLowerCase().includes(q);
+}
+
+function isCoverField(def: FieldDef): boolean {
+    return def.type === 'color' && COVER_COLOR_KEYS.includes(def.id);
+}
+
+function sameCoverChoice(a: CoverChoice | null, b: CoverChoice | null): boolean {
+    if (!a || !b) return a === b;
+    return a.src === b.src && a.h === b.h && a.s === b.s && a.v === b.v;
+}
+
+const coverRepaints = new Map<HTMLElement, () => void>();
+let coverConsumerHooked = false;
+
+function liveCoverRows(): (() => void)[] {
+    coverRepaints.forEach((_, row) => {
+        if (!row.isConnected) coverRepaints.delete(row);
+    });
+    return Array.from(coverRepaints.values());
+}
+
+function hookCoverPreview(): void {
+    if (coverConsumerHooked) return;
+    coverConsumerHooked = true;
+    registerCoverConsumer(
+        () => liveCoverRows().length > 0,
+        () => liveCoverRows().forEach(fn => fn()),
+    );
+}
+
+const COVER_SVG = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1.75" y="1.75" width="12.5" height="12.5" rx="2.5"></rect><circle cx="8" cy="8" r="3"></circle><circle cx="8" cy="8" r="0.6" fill="currentColor"></circle></svg>';
+
+const COVER_SLIDERS: { key: 'h' | 's' | 'v'; label: string; min: number; max: number; unit: string }[] = [
+    { key: 'h', label: 'Hue', min: -COVER_HUE_RANGE, max: COVER_HUE_RANGE, unit: '°' },
+    { key: 's', label: 'Saturation', min: -COVER_SHIFT_RANGE, max: COVER_SHIFT_RANGE, unit: '%' },
+    { key: 'v', label: 'Brightness', min: -COVER_SHIFT_RANGE, max: COVER_SHIFT_RANGE, unit: '%' },
+];
+
+function signed(n: number, unit: string): string {
+    return `${n > 0 ? '+' : ''}${n}${unit}`;
+}
+
+function buildCoverControls(def: FieldDef, input: HTMLInputElement, row: HTMLElement): { button: HTMLButtonElement; panel: HTMLElement; sync: () => void } {
+    hookCoverPreview();
+    const key = def.id;
+    const choice = () => coverChoiceFor(themeState.activeTheme, key);
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'st-m-cover-btn';
+    button.innerHTML = COVER_SVG;
+
+    const panel = document.createElement('div');
+    panel.className = 'st-m-cover-panel';
+
+    const sources = document.createElement('div');
+    sources.className = 'st-m-cover-sources';
+    sources.setAttribute('role', 'radiogroup');
+    sources.setAttribute('aria-label', `${def.label} cover colour`);
+    const sourceButtons = (['primary', 'secondary'] as CoverSource[]).map(src => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'st-m-cover-source';
+        b.setAttribute('role', 'radio');
+        const swatch = document.createElement('span');
+        swatch.className = 'st-m-cover-swatch';
+        const text = document.createElement('span');
+        text.textContent = src === 'primary' ? 'Primary' : 'Secondary';
+        b.append(swatch, text);
+        b.addEventListener('click', () => {
+            const cur = choice();
+            if (!cur || cur.src === src) return;
+            liveCoverUpdate(key, { ...cur, src });
+        });
+        sources.appendChild(b);
+        return { src, b, swatch };
+    });
+
+    const result = document.createElement('span');
+    result.className = 'st-m-cover-result';
+    const resultSwatch = document.createElement('span');
+    resultSwatch.className = 'st-m-cover-swatch';
+    const resultText = document.createElement('span');
+    result.append(resultSwatch, resultText);
+    sources.appendChild(result);
+    panel.appendChild(sources);
+
+    const sliders = COVER_SLIDERS.map(cfg => {
+        const wrap = document.createElement('label');
+        wrap.className = 'st-m-cover-slider';
+        const name = document.createElement('span');
+        name.className = 'st-m-cover-slider-label';
+        name.textContent = cfg.label;
+        const range = document.createElement('input');
+        range.type = 'range';
+        range.className = 'st-m-slider';
+        range.min = String(cfg.min);
+        range.max = String(cfg.max);
+        range.step = '1';
+        const value = document.createElement('span');
+        value.className = 'st-m-slider-value';
+        range.addEventListener('input', () => {
+            const cur = choice();
+            if (!cur) return;
+            const n = parseInt(range.value, 10) || 0;
+            value.textContent = signed(n, cfg.unit);
+            liveCoverUpdate(key, { ...cur, [cfg.key]: n });
+        });
+        range.addEventListener('dblclick', () => {
+            const cur = choice();
+            if (!cur || cur[cfg.key] === 0) return;
+            liveCoverUpdate(key, { ...cur, [cfg.key]: 0 });
+            sync();
+        });
+        wrap.append(name, range, value);
+        panel.appendChild(wrap);
+        return { cfg, range, value };
+    });
+
+    const note = document.createElement('div');
+    note.className = 'st-m-cover-note';
+    panel.appendChild(note);
+
+    button.addEventListener('click', () => {
+        if (choice()) {
+            liveCoverUpdate(key, null);
+        } else {
+            liveCoverUpdate(key, { src: 'primary', h: 0, s: 0, v: 0 });
+        }
+        sync();
+    });
+
+    const sync = () => {
+        const cur = choice();
+        const on = !!cur;
+        const palette = currentCoverPalette();
+        button.classList.toggle('st-m-cover-btn-on', on);
+        button.setAttribute('aria-pressed', String(on));
+        const label = on ? `${def.label}: following the album cover. Click to use a fixed colour.` : `Use the album cover colour for ${def.label.toLowerCase()}`;
+        button.title = label;
+        button.setAttribute('aria-label', label);
+        row.classList.toggle('st-m-field-cover-on', on);
+        panel.hidden = !on;
+        input.classList.toggle('st-m-color-cover', on);
+        sourceButtons.forEach(({ src, b, swatch }) => {
+            const active = !!cur && cur.src === src;
+            b.classList.toggle('st-m-cover-source-on', active);
+            b.setAttribute('aria-checked', String(active));
+            swatch.style.background = palette ? rgbToHex(palette[src]) : '';
+        });
+        if (!cur) return;
+        sliders.forEach(({ cfg, range, value }) => {
+            range.value = String(cur[cfg.key]);
+            value.textContent = signed(cur[cfg.key], cfg.unit);
+        });
+        const hex = coverColorHex(cur, palette);
+        resultSwatch.style.background = hex || '';
+        resultText.textContent = hex ? hex.toUpperCase() : '';
+        result.hidden = !hex;
+        note.textContent = hex
+            ? 'Changes with every song. Double-click a slider to reset it.'
+            : 'Play a song to load its cover colours. Until then the colour picker’s value is used.';
+        if (hex) input.value = hex;
+    };
+
+    coverRepaints.set(row, sync);
+    requestAnimationFrame(() => refreshCoverPalette());
+
+    return { button, panel, sync };
 }
 
 function applyCustomizeFilter(): void {
@@ -787,7 +971,9 @@ function formatFieldValue(value: unknown, unit = ''): string {
 const RESET_SVG = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.7-4"></path><path d="M2 2.5V6h3.5"></path></svg>';
 
 function isBaselineValue(def: FieldDef): boolean {
-    return themeState.activeTheme[def.id] === baseline.config[def.id];
+    if (themeState.activeTheme[def.id] !== baseline.config[def.id]) return false;
+    if (!isCoverField(def)) return true;
+    return sameCoverChoice(coverChoiceFor(themeState.activeTheme, def.id), coverChoiceFor(baseline.config, def.id));
 }
 
 function buildField(def: FieldDef, index: number): FieldHandle {
@@ -848,9 +1034,26 @@ function buildField(def: FieldDef, index: number): FieldHandle {
             input.type = 'color';
             input.className = 'st-m-color';
             input.value = toColorInputValue(String(cur ?? ''));
-            input.addEventListener('input', () => liveUpdate(def.id, input.value as any));
-            control.appendChild(input);
-            sync = () => { input.value = toColorInputValue(String(themeState.activeTheme[def.id] ?? '')); };
+            if (!isCoverField(def)) {
+                input.addEventListener('input', () => liveUpdate(def.id, input.value as any));
+                control.appendChild(input);
+                sync = () => { input.value = toColorInputValue(String(themeState.activeTheme[def.id] ?? '')); };
+                break;
+            }
+            const cover = buildCoverControls(def, input, row);
+            input.addEventListener('input', () => {
+                if (coverChoiceFor(themeState.activeTheme, def.id)) {
+                    setCoverColor(def.id, null);
+                    cover.sync();
+                }
+                liveUpdate(def.id, input.value as any);
+            });
+            control.append(cover.button, input);
+            row.appendChild(cover.panel);
+            sync = () => {
+                input.value = toColorInputValue(String(themeState.activeTheme[def.id] ?? ''));
+                cover.sync();
+            };
             break;
         }
         case 'slider': {
@@ -1034,6 +1237,7 @@ function buildField(def: FieldDef, index: number): FieldHandle {
     reset.type = 'button';
     reset.innerHTML = RESET_SVG;
     reset.addEventListener('click', () => {
+        if (isCoverField(def)) setCoverColor(def.id, coverChoiceFor(baseline.config, def.id));
         liveUpdate(def.id, baseline.config[def.id]);
         syncAllFields();
     });
