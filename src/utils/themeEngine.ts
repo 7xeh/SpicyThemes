@@ -944,6 +944,10 @@ ${ALL.flatMap(b => [
     transition-timing-function: linear !important;
     backface-visibility: hidden !important;
 }
+${ALL.map(b => `${b} .line.musical-line.musical-line`).join(',\n')} {
+    background-image: none !important;
+    contain: style !important;
+}
 ${ALL.map(b => `${b} .line.musical-line .dotGroup .dot`).join(',\n')} {
     font-family: inherit !important;
     font-style: normal !important;
