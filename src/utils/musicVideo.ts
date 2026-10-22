@@ -368,7 +368,7 @@ function handleQualities(player: YtModulePlayer, qualities: YtModuleQualities): 
             applyChoiceNow(player, qualities, choice);
         } else if (pendingChoice !== null) {
             ensureEmbedHasTicket(player);
-        } else if (!qualityApplied) {
+        } else if (!qualityApplied && player.isReady()) {
             qualityApplied = true;
             applyQualityPolicy();
         }
@@ -1025,6 +1025,7 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
                     markSeek(target, performance.now(), live, live);
                 }
                 player.playVideo();
+                if (!qualityApplied) player.requestQualities();
                 if (player.getCaptionsShowing() > 0) {
                     debug('music video: captions showing despite captions=0, forcing off');
                     player.setCaptions(false);
