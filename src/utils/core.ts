@@ -5,6 +5,11 @@ import { openSettingsModal } from './settings';
 
 import { setViewingLyrics } from './connectivity';
 import { themeMode, nextThemeMode, cycleThemeMode, onThemeModeChange, ThemeMode } from './videoMode';
+import { currentVideoVariants, chooseVideoVariant, onVideoVariantsChange, onVideoCreditChange, videoShowing, VideoVariantInfo } from './musicVideo';
+import { openMenu, paintTone } from './surface';
+
+const VARIANT_BUTTON_ID = 'STVideoVariants';
+let variantMenuHost: HTMLElement | null = null;
 
 let themeButton: HTMLElement | null = null;
 
@@ -70,6 +75,62 @@ onThemeModeChange((reinject) => {
     refreshThemeButton();
 });
 
+function variantTooltip(variants: VideoVariantInfo[]): string {
+    const playing = variants.find(v => v.current);
+    return playing ? `Video: ${playing.label}` : 'Choose video';
+}
+
+function openVariantMenu(button: HTMLElement): void {
+    const variants = currentVideoVariants();
+    if (variants.length < 2) return;
+    if (!variantMenuHost || !variantMenuHost.isConnected) {
+        variantMenuHost = document.createElement('div');
+        paintTone(variantMenuHost, 'accent');
+        document.body.append(variantMenuHost);
+    }
+    openMenu(button, variants.map(v => ({
+        label: v.current ? `${v.label} ✓` : v.label,
+        hint: [v.current ? 'Playing now' : '', v.preferred ? 'Uploader’s pick' : ''].filter(Boolean).join(' · ') || undefined,
+        onClick: () => {
+            if (!v.current) chooseVideoVariant(v.id);
+        },
+    })), variantMenuHost);
+}
+
+export function syncVariantButton(): void {
+    const existing = document.getElementById(VARIANT_BUTTON_ID);
+    const variants = themeState.isEnabled && videoShowing() ? currentVideoVariants() : [];
+    if (variants.length < 2) {
+        existing?.remove();
+        return;
+    }
+    const tip = variantTooltip(variants);
+    if (existing) {
+        existing.setAttribute('aria-label', tip);
+        (existing as any)._tippy?.setContent(tip);
+        return;
+    }
+    const toggle = document.querySelector('#SpicyLyricsPage:not(.CardMode) .ViewControls #ThemeToggle');
+    if (!toggle) return;
+    const button = document.createElement('button');
+    button.id = VARIANT_BUTTON_ID;
+    button.className = 'ViewControl';
+    button.innerHTML = Icons.Videos;
+    button.setAttribute('aria-label', tip);
+    button.setAttribute('aria-haspopup', 'menu');
+    if (typeof Spicetify !== 'undefined' && Spicetify.Tippy) {
+        Spicetify.Tippy(button, { ...Spicetify.TippyProps, content: tip });
+    }
+    button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openVariantMenu(button);
+    });
+    toggle.after(button);
+}
+
+onVideoVariantsChange(syncVariantButton);
+onVideoCreditChange(syncVariantButton);
+
 export function isSpicyLyricsOpen(): boolean {
     if (document.querySelector('#SpicyLyricsPage')) return true;
     if (document.querySelector('.spicy-pip-wrapper #SpicyLyricsPage')) return true;
@@ -87,7 +148,10 @@ export function createThemeButton(): void {
     if (themeButton && !document.body.contains(themeButton)) {
         themeButton = null;
     }
-    if (themeButton) return;
+    if (themeButton) {
+        syncVariantButton();
+        return;
+    }
 
     if (document.getElementById('ThemeToggle')) return;
 
@@ -132,6 +196,7 @@ export function createThemeButton(): void {
     }
 
     themeButton = button;
+    syncVariantButton();
 }
 
 export function removeThemeButton(): void {
@@ -140,6 +205,7 @@ export function removeThemeButton(): void {
         themeButton = null;
     }
     document.getElementById('ThemeToggle')?.remove();
+    document.getElementById(VARIANT_BUTTON_ID)?.remove();
 }
 
 export function onSpicyLyricsOpen(): void {

@@ -161,6 +161,8 @@ export interface ThemeConfig {
     lineWindowSungLines: number;
     lineWindowUnsungLines: number;
     scaleActive: number;
+    inactiveLineScale: number;
+    focusDuration: number;
     scaleInEffect: boolean;
     scaleInFrom: number;
     scaleInDuration: number;
@@ -328,6 +330,9 @@ export interface ThemeConfig {
     musicVideoDim: number;
     musicVideoBackdrop: string;
     musicVideoFit: string;
+    musicVideoLayout: string;
+    musicVideoEdgeFeather: number;
+    musicVideoTrimBars: boolean;
     musicVideoBlend: number;
     musicVideoPlayerFade: number;
     musicVideoCredit: string;
@@ -392,6 +397,8 @@ export const DEFAULT_THEME: ThemeConfig = {
     lineWindowSungLines: 2,
     lineWindowUnsungLines: 3,
     scaleActive: 1.02,
+    inactiveLineScale: 1,
+    focusDuration: 0.5,
     scaleInEffect: false,
     scaleInFrom: 0.96,
     scaleInDuration: 0.35,
@@ -559,6 +566,9 @@ export const DEFAULT_THEME: ThemeConfig = {
     musicVideoDim: 0.3,
     musicVideoBackdrop: 'solid',
     musicVideoFit: 'zoom',
+    musicVideoLayout: 'background',
+    musicVideoEdgeFeather: 18,
+    musicVideoTrimBars: true,
     musicVideoBlend: 0.5,
     musicVideoPlayerFade: 0,
     musicVideoCredit: 'video',
@@ -1129,6 +1139,8 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     sltScaleInDuration: [0.1, 1.0],
     sltAnimationSpeed: [0.3, 3.0],
     scaleActive: [0.95, 1.12],
+    inactiveLineScale: [0.5, 1],
+    focusDuration: [0.1, 1.5],
     scaleInFrom: [0.85, 1.05],
     scaleInDuration: [0.1, 1.0],
     animationSpeed: [0.3, 3.0],
@@ -1153,6 +1165,7 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     musicVideoDim: [0, 1],
     musicVideoBlend: [0.1, 1],
     musicVideoPlayerFade: [0, 100],
+    musicVideoEdgeFeather: [0, 45],
     eqSize: [0.4, 2.5],
     eqSpeed: [0.3, 3.0],
 };
@@ -1380,8 +1393,12 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         normalized.musicVideoBackdrop = 'solid';
     }
 
-    if (!['zoom', 'cover', 'contain', 'stretch'].includes(normalized.musicVideoFit)) {
+    if (!['zoom', 'cover', 'contain', 'blend', 'stretch'].includes(normalized.musicVideoFit)) {
         normalized.musicVideoFit = 'zoom';
+    }
+
+    if (!['background', 'stage'].includes(normalized.musicVideoLayout)) {
+        normalized.musicVideoLayout = 'background';
     }
 
     if (!['video', 'always', 'off'].includes(normalized.musicVideoCredit)) {

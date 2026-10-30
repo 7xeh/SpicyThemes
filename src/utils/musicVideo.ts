@@ -1,6 +1,7 @@
-import { YtModulePlayer, YtModuleQualities, YTMODULE_STATE, ytModuleParentOrigin } from './ytmodule';
+import { YtModulePlayer, YtModuleQualities, YtModuleEdges, YtModuleFrame, YTMODULE_STATE, ytModuleParentOrigin, parseEdges } from './ytmodule';
 import { debug } from './debug';
 import { storage } from './storage';
+import { themeState } from './state';
 import {
     BACKDROP_HEIGHT,
     FREE_MAX_HEIGHT,
@@ -32,6 +33,19 @@ interface VideoMeta {
     track_artist?: string;
     track_album_art?: string;
     uploader?: VideoUploader;
+    variant_id?: string;
+    label?: string;
+    kind?: string;
+    preferred?: boolean;
+    variant_count?: number;
+    crop?: YtModuleEdges | null;
+}
+
+export interface VideoVariantInfo {
+    id: string;
+    label: string;
+    preferred: boolean;
+    current: boolean;
 }
 
 export interface VideoUploader {
@@ -78,10 +92,36 @@ const YTMODULE_STALL_MS = 4000;
 const YTMODULE_VIDEO_CODEC = 'video/mp4;codecs="av01.0.04M.08"';
 const YTMODULE_ERROR_GRACE_MS = 4500;
 const YTMODULE_ERROR_POLL_MS = 250;
+const VARIANT_KEY = 'mv-variant:';
+const VARIANT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const MAX_VARIANTS = 12;
+const VARIANT_KIND_LABELS: Record<string, string> = {
+    official: 'Official video',
+    opening: 'Opening',
+    ending: 'Ending',
+    live: 'Live',
+    lyric: 'Lyric video',
+    fan: 'Fan video',
+    other: 'Video',
+};
+const LAYOUT_CLASS = 'st-mv-js';
+const BOXED_CLASS = 'st-mv-boxed';
+const STAGE_CLASS = 'st-mv-stage';
+const LAYOUT_VARS = ['--st-mv-x', '--st-mv-y', '--st-mv-w', '--st-mv-h', '--st-mv-fx', '--st-mv-fy', '--st-mv-fw', '--st-mv-fh', '--st-mv-ft', '--st-mv-mask-x', '--st-mv-mask-y'];
+const STAGE_FEATHER = 0.45;
+const ZOOM_OVERSCAN = 1.04;
+const TEXT_STRIP_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g;
 
 const videoCache = new Map<string, VideoMeta | null>();
+const variantCache = new Map<string, VideoMeta[]>();
+const variantListeners = new Set<() => void>();
 const videoCachedAt = new Map<string, number>();
 const failCounts = new Map<string, number>();
+
+let embedFrame: YtModuleFrame | null = null;
+let layoutKey = '';
+let pageObserver: ResizeObserver | null = null;
+let pageObserved: HTMLElement | null = null;
 
 let running = false;
 let stretchObserver: ResizeObserver | null = null;
@@ -650,6 +690,12 @@ function normalizeMeta(raw: any, id: string): VideoMeta | null {
         track_artist: raw.track_artist,
         track_album_art: raw.track_album_art,
         uploader: normalizeUploader(raw),
+        variant_id: VARIANT_ID_RE.test(String(raw.variant_id ?? '')) ? String(raw.variant_id) : undefined,
+        label: typeof raw.label === 'string' ? raw.label.replace(TEXT_STRIP_RE, '').trim().slice(0, 40) || undefined : undefined,
+        kind: typeof raw.kind === 'string' && VARIANT_KIND_LABELS[raw.kind] ? raw.kind : undefined,
+        preferred: raw.preferred === true,
+        variant_count: Math.min(Math.max(Math.round(num(raw.variant_count, 1)), 1), MAX_VARIANTS),
+        crop: parseEdges(raw.crop),
     };
 }
 
@@ -671,20 +717,95 @@ function cacheMeta(id: string, meta: VideoMeta | null): void {
     videoCachedAt.set(id, Date.now());
 }
 
+function rememberedVariant(id: string): string | null {
+    const stored = storage.get(VARIANT_KEY + id);
+    return stored && VARIANT_ID_RE.test(stored) ? stored : null;
+}
+
+function pickVariant(id: string, preferred: VideoMeta | null, variants: VideoMeta[]): VideoMeta | null {
+    const want = rememberedVariant(id);
+    if (want) {
+        const hit = variants.find(v => v.variant_id === want);
+        if (hit) return hit;
+    }
+    return preferred ?? variants.find(v => v.preferred) ?? variants[0] ?? null;
+}
+
+function emitVariants(): void {
+    variantListeners.forEach(fn => {
+        try {
+            fn();
+        } catch (e) {}
+    });
+}
+
+export function onVideoVariantsChange(fn: () => void): () => void {
+    variantListeners.add(fn);
+    return () => variantListeners.delete(fn);
+}
+
+export function currentVideoVariants(): VideoVariantInfo[] {
+    const id = currentTrackId();
+    if (!id) return [];
+    const list = (variantCache.get(id) || []).filter(v => v.variant_id);
+    if (list.length < 2) return [];
+    const playing = (videoCache.get(id) ?? (currentId === id ? currentMeta : null))?.variant_id;
+    return list.map((v, i) => ({
+        id: v.variant_id as string,
+        label: v.label || (v.kind && VARIANT_KIND_LABELS[v.kind]) || `Video ${i + 1}`,
+        preferred: !!v.preferred,
+        current: v.variant_id === playing,
+    }));
+}
+
+export function chooseVideoVariant(variantId: string): void {
+    const id = currentTrackId();
+    if (!id) return;
+    const hit = (variantCache.get(id) || []).find(v => v.variant_id === variantId);
+    if (!hit) return;
+    if (hit.preferred) storage.remove(VARIANT_KEY + id);
+    else storage.set(VARIANT_KEY + id, variantId);
+    cacheMeta(id, hit);
+    emitVariants();
+    if (!running) return;
+    if (!evaluating) evaluate();
+    else setTimeout(() => {
+        if (running && !evaluating) evaluate();
+    }, 400);
+}
+
 async function fetchVideo(id: string): Promise<VideoMeta | null> {
-    if (cacheFresh(id)) return videoCache.get(id) ?? null;
+    if (cacheFresh(id)) {
+        const cached = videoCache.get(id) ?? null;
+        if (!cached || (cached.variant_count ?? 1) < 2 || variantCache.has(id)) return cached;
+    }
     try {
         const res = await fetchWithTimeout(`${API_BASE}?action=get&track=${encodeURIComponent(id)}`);
         if (res.status === 404) {
             cacheMeta(id, null);
+            variantCache.delete(id);
             emitAvailability();
+            emitVariants();
             return null;
         }
         if (!res.ok) return videoCache.get(id) ?? null;
         const data = await res.json();
-        const meta = normalizeMeta(data?.video, id);
+        const preferred = normalizeMeta(data?.video, id);
+        const variants: VideoMeta[] = (Array.isArray(data?.variants) ? data.variants : [])
+            .slice(0, MAX_VARIANTS)
+            .map((raw: any) => normalizeMeta(raw, id))
+            .filter((v: VideoMeta | null): v is VideoMeta => !!v && !!v.variant_id);
+        if (variants.length > 1) {
+            variants.forEach(v => { v.variant_count = variants.length; });
+            if (preferred) preferred.variant_count = variants.length;
+            variantCache.set(id, variants);
+        } else {
+            variantCache.delete(id);
+        }
+        const meta = pickVariant(id, preferred, variants);
         cacheMeta(id, meta);
         emitAvailability();
+        emitVariants();
         return meta;
     } catch (e) {
         return videoCache.get(id) ?? null;
@@ -701,7 +822,9 @@ async function batchPrefetch(ids: string[]): Promise<void> {
         const videos = data?.videos;
         const map = videos && !Array.isArray(videos) ? videos : {};
         for (const id of want) {
-            cacheMeta(id, map[id] ? normalizeMeta(map[id], id) : null);
+            const meta = map[id] ? normalizeMeta(map[id], id) : null;
+            if (meta && (meta.variant_count ?? 1) > 1 && rememberedVariant(id)) continue;
+            cacheMeta(id, meta);
         }
     } catch (e) {}
 }
@@ -917,6 +1040,12 @@ function ensureContainer(): HTMLElement | null {
         stretchObserver.observe(target);
         stretchObserved = target;
     }
+    if (pageObserved !== page && typeof ResizeObserver !== 'undefined') {
+        pageObserver?.disconnect();
+        pageObserver = new ResizeObserver(() => updateLayout());
+        pageObserver.observe(page);
+        pageObserved = page as HTMLElement;
+    }
     updateStretch(c);
     return c;
 }
@@ -925,7 +1054,214 @@ function removeContainer(): void {
     stretchObserver?.disconnect();
     stretchObserver = null;
     stretchObserved = null;
+    pageObserver?.disconnect();
+    pageObserver = null;
+    pageObserved = null;
+    clearLayout(document.getElementById(CONTAINER_ID), document.querySelector<HTMLElement>('#SpicyLyricsPage'));
     document.getElementById(CONTAINER_ID)?.remove();
+}
+
+interface Box {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+
+interface StageRegion extends Box {
+    feather: number;
+}
+
+interface VideoLayout {
+    box: Box;
+    frame: Box;
+    transform: string;
+    maskX: string;
+    maskY: string;
+    boxed: boolean;
+    stage: boolean;
+}
+
+function stageRegion(page: HTMLElement, W: number, H: number): StageRegion | null {
+    if (themeState.activeTheme.musicVideoLayout !== 'stage') return null;
+    if (!page.classList.contains('NowBarStatus__Open')) return null;
+    if (page.matches('.CardMode, .CompactMode, .ForcedCompactMode')) return null;
+    const content = page.querySelector<HTMLElement>(':scope > .ContentBox, .ContentBox');
+    if (!content || content.classList.contains('LyricsHidden')) return null;
+    const bar = content.querySelector<HTMLElement>('.NowBar');
+    if (!bar) return null;
+    const pr = page.getBoundingClientRect();
+    const br = bar.getBoundingClientRect();
+    if (pr.width <= 0 || br.width <= 0) return null;
+    const scale = pr.width / W;
+    const feather = (br.width / scale) * STAGE_FEATHER;
+    if (page.classList.contains('NowBarSide__Left') || bar.classList.contains('LeftSide')) {
+        const w = Math.min(W, (br.right - pr.left) / scale + feather);
+        return w < W * 0.9 ? { x: 0, y: 0, w, h: H, feather } : null;
+    }
+    const x = Math.max(0, (br.left - pr.left) / scale - feather);
+    return x > W * 0.1 ? { x, y: 0, w: W - x, h: H, feather } : null;
+}
+
+function sourceShape(): { aspect: number; picture: Box } {
+    const full = { x: 0, y: 0, w: 1, h: 1 };
+    if (activeSource === 'mp4_url') {
+        const w = mp4El?.videoWidth || 0;
+        const h = mp4El?.videoHeight || 0;
+        return { aspect: w > 0 && h > 0 ? w / h : 16 / 9, picture: full };
+    }
+    const aspect = 16 / 9;
+    if (ytEngine !== 'ytmodule' || !embedFrame) return { aspect, picture: full };
+    const pa = embedFrame.width / embedFrame.height;
+    if (Math.abs(pa - aspect) < 0.01) return { aspect, picture: full };
+    return pa < aspect
+        ? { aspect, picture: { x: (1 - pa / aspect) / 2, y: 0, w: pa / aspect, h: 1 } }
+        : { aspect, picture: { x: 0, y: (1 - aspect / pa) / 2, w: 1, h: aspect / pa } };
+}
+
+function px(n: number): string {
+    return `${Math.round(n * 10) / 10}px`;
+}
+
+function fadeStops(from: number, to: number): string[] {
+    const at = (t: number) => px(from + (to - from) * t);
+    return [`transparent ${px(from)}`, `rgba(0, 0, 0, 0.1) ${at(0.18)}`, `rgba(0, 0, 0, 0.36) ${at(0.38)}`, `rgba(0, 0, 0, 0.85) ${at(0.72)}`, `#000 ${px(to)}`];
+}
+
+function edgeMask(direction: string, length: number, start: number, end: number, fadeStart: number, fadeEnd: number): string {
+    if (fadeStart <= 0 && fadeEnd <= 0) return 'none';
+    const head = fadeStart > 0 ? fadeStops(start, start + fadeStart) : [`#000 ${px(start)}`];
+    const tail = fadeEnd > 0 ? fadeStops(end, end - fadeEnd).reverse() : [`#000 ${px(end)}`];
+    if (end < length) tail.push(`transparent ${px(end)}`);
+    return `linear-gradient(${direction}, ${[...head, ...tail].join(', ')})`;
+}
+
+function computeLayout(page: HTMLElement): VideoLayout | null {
+    const W = page.clientWidth;
+    const H = page.clientHeight;
+    if (!W || !H || !activeSource) return null;
+    const cfg = themeState.activeTheme;
+    const fit = cfg.musicVideoFit;
+    const stage = stageRegion(page, W, H);
+    const shape = sourceShape();
+    const crop = cfg.musicVideoTrimBars
+        ? (currentMeta?.crop || (ytEngine === 'ytmodule' ? embedFrame?.bars : null) || null)
+        : null;
+    const pictureFull = shape.picture.w > 0.999 && shape.picture.h > 0.999;
+    if (!stage && fit !== 'blend' && !crop && pictureFull) return null;
+
+    const c = crop || { top: 0, right: 0, bottom: 0, left: 0 };
+    const cx = shape.picture.x + c.left * shape.picture.w;
+    const cw = shape.picture.w * (1 - c.left - c.right);
+    const cy = shape.picture.y + c.top * shape.picture.h;
+    const ch = shape.picture.h * (1 - c.top - c.bottom);
+    if (cw < 0.05 || ch < 0.05) return null;
+    const contentAspect = (cw * shape.aspect) / ch;
+
+    const region: Box = stage || { x: 0, y: 0, w: W, h: H };
+    const fill = fit === 'zoom' || fit === 'cover';
+    let w: number;
+    let h: number;
+    if (fit === 'stretch') {
+        w = region.w;
+        h = region.h;
+    } else if (fill === region.w / region.h > contentAspect) {
+        w = region.w;
+        h = region.w / contentAspect;
+    } else {
+        h = region.h;
+        w = region.h * contentAspect;
+    }
+    if (fit === 'zoom') {
+        w *= ZOOM_OVERSCAN;
+        h *= ZOOM_OVERSCAN;
+    }
+    const content: Box = { x: region.x + (region.w - w) / 2, y: region.y + (region.h - h) / 2, w, h };
+    const x0 = Math.max(content.x, region.x);
+    const y0 = Math.max(content.y, region.y);
+    const box: Box = {
+        x: x0,
+        y: y0,
+        w: Math.min(content.x + content.w, region.x + region.w) - x0,
+        h: Math.min(content.y + content.h, region.y + region.h) - y0,
+    };
+
+    const frameW = w / cw;
+    const frameH = h / ch;
+    const frameX = content.x - cx * frameW;
+    const frameY = content.y - cy * frameH;
+    let drawW = frameW;
+    let transform = 'none';
+    if (fit === 'stretch' && activeSource === 'youtube') {
+        drawW = frameH * shape.aspect;
+        transform = `scaleX(${Math.round((frameW / drawW) * 10000) / 10000})`;
+    }
+
+    const feather = Math.min(Math.max(Number(cfg.musicVideoEdgeFeather) || 0, 0), 45) / 100;
+    const gapL = box.x > 0.5;
+    const gapR = box.x + box.w < W - 0.5;
+    const gapT = box.y > 0.5;
+    const gapB = box.y + box.h < H - 0.5;
+    const sideFade = (gap: boolean, lyricsSide: boolean) => {
+        if (!gap) return 0;
+        const base = feather * box.w;
+        return Math.min(box.w / 2, lyricsSide && stage ? Math.max(base, stage.feather) : base);
+    };
+    const stageOnLeft = !!stage && stage.x <= 0.5;
+    const fadeL = sideFade(gapL, !!stage && !stageOnLeft);
+    const fadeR = sideFade(gapR, stageOnLeft);
+    const fadeT = gapT ? Math.min(box.h / 2, feather * box.h) : 0;
+    const fadeB = gapB ? Math.min(box.h / 2, feather * box.h) : 0;
+    const top = box.y - frameY;
+
+    return {
+        box,
+        frame: { x: frameX - box.x, y: frameY - box.y, w: drawW, h: frameH },
+        transform,
+        maskX: edgeMask('to right', box.w, 0, box.w, fadeL, fadeR),
+        maskY: edgeMask('to bottom', frameH, top, top + box.h, fadeT, fadeB),
+        boxed: gapL || gapR || gapT || gapB,
+        stage: !!stage,
+    };
+}
+
+function clearLayout(c: HTMLElement | null, page: HTMLElement | null): void {
+    layoutKey = '';
+    if (c) {
+        c.classList.remove(LAYOUT_CLASS);
+        LAYOUT_VARS.forEach(v => c.style.removeProperty(v));
+    }
+    page?.classList.remove(BOXED_CLASS, STAGE_CLASS);
+}
+
+function updateLayout(): void {
+    const c = document.getElementById(CONTAINER_ID);
+    const page = document.querySelector<HTMLElement>('#SpicyLyricsPage');
+    const layout = c && page ? computeLayout(page) : null;
+    if (!c || !page || !layout) {
+        if (layoutKey || c?.classList.contains(LAYOUT_CLASS) || page?.classList.contains(BOXED_CLASS) || page?.classList.contains(STAGE_CLASS)) clearLayout(c, page);
+        return;
+    }
+    const values: [string, string][] = [
+        ['--st-mv-x', px(layout.box.x)],
+        ['--st-mv-y', px(layout.box.y)],
+        ['--st-mv-w', px(layout.box.w)],
+        ['--st-mv-h', px(layout.box.h)],
+        ['--st-mv-fx', px(layout.frame.x)],
+        ['--st-mv-fy', px(layout.frame.y)],
+        ['--st-mv-fw', px(layout.frame.w)],
+        ['--st-mv-fh', px(layout.frame.h)],
+        ['--st-mv-ft', layout.transform],
+        ['--st-mv-mask-x', layout.maskX],
+        ['--st-mv-mask-y', layout.maskY],
+    ];
+    const key = values.map(v => v[1]).join('|') + `|${layout.boxed}|${layout.stage}`;
+    if (key === layoutKey && c.classList.contains(LAYOUT_CLASS)) return;
+    layoutKey = key;
+    values.forEach(([name, value]) => c.style.setProperty(name, value));
+    c.classList.add(LAYOUT_CLASS);
+    page.classList.toggle(BOXED_CLASS, layout.boxed);
+    page.classList.toggle(STAGE_CLASS, layout.stage);
 }
 
 function loadYouTubeAPI(cb: () => void): void {
@@ -1036,6 +1372,11 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
             onCaptionsChange: (showing, tracks) => {
                 debug('music video: yt module captions', showing, 'of', tracks);
             },
+            onFrame: (frame, player) => {
+                if (token !== buildToken || ytModulePlayer !== player) return;
+                embedFrame = frame;
+                updateLayout();
+            },
             onQualities: (qualities, player) => {
                 if (token !== buildToken || ytModulePlayer !== player) return;
                 handleQualities(player, qualities);
@@ -1092,6 +1433,7 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
 function fallbackToIframeApi(reason: string, videoFault = false): void {
     if (!running || activeSource !== 'youtube' || ytEngine !== 'ytmodule') return;
     debug('music video: falling back to youtube iframe', reason);
+    embedFrame = null;
     const meta = currentMeta;
     const container = document.getElementById(CONTAINER_ID);
     if (!meta || !container) return;
@@ -1202,6 +1544,7 @@ function attachMp4(container: HTMLElement, meta: VideoMeta): void {
     video.addEventListener('loadedmetadata', () => {
         if (mp4El !== video) return;
         disableTextTracks();
+        updateLayout();
         try {
             video.currentTime = songMsToVideoMs(meta, currentSongMs()) / 1000;
         } catch (e) {}
@@ -1227,6 +1570,7 @@ function buildSource(id: string, meta: VideoMeta): void {
     currentId = id;
     currentMeta = meta;
     activeSource = meta.source_type;
+    embedFrame = null;
     mediaPlaying = false;
     mediaVisible = false;
     adActive = false;
@@ -1262,6 +1606,7 @@ function buildSource(id: string, meta: VideoMeta): void {
             });
         }
     }
+    updateLayout();
 }
 
 function destroyPlayers(): void {
@@ -1317,6 +1662,8 @@ function teardownSource(): void {
         });
         c.innerHTML = '';
     }
+    clearLayout(c, document.querySelector<HTMLElement>('#SpicyLyricsPage'));
+    embedFrame = null;
     setPageActive(false);
     currentId = null;
     currentMeta = null;
@@ -1590,6 +1937,7 @@ function tick(ts: number): void {
     if (ts - lastModeCheck > MODE_CHECK_MS) {
         lastModeCheck = ts;
         syncAutoCompact(ts);
+        updateLayout();
         const large = isLargeView();
         if (large !== largeView) {
             largeView = large;
@@ -1805,5 +2153,7 @@ export function refreshMusicVideoLayer(): void {
         return;
     }
     if (c.parentElement !== page) page.appendChild(c);
+    layoutKey = '';
+    updateLayout();
     setPageActive(mediaVisible && !adActive);
 }

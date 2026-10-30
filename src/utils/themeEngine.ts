@@ -853,7 +853,10 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const glowActive = filterDecl(glowActiveFn, shadowFilter);
     const glowNormal = filterDecl(glowNormalFn, shadowFilter);
     const glowSidebar = filterDecl(glowSidebarFn, shadowFilter);
-    const scaleEffect = !config.scaleInEffect && config.scaleActive !== 1.0 && `transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1) !important;`;
+    const inactiveScale = round(clamp(Number(config.inactiveLineScale) || 1, 0.5, 1), 3);
+    const shrinkLines = inactiveScale < 1;
+    const scaleInOn = config.scaleInEffect && !shrinkLines;
+    const scaleEffect = !scaleInOn && config.scaleActive !== 1.0 && `transform: scale3d(${config.scaleActive}, ${config.scaleActive}, 1) !important;`;
     const glowPulseOn = config.glowEnabled && config.glowPulse;
     const pulseSpeed = Math.min(Math.max(config.glowPulseSpeed, 0.3), 3);
     const pulsePeak = Math.min(Math.round(clampedActiveGlow * 1.9) + 2, 30);
@@ -1044,6 +1047,7 @@ ${lineOriginRules(ALL.map(b => `${b} .line.Active`))}
 `);
     }
 
+
     lyrics.push(`
 ${lineSelectors(ALL, 'Sung')} {
     ${sungGrad}
@@ -1077,7 +1081,7 @@ ${ALL.map(b => `${b} .line.NotSung`).join(',\n')} {
     50% { filter: ${filterList(`drop-shadow(0 0 ${pulsePeak}px ${config.activeGlowColor})`, shadowFilter)}; }
 }
 `);
-        if (!config.scaleInEffect) {
+        if (!scaleInOn) {
             lyrics.push(`
 ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
     animation: ${pulseAnim} !important;
@@ -1625,9 +1629,31 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
     ));
     }
 
+    if (shrinkLines) {
+        const focusS = round(clamp(Number(config.focusDuration) || 0.5, 0.1, 1.5), 3);
+        const baseDur = config.disableHighlight ? `var(--st-lyric-snap, ${lyricSnapMs}ms)` : 'var(--st-lyric-transition)';
+        const props = ['opacity', 'filter', 'transform', 'color', '-webkit-text-fill-color', '--gradient-position', '--gradient-offset', '--gradient-alpha', '--gradient-alpha-end'];
+        const inactive = ALL.flatMap(b => [`${b} .line.Sung`, `${b} .line.NotSung`]);
+        lyrics.push(`
+${ALL.flatMap(b => [`${b} .line.line`, `${b} .line.Sung`, `${b} .line.NotSung`, `${b} .line.Active`]).join(',\n')} {
+    transition-property: ${props.join(', ')} !important;
+    transition-duration: ${props.map(p => p === 'transform' ? `${focusS}s` : baseDur).join(', ')} !important;
+    transition-timing-function: ${props.map(p => p === 'transform' ? 'cubic-bezier(0.22, 1, 0.36, 1)' : 'linear').join(', ')} !important;
+    will-change: transform !important;
+}
+${inactive.join(',\n')} {
+    transform: scale3d(${inactiveScale}, ${inactiveScale}, 1) !important;
+}
+${scaleEffect ? '' : `${ALL.map(b => `${b} .line.Active`).join(',\n')} {
+    transform: scale3d(1, 1, 1) !important;
+}`}
+${lineOriginRules(ALL.flatMap(b => [`${b} .line.Sung`, `${b} .line.NotSung`, `${b} .line.Active`]))}
+`);
+    }
+
     lyrics.push(...wordEffectCSS(config, ALL, wordBaseShadow, !sltIndep));
 
-    if (config.scaleInEffect) {
+    if (scaleInOn) {
         const scaleInTargets = [
             ...ALL.map(b => `${b} .line.Active`),
             ...sltShared([
@@ -1796,6 +1822,10 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
     min-height: 0 !important;
     width: min(100cqw, calc(100cqh * 16 / 9)) !important;
     height: auto !important;`,
+            blend: `    min-width: 0 !important;
+    min-height: 0 !important;
+    width: min(100cqw, calc(100cqh * 16 / 9)) !important;
+    height: auto !important;`,
             stretch: `    min-width: 0 !important;
     min-height: 0 !important;
     width: 100cqw !important;
@@ -1812,24 +1842,64 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
     opacity: 1 !important;
 }` : '';
         const mvBackdrop = config.musicVideoBackdrop === 'blend' ? `
-#SpicyLyricsPage.st-mv-active .spicy-dynamic-bg {
+#SpicyLyricsPage.st-mv-active:not(.st-mv-boxed) .spicy-dynamic-bg {
     opacity: ${round(1 - mvMix, 3)} !important;
     transition: opacity 0.4s ease !important;
 }
 #SpicyLyricsPage.st-mv-active.${BG_IMAGE_ACTIVE_CLASS}:not(.CardMode) #${MUSIC_VIDEO_ID},
-#SpicyLyricsPage.st-mv-active.${ANIM_BG_SOLID_CLASS}:not(.CardMode) #${MUSIC_VIDEO_ID} {
+#SpicyLyricsPage.st-mv-active.${ANIM_BG_SOLID_CLASS}:not(.CardMode) #${MUSIC_VIDEO_ID},
+#SpicyLyricsPage.st-mv-active.st-mv-boxed:not(.CardMode) #${MUSIC_VIDEO_ID} {
     opacity: ${mvMix} !important;
 }
 ` : `
-#SpicyLyricsPage.st-mv-active .spicy-dynamic-bg {
+#SpicyLyricsPage.st-mv-active:not(.st-mv-boxed) .spicy-dynamic-bg {
     opacity: 0 !important;
     transition: opacity 0.4s ease !important;
 }
-#SpicyLyricsPage.st-mv-active .LyricsContainer::before,
-#SpicyLyricsPage.st-mv-active.CompactMode .ContentBox::after {
+#SpicyLyricsPage.st-mv-active:not(.st-mv-boxed) .LyricsContainer::before,
+#SpicyLyricsPage.st-mv-active.CompactMode:not(.st-mv-boxed) .ContentBox::after {
     background: transparent !important;
 }
 `;
+        const mvStage = `
+#SpicyLyricsPage #${MUSIC_VIDEO_ID}.st-mv-js {
+    inset: auto !important;
+    left: var(--st-mv-x, 0px) !important;
+    top: var(--st-mv-y, 0px) !important;
+    width: var(--st-mv-w, 100%) !important;
+    height: var(--st-mv-h, 100%) !important;
+    -webkit-mask-image: var(--st-mv-mask-x, none) !important;
+    mask-image: var(--st-mv-mask-x, none) !important;
+}
+#SpicyLyricsPage #${MUSIC_VIDEO_ID}.st-mv-js iframe,
+#SpicyLyricsPage #${MUSIC_VIDEO_ID}.st-mv-js video {
+    inset: auto !important;
+    left: var(--st-mv-fx, 0px) !important;
+    top: var(--st-mv-fy, 0px) !important;
+    width: var(--st-mv-fw, 100%) !important;
+    height: var(--st-mv-fh, 100%) !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    aspect-ratio: auto !important;
+    transform: var(--st-mv-ft, none) !important;
+    transform-origin: 0 0 !important;
+    object-fit: fill !important;
+    -webkit-mask-image: var(--st-mv-mask-y, none) !important;
+    mask-image: var(--st-mv-mask-y, none) !important;
+}
+#SpicyLyricsPage.st-mv-active.st-mv-boxed .spicy-dynamic-bg,
+#SpicyLyricsPage.st-mv-active.st-mv-boxed .ContentBox > #${ANIM_BG_LAYER_ID} {
+    z-index: -2 !important;
+}
+#SpicyLyricsPage.st-mv-active.st-mv-stage:not(.CardMode) .ContentBox .NowBar .Header .MediaBox .MediaImageContainer {
+    opacity: 0 !important;
+    transition: opacity 0.4s ease !important;
+}
+#SpicyLyricsPage.st-mv-active.st-mv-stage:not(.CardMode) .ContentBox .NowBar .Header .MediaBox:hover .MediaImageContainer {
+    opacity: 1 !important;
+}`;
         css.push(`
 #SpicyLyricsPage #${MUSIC_VIDEO_ID} {
     position: absolute !important;
@@ -1849,7 +1919,7 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
     inset: 0 !important;
     width: 100% !important;
     height: 100% !important;
-    object-fit: ${mvFit === 'contain' ? 'contain' : mvFit === 'stretch' ? 'fill' : 'cover'} !important;
+    object-fit: ${mvFit === 'contain' || mvFit === 'blend' ? 'contain' : mvFit === 'stretch' ? 'fill' : 'cover'} !important;
     object-position: center !important;
     display: block !important;
     background: transparent !important;
@@ -1881,7 +1951,7 @@ ${mvIframeSize}
 }
 #SpicyLyricsPage.st-mv-active .LyricsContainer .LyricsNotice {
     display: none !important;
-}${mvPlayerFade}${mvBackdrop}`);
+}${mvStage}${mvPlayerFade}${mvBackdrop}`);
         if (!config.musicVideoCompact) {
             const bgImageGuard = (config.pageBgImageEnabled && config.pageBgImage ? `:not(.${BG_IMAGE_ACTIVE_CLASS})` : '')
                 + (config.animBgEnabled ? `:not(.${ANIM_BG_SOLID_CLASS})` : '');

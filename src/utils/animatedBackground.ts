@@ -1142,7 +1142,7 @@ class Renderer {
         if (ts - this.videoCheckedAt > 500 || ts < this.videoCheckedAt) {
             this.videoCheckedAt = ts;
             const page = this.layer.closest('#SpicyLyricsPage');
-            const video = page && page.classList.contains('st-mv-active')
+            const video = page && page.classList.contains('st-mv-active') && !page.classList.contains('st-mv-boxed')
                 ? page.querySelector<HTMLElement>(`:scope > #${MUSIC_VIDEO_ID}`)
                 : null;
             this.videoCovering = !!video && video.getClientRects().length > 0

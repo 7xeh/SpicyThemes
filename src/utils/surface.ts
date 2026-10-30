@@ -1,5 +1,6 @@
 import { themeState, ThemeConfig } from './state';
 import { Icons } from './icons';
+import { storage } from './storage';
 
 export type Tone = 'accent' | 'hotfix' | 'error' | 'success';
 
@@ -609,23 +610,38 @@ export function openDock(options: SurfaceOptions): SurfaceHandle {
     return handle;
 }
 
+export type RegionPlacement = 'bottom-left' | 'bottom-center' | 'bottom-right';
+
+const PLACEMENT_KEY = 'notification-position';
+const PLACEMENTS: RegionPlacement[] = ['bottom-left', 'bottom-center', 'bottom-right'];
+
 let region: HTMLElement | null = null;
 let regionObserver: ResizeObserver | null = null;
 let observedBar: HTMLElement | null = null;
 
+export function getRegionPlacement(): RegionPlacement {
+    const stored = storage.get(PLACEMENT_KEY) as RegionPlacement | null;
+    return stored && PLACEMENTS.includes(stored) ? stored : 'bottom-left';
+}
+
+export function setRegionPlacement(placement: RegionPlacement): void {
+    storage.set(PLACEMENT_KEY, placement);
+    placeRegion();
+}
+
 function placeRegion(): void {
     if (!region) return;
-    const bar = document.querySelector<HTMLElement>('.Root__now-playing-bar') ??
-        document.querySelector<HTMLElement>('[data-testid="now-playing-bar"]')?.parentElement ??
-        null;
+    region.dataset.place = getRegionPlacement();
+    const bar = document.querySelector<HTMLElement>('.Root__now-playing-bar, .main-nowPlayingBar-container, [data-testid="now-playing-bar"]');
     const vh = window.innerHeight;
     let bottom = 16;
     if (bar) {
         const rect = bar.getBoundingClientRect();
-        if (rect.height > 0 && rect.top < vh && rect.top > vh * 0.5) bottom = Math.max(16, vh - rect.top + 12);
+        if (rect.height > 0 && rect.height < vh * 0.4 && rect.top < vh && rect.bottom > vh - 48) bottom = Math.max(16, vh - rect.top + 12);
     }
     bottom = Math.min(bottom, Math.max(16, vh - 240));
     region.style.setProperty('--st-ui-region-bottom', `${Math.round(bottom)}px`);
+    fitRegion();
     if (bar !== observedBar && typeof ResizeObserver !== 'undefined') {
         regionObserver?.disconnect();
         observedBar = bar;
@@ -636,6 +652,25 @@ function placeRegion(): void {
     }
 }
 
+function dockCramped(dock: HTMLElement): boolean {
+    const body = dock.querySelector<HTMLElement>('.st-ui-body');
+    const actions = dock.querySelector<HTMLElement>('.st-ui-actions');
+    if (actions && actions.offsetTop + actions.offsetHeight > dock.clientHeight + 1) return true;
+    return !!body && body.clientHeight < Math.min(body.scrollHeight, 96);
+}
+
+function fitRegion(): void {
+    if (!region) return;
+    const toasts = Array.from(region.querySelectorAll<HTMLElement>(':scope > .st-ui-toast'));
+    toasts.forEach(node => node.classList.remove('st-ui-squeezed'));
+    const dock = region.querySelector<HTMLElement>(':scope > .st-ui-dock-wrap .st-ui-dock');
+    if (!dock) return;
+    for (const node of toasts) {
+        if (!dockCramped(dock)) break;
+        node.classList.add('st-ui-squeezed');
+    }
+}
+
 export function toastRegion(): HTMLElement {
     ensureSurfaceStyles();
     if (!region || !region.isConnected) {
@@ -643,6 +678,7 @@ export function toastRegion(): HTMLElement {
         paintTone(region, 'accent');
         document.body.append(region);
         window.addEventListener('resize', placeRegion);
+        if (typeof MutationObserver !== 'undefined') new MutationObserver(fitRegion).observe(region, { childList: true });
     }
     placeRegion();
     return region;
@@ -950,13 +986,35 @@ const SURFACE_STYLES = `
     justify-content: flex-end;
     align-items: flex-start;
     gap: 10px;
+    box-sizing: border-box;
     width: min(400px, calc(100vw - 32px));
+    max-height: calc(100vh - var(--st-ui-region-bottom, 96px) - 16px);
     pointer-events: none;
 }
-.st-ui-region > * { pointer-events: auto; }
+.st-ui-region[data-place="bottom-center"] {
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+    align-items: center;
+}
+.st-ui-region[data-place="bottom-right"] {
+    left: auto;
+    right: 16px;
+    align-items: flex-end;
+}
+.st-ui-region > * { pointer-events: auto; flex-shrink: 0; }
+.st-ui-region > .st-ui-toast.st-ui-squeezed { display: none; }
+.st-ui-region > .st-ui-dock-wrap {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 1;
+    min-height: 0;
+}
 .st-ui-dock-wrap { width: 100%; }
 .st-ui-dock {
     width: 100%;
+    min-height: 0;
+    flex: 0 1 auto;
     max-height: min(70vh, 560px, calc(100vh - var(--st-ui-region-bottom, 96px) - 16px));
     box-shadow:
         inset 0 1px 0 color-mix(in oklab, var(--st-ui-ink) 10%, transparent),

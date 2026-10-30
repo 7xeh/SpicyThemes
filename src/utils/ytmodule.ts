@@ -22,6 +22,19 @@ export interface YtModuleQualities {
     premium: boolean;
 }
 
+export interface YtModuleEdges {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+}
+
+export interface YtModuleFrame {
+    width: number;
+    height: number;
+    bars: YtModuleEdges | null;
+}
+
 export interface YtModuleOptions {
     videoId: string;
     start?: number;
@@ -37,6 +50,7 @@ export interface YtModuleOptions {
     onCommandError?: (cmd: string, message: string | undefined, player: YtModulePlayer, code?: string) => void;
     onQualities?: (qualities: YtModuleQualities, player: YtModulePlayer) => void;
     onCaptionsChange?: (showing: number, tracks: number, player: YtModulePlayer) => void;
+    onFrame?: (frame: YtModuleFrame, player: YtModulePlayer) => void;
 }
 
 type StateName = keyof typeof YTMODULE_STATE;
@@ -70,6 +84,23 @@ function heightList(raw: unknown): number[] {
         if (isFinite(n) && n > 0 && n <= 8640 && !out.includes(n)) out.push(Math.round(n));
     });
     return out.sort((a, b) => b - a);
+}
+
+export function parseEdges(raw: any, max = 0.45): YtModuleEdges | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const side = (v: unknown) => {
+        const n = typeof v === 'string' ? Number(v) : v;
+        return typeof n === 'number' && isFinite(n) ? Math.min(Math.max(n, 0), max) : 0;
+    };
+    const edges = { top: side(raw.top), right: side(raw.right), bottom: side(raw.bottom), left: side(raw.left) };
+    return edges.top || edges.right || edges.bottom || edges.left ? edges : null;
+}
+
+function parseFrame(d: any): YtModuleFrame | null {
+    const width = typeof d.width === 'number' && isFinite(d.width) ? Math.round(d.width) : 0;
+    const height = typeof d.height === 'number' && isFinite(d.height) ? Math.round(d.height) : 0;
+    if (width <= 0 || height <= 0 || width > 16384 || height > 16384) return null;
+    return { width, height, bars: parseEdges(d.bars) };
 }
 
 function parseQualities(d: any): YtModuleQualities {
@@ -172,6 +203,9 @@ export class YtModulePlayer {
             const parsed = parseQualities(d);
             this.qualities = parsed;
             this.opts.onQualities?.(parsed, this);
+        } else if (d.event === 'frame') {
+            const frame = parseFrame(d);
+            if (frame) this.opts.onFrame?.(frame, this);
         } else if (d.event === 'cmderror') {
             this.opts.onCommandError?.(
                 String(d.cmd || 'unknown'),

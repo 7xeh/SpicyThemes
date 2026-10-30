@@ -33,7 +33,7 @@ import { buildVideoQualityPanel } from './videoQualityPanel';
 import { setVideoAuto } from './videoMode';
 import { saveBackgroundImage, pruneBackgroundImages, getCachedBackgroundUrl, getBackgroundImageUrl, getBackgroundImageInfo, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
 import { getCurrentVersion, getDisplayHash, runManualUpdateCheck, showCurrentChangelog, hasWaitingUpdate, openWaitingUpdate } from './updater';
-import { el, openDialog, openSurfaces, prefersReducedMotion, paintTone, CLOSE_SVG, SurfaceHandle, Tone } from './surface';
+import { el, openDialog, openSurfaces, prefersReducedMotion, paintTone, CLOSE_SVG, SurfaceHandle, Tone, RegionPlacement, getRegionPlacement, setRegionPlacement } from './surface';
 import { toast, getInbox, markInboxRead, clearInbox, onInboxChange, unreadCount, runInboxAction, InboxEntry } from './toast';
 import { Icons } from './icons';
 import * as Marketplace from './marketplace';
@@ -225,9 +225,11 @@ export const SCHEMA: FieldDef[] = [
     { id: 'wordEffectSpeed', label: 'Speed', type: 'slider', section: 'Motion', min: 0.3, max: 3.0, step: 0.05, unit: 'x', parent: 'wordEffect', when: (t) => t.wordEffect !== 'none', hint: 'Higher is faster. Applies to whichever animation is selected.', keywords: 'duration fast slow tempo' },
     { id: 'wordEffectStagger', label: 'Stagger between words', type: 'slider', section: 'Motion', min: 0, max: 150, step: 5, unit: 'ms', parent: 'wordEffect', when: (t) => t.wordEffect !== 'none' && resolveWordTrigger(t.wordEffect, t.wordEffectTrigger) !== 'word', hint: 'Offsets each word so the animation ripples along the line instead of firing all at once.', keywords: 'delay ripple cascade offset sequence' },
     { id: 'scaleActive', label: 'Active line zoom', type: 'slider', section: 'Motion', min: 0.95, max: 1.12, step: 0.01, unit: 'x', keywords: 'scale grow size' },
-    { id: 'scaleInEffect', label: 'Zoom in on arrival', type: 'toggle', section: 'Motion', hint: 'Animates each line up to its zoom level as it becomes active.', keywords: 'scale in entrance animate' },
-    { id: 'scaleInFrom', label: 'Starting scale', type: 'slider', section: 'Motion', min: 0.85, max: 1.05, step: 0.01, unit: 'x', parent: 'scaleInEffect', when: (t) => t.scaleInEffect },
-    { id: 'scaleInDuration', label: 'Zoom duration', type: 'slider', section: 'Motion', min: 0.1, max: 1.0, step: 0.05, unit: 's', parent: 'scaleInEffect', when: (t) => t.scaleInEffect },
+    { id: 'inactiveLineScale', label: 'Inactive line size', type: 'slider', section: 'Motion', min: 0.5, max: 1, step: 0.01, unit: 'x', hint: 'Shrinks the lines that aren’t being sung. Each line grows back to full size as it becomes active.', keywords: 'scale shrink small inactive focus size zoom unfocused' },
+    { id: 'focusDuration', label: 'Focus animation', type: 'slider', section: 'Motion', min: 0.1, max: 1.5, step: 0.05, unit: 's', parent: 'inactiveLineScale', when: (t) => t.inactiveLineScale < 1, hint: 'How long a line takes to grow into focus and shrink back out.', keywords: 'focus transition speed duration grow shrink' },
+    { id: 'scaleInEffect', label: 'Zoom in on arrival', type: 'toggle', section: 'Motion', when: (t) => !(t.inactiveLineScale < 1), hint: 'Animates each line up to its zoom level as it becomes active.', keywords: 'scale in entrance animate' },
+    { id: 'scaleInFrom', label: 'Starting scale', type: 'slider', section: 'Motion', min: 0.85, max: 1.05, step: 0.01, unit: 'x', parent: 'scaleInEffect', when: (t) => t.scaleInEffect && !(t.inactiveLineScale < 1) },
+    { id: 'scaleInDuration', label: 'Zoom duration', type: 'slider', section: 'Motion', min: 0.1, max: 1.0, step: 0.05, unit: 's', parent: 'scaleInEffect', when: (t) => t.scaleInEffect && !(t.inactiveLineScale < 1) },
     { id: 'animationSpeed', label: 'Overall animation speed', type: 'slider', section: 'Motion', min: 0.3, max: 3.0, step: 0.1, unit: 'x', hint: 'Scales every lyric transition. Higher is snappier.', keywords: 'transition tempo fast slow' },
 
     { id: 'pageBgOverlay', label: 'Background tint', type: 'toggle', section: 'Background', hint: 'Lays a coloured wash over the album-art background to calm it down.', keywords: 'overlay dim darken tint' },
@@ -251,12 +253,19 @@ export const SCHEMA: FieldDef[] = [
     { id: 'pageBgImageBlur', label: 'Blur', type: 'slider', section: 'Background', min: 0, max: 40, step: 1, unit: 'px', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, keywords: 'soften frosted' },
     { id: 'pageBgImageDim', label: 'Dimming', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, hint: 'Darkens the image so lyrics stay readable.', keywords: 'darken brightness' },
     { id: 'musicVideoDim', label: 'Video dimming', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 1, step: 0.05, hint: 'Darkens the video so lyrics stay readable.', keywords: 'music video darken brightness mv' },
+    { id: 'musicVideoLayout', label: 'Video layout', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
+        { value: 'background', text: 'Full background' },
+        { value: 'stage', text: 'Stage beside the lyrics' },
+    ], hint: 'Stage puts the video on the player’s side of the page and fades it into the album background, like Spicy Lyrics’ Canvas view. It falls back to the full background when the player is hidden or compact.', keywords: 'music video layout stage canvas side panel immersive full screen background mv' },
     { id: 'musicVideoFit', label: 'Video fit', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
         { value: 'zoom', text: 'Zoom (hide player edges)' },
         { value: 'cover', text: 'Fill (crop to fit)' },
         { value: 'contain', text: 'Fit (show whole video)' },
+        { value: 'blend', text: 'Fit and blend edges' },
         { value: 'stretch', text: 'Stretch' },
-    ], hint: 'How the video is sized to the window. Zoom crops a little extra so YouTube’s player edges never show; Fit adds bars on screens that aren’t 16:9.', keywords: 'music video size scale zoom fill fit stretch crop aspect ratio 16:10 letterbox mv' },
+    ], hint: 'How the video is sized to the window or stage. Zoom crops a little extra so YouTube’s player edges never show; Fit adds bars on screens that aren’t 16:9; Fit and blend fades the video’s edges into the album background instead of showing bars.', keywords: 'music video size scale zoom fill fit stretch crop aspect ratio 16:10 letterbox blend feather edges bars mv' },
+    { id: 'musicVideoEdgeFeather', label: 'Edge fade', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 45, step: 1, unit: '%', parent: 'musicVideoFit', when: (t) => t.musicVideoFit === 'blend' || t.musicVideoLayout === 'stage', hint: 'How far the video fades into the background at edges that don’t reach the window.', keywords: 'music video feather fade soft edges blend mv' },
+    { id: 'musicVideoTrimBars', label: 'Trim black bars', type: 'toggle', section: MUSIC_VIDEO_SECTION, hint: 'Crops bars that are part of the video itself when the uploader or the player has marked them.', keywords: 'music video black bars letterbox pillarbox crop trim mv' },
     { id: 'musicVideoBackdrop', label: 'Video backdrop', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
         { value: 'solid', text: 'Replace the background' },
         { value: 'blend', text: 'Blend over Spicy Lyrics / image' },
@@ -671,6 +680,13 @@ function renderPreview(host: HTMLElement, theme: Partial<ThemeConfig>): void {
             unsung.style.textShadow = existing ? `${existing}, ${sh}` : sh;
         }
     }
+
+    const inactiveScale = Math.min(Math.max(Number(t.inactiveLineScale) || 1, 0.5), 1);
+    [sung, unsung].forEach(line => {
+        if (!line) return;
+        line.style.transformOrigin = t.textAlign === 'right' ? 'right center' : t.textAlign === 'center' ? 'center' : 'left center';
+        line.style.transform = inactiveScale < 1 ? `scale(${inactiveScale})` : '';
+    });
 
     const imageId = t.pageBgImageEnabled ? t.pageBgImage : '';
     const imageUrl = imageId ? getCachedBackgroundUrl(imageId) : null;
@@ -1899,6 +1915,14 @@ function buildAboutTab(): HTMLElement {
             </div>
         </div>
         <div class="st-m-section">
+            <div class="st-m-section-title">Notification position</div>
+            <div class="st-m-about-actions" id="st-m-toast-place">
+                <button class="st-m-chip" data-place="bottom-left">Bottom left</button>
+                <button class="st-m-chip" data-place="bottom-center">Bottom center</button>
+                <button class="st-m-chip" data-place="bottom-right">Bottom right</button>
+            </div>
+        </div>
+        <div class="st-m-section">
             <div class="st-m-about-links">
                 <a href="https://github.com/7xeh/SpicyThemes" target="_blank" rel="noopener noreferrer">GitHub</a>
                 <a href="https://7xeh.dev/apps/spicythemes/marketplace/" target="_blank" rel="noopener noreferrer">Marketplace</a>
@@ -1906,6 +1930,18 @@ function buildAboutTab(): HTMLElement {
             </div>
         </div>
     `;
+
+    const placeChips = tab.querySelectorAll<HTMLButtonElement>('#st-m-toast-place .st-m-chip');
+    const markPlace = (current: RegionPlacement) => {
+        placeChips.forEach(chip => chip.classList.toggle('active', chip.dataset.place === current));
+    };
+    markPlace(getRegionPlacement());
+    placeChips.forEach(chip => chip.addEventListener('click', () => {
+        const place = chip.dataset.place as RegionPlacement;
+        setRegionPlacement(place);
+        markPlace(place);
+        toast({ title: 'Notifications show here now', duration: 2500 });
+    }));
 
     const exportBtn = tab.querySelector('#st-m-export') as HTMLButtonElement;
     exportBtn.addEventListener('click', () => {
