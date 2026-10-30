@@ -1893,6 +1893,13 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
 #SpicyLyricsPage.st-mv-active.st-mv-boxed .ContentBox > #${ANIM_BG_LAYER_ID} {
     z-index: -2 !important;
 }
+#SpicyLyricsPage.st-mv-dock .ContentBox > .CanvasAmbient,
+#SpicyLyricsPage.st-mv-dock .ContentBox > .CanvasStage {
+    opacity: 0 !important;
+}
+#SpicyLyricsPage.st-mv-dock.st-mv-boxed:not(.${BG_IMAGE_ACTIVE_CLASS}):not(.${ANIM_BG_SOLID_CLASS}) .ContentBox > canvas.spicy-dynamic-bg {
+    opacity: 1 !important;
+}
 #SpicyLyricsPage.st-mv-active.st-mv-stage:not(.CardMode) .ContentBox .NowBar .Header .MediaBox .MediaImageContainer {
     opacity: 0 !important;
     transition: opacity 0.4s ease !important;

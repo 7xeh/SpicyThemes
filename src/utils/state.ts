@@ -333,6 +333,7 @@ export interface ThemeConfig {
     musicVideoLayout: string;
     musicVideoEdgeFeather: number;
     musicVideoTrimBars: boolean;
+    musicVideoDockPlayer: boolean;
     musicVideoBlend: number;
     musicVideoPlayerFade: number;
     musicVideoCredit: string;
@@ -569,6 +570,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     musicVideoLayout: 'background',
     musicVideoEdgeFeather: 18,
     musicVideoTrimBars: true,
+    musicVideoDockPlayer: true,
     musicVideoBlend: 0.5,
     musicVideoPlayerFade: 0,
     musicVideoCredit: 'video',

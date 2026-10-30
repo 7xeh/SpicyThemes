@@ -109,6 +109,8 @@ const BOXED_CLASS = 'st-mv-boxed';
 const STAGE_CLASS = 'st-mv-stage';
 const LAYOUT_VARS = ['--st-mv-x', '--st-mv-y', '--st-mv-w', '--st-mv-h', '--st-mv-fx', '--st-mv-fy', '--st-mv-fw', '--st-mv-fh', '--st-mv-ft', '--st-mv-mask-x', '--st-mv-mask-y'];
 const STAGE_FEATHER = 0.45;
+const DOCK_CLASS = 'CanvasImmersive';
+const DOCK_OWNED_CLASS = 'st-mv-dock';
 const ZOOM_OVERSCAN = 1.04;
 const TEXT_STRIP_RE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g;
 
@@ -122,6 +124,8 @@ let embedFrame: YtModuleFrame | null = null;
 let layoutKey = '';
 let pageObserver: ResizeObserver | null = null;
 let pageObserved: HTMLElement | null = null;
+let dockedPage: HTMLElement | null = null;
+let dockObserver: MutationObserver | null = null;
 
 let running = false;
 let stretchObserver: ResizeObserver | null = null;
@@ -1014,7 +1018,52 @@ export function setMusicVideoCompactAllowed(allowed: boolean, fullscreenAllowed?
 function setPageActive(active: boolean): void {
     const page = document.querySelector('#SpicyLyricsPage');
     if (page) page.classList.toggle('st-mv-active', active);
+    syncDock();
     emitCredit();
+}
+
+function dockWanted(page: HTMLElement | null): boolean {
+    return !!page
+        && running
+        && mediaVisible
+        && !adActive
+        && themeState.activeTheme.musicVideoDockPlayer !== false
+        && page.classList.contains('st-mv-active')
+        && page.classList.contains('NowBarStatus__Open')
+        && !page.matches('.CardMode, .CompactMode, .ForcedCompactMode');
+}
+
+function releaseDock(): void {
+    dockObserver?.disconnect();
+    dockObserver = null;
+    const page = dockedPage;
+    dockedPage = null;
+    if (!page || !page.classList.contains(DOCK_OWNED_CLASS)) return;
+    page.classList.remove(DOCK_OWNED_CLASS, DOCK_CLASS);
+    page.querySelector<HTMLElement>('.ContentBox .NowBar')?.style.removeProperty('--CanvasSquareTop');
+}
+
+function syncDock(): void {
+    const page = document.querySelector<HTMLElement>('#SpicyLyricsPage');
+    if (!dockWanted(page) || !page) {
+        releaseDock();
+        return;
+    }
+    if (dockedPage !== page) {
+        releaseDock();
+        dockedPage = page;
+        dockObserver = new MutationObserver(() => {
+            if (dockedPage && !dockedPage.classList.contains(DOCK_CLASS) && dockWanted(dockedPage)) dockedPage.classList.add(DOCK_CLASS);
+        });
+        dockObserver.observe(page, { attributes: true, attributeFilter: ['class'] });
+    }
+    page.classList.add(DOCK_OWNED_CLASS, DOCK_CLASS);
+    const bar = page.querySelector<HTMLElement>('.ContentBox .NowBar');
+    const media = bar?.querySelector<HTMLElement>('.CenteredView .Header > .MediaBox');
+    if (bar && media) {
+        const top = `${Math.round(media.getBoundingClientRect().top - bar.getBoundingClientRect().top)}px`;
+        if (bar.style.getPropertyValue('--CanvasSquareTop') !== top) bar.style.setProperty('--CanvasSquareTop', top);
+    }
 }
 
 function updateStretch(c: HTMLElement): void {
@@ -1938,6 +1987,7 @@ function tick(ts: number): void {
         lastModeCheck = ts;
         syncAutoCompact(ts);
         updateLayout();
+        syncDock();
         const large = isLargeView();
         if (large !== largeView) {
             largeView = large;
@@ -2128,6 +2178,7 @@ export function stopMusicVideo(): void {
     document.removeEventListener('click', onFullscreenExitClick, true);
     teardownSource();
     releaseAutoCompact();
+    releaseDock();
     removeContainer();
     officialForId = null;
 }
