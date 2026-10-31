@@ -211,6 +211,19 @@ export const SCHEMA: FieldDef[] = [
     { id: 'lineWindowEnabled', label: 'Limit visible lines', type: 'toggle', section: 'Focus', hint: 'Hides everything outside a window around the active line.', keywords: 'window hide crop few lines' },
     { id: 'lineWindowSungLines', label: 'Sung lines shown', type: 'slider', section: 'Focus', min: 0, max: 10, step: 1, unit: ' lines', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled },
     { id: 'lineWindowUnsungLines', label: 'Upcoming lines shown', type: 'slider', section: 'Focus', min: 0, max: 10, step: 1, unit: ' lines', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled },
+    { id: 'lineWindowFadeStyle', label: 'Edge style', type: 'dropdown', section: 'Focus', options: [
+        { value: 'cut', text: 'Hard cut' },
+        { value: 'fade', text: 'Fade' },
+        { value: 'gradient', text: 'Gradient' },
+    ], parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled, hint: 'Hard cut snaps lines on and off. Fade eases them. Gradient also dims each line the further it sits from the active one.', keywords: 'fade gradient dim edge transition soft' },
+    { id: 'lineWindowFadeMs', label: 'Fade speed', type: 'slider', section: 'Focus', min: 0, max: 1000, step: 25, unit: 'ms', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled && t.lineWindowFadeStyle !== 'cut', hint: 'How long a line takes to appear or vanish.', keywords: 'duration fade transition time' },
+    { id: 'lineWindowGapMode', label: 'During instrumental breaks', type: 'dropdown', section: 'Focus', options: [
+        { value: 'hide', text: 'Hide everything' },
+        { value: 'line', text: 'Keep the last line' },
+        { value: 'window', text: 'Keep the whole window' },
+    ], parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled, hint: 'What stays on screen while no line is being sung, until the next one starts.', keywords: 'gap break instrumental intro hold keep previous last line' },
+    { id: 'lineWindowEdgeBlur', label: 'Blur edge lines', type: 'slider', section: 'Focus', min: 0, max: 6, step: 0.5, unit: 'px', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled, hint: 'Blurs lines more the closer they sit to the edge of the window.', keywords: 'blur edge soft depth falloff' },
+    { id: 'lineWindowHoverReveal', label: 'Show all lines on hover', type: 'toggle', section: 'Focus', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled, hint: 'Brings every line back while the pointer is over the lyrics, so you can scroll back.', keywords: 'hover reveal mouse show all scroll' },
 
     { id: 'disableHighlight', label: 'Flat colour mode', type: 'toggle', section: 'Motion', hint: 'Turns off the sweeping karaoke fill — every line uses one solid colour.', keywords: 'no karaoke disable highlight solid' },
     { id: 'highlightColor', label: 'Flat colour', type: 'color', section: 'Motion', parent: 'disableHighlight', when: (t) => t.disableHighlight },
@@ -257,14 +270,20 @@ export const SCHEMA: FieldDef[] = [
         { value: 'background', text: 'Full background' },
         { value: 'stage', text: 'Stage beside the lyrics' },
     ], hint: 'Stage puts the video on the player’s side of the page and fades it into the album background, like Spicy Lyrics’ Canvas view. It falls back to the full background when the player is hidden or compact.', keywords: 'music video layout stage canvas side panel immersive full screen background mv' },
+    { id: 'musicVideoFullscreenLayout', label: 'Fullscreen layout', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
+        { value: 'canvas', text: 'Canvas (video beside the lyrics)' },
+        { value: 'compact', text: 'Switch to compact' },
+        { value: 'keep', text: 'Keep my layout' },
+    ], hint: 'How Spicy Lyrics fullscreen looks while a video plays. Canvas puts the video on the player’s side and docks the title and progress bar in the corner, whatever the layout above says. Switch to compact turns on the compact player every time a video starts.', keywords: 'music video fullscreen canvas compact layout stage dock immersive auto switch mv' },
+    { id: 'musicVideoAmbient', label: 'Blur the video into the edges', type: 'toggle', section: MUSIC_VIDEO_SECTION, hint: 'Fills the space around a staged or fitted video with a blurred copy of the same video instead of the album background. Needs the built-in 7Tube player; YouTube fallback and MP4 videos keep the album background.', keywords: 'music video ambient blur glow mirror sides edges bars background canvas mv' },
     { id: 'musicVideoFit', label: 'Video fit', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
         { value: 'zoom', text: 'Zoom (hide player edges)' },
         { value: 'cover', text: 'Fill (crop to fit)' },
         { value: 'contain', text: 'Fit (show whole video)' },
         { value: 'blend', text: 'Fit and blend edges' },
         { value: 'stretch', text: 'Stretch' },
-    ], hint: 'How the video is sized to the window or stage. Zoom crops a little extra so YouTube’s player edges never show; Fit adds bars on screens that aren’t 16:9; Fit and blend fades the video’s edges into the album background instead of showing bars.', keywords: 'music video size scale zoom fill fit stretch crop aspect ratio 16:10 letterbox blend feather edges bars mv' },
-    { id: 'musicVideoEdgeFeather', label: 'Edge fade', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 45, step: 1, unit: '%', parent: 'musicVideoFit', when: (t) => t.musicVideoFit === 'blend' || t.musicVideoLayout === 'stage', hint: 'How far the video fades into the background at edges that don’t reach the window.', keywords: 'music video feather fade soft edges blend mv' },
+    ], hint: 'How the video is sized to the window or stage. Zoom crops a little extra so YouTube’s player edges never show; Fit adds bars on screens that aren’t 16:9; Fit and blend fades the video’s edges into the background instead of showing bars.', keywords: 'music video size scale zoom fill fit stretch crop aspect ratio 16:10 letterbox blend feather edges bars mv' },
+    { id: 'musicVideoEdgeFeather', label: 'Edge fade', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 45, step: 1, unit: '%', parent: 'musicVideoFit', when: (t) => t.musicVideoFit === 'blend' || t.musicVideoLayout === 'stage' || t.musicVideoFullscreenLayout === 'canvas', hint: 'How far the video fades into the background, or into its blurred copy, at edges that don’t reach the window.', keywords: 'music video feather fade soft edges blend mv' },
     { id: 'musicVideoDockPlayer', label: 'Dock the player', type: 'toggle', section: MUSIC_VIDEO_SECTION, hint: 'While a video plays, hides the cover and moves the title and progress bar to the bottom corner, like Spicy Lyrics’ Canvas view. Needs a Spicy Lyrics version with Canvas view.', keywords: 'music video dock player hide cover artwork canvas immersive title corner mv' },
     { id: 'musicVideoTrimBars', label: 'Trim black bars', type: 'toggle', section: MUSIC_VIDEO_SECTION, hint: 'Crops bars that are part of the video itself when the uploader or the player has marked them.', keywords: 'music video black bars letterbox pillarbox crop trim mv' },
     { id: 'musicVideoBackdrop', label: 'Video backdrop', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
@@ -328,6 +347,7 @@ export const SCHEMA: FieldDef[] = [
         { value: 'max', text: 'Match display' },
     ], keywords: 'fps frame rate smooth performance battery' },
 
+    { id: 'musicVideoAmbientBand', label: 'Fullscreen video blur edges', type: 'slider', section: 'Now Playing bar', min: 0, max: 30, step: 1, unit: '%', when: (t) => t.musicVideoFullscreenLayout === 'canvas' && t.musicVideoAmbient !== false, hint: 'How much of the screen the blurred video takes on each side in Canvas fullscreen. 0% lets the video fill the whole screen.', keywords: 'music video blur edges sides ambient canvas fullscreen width band mv' },
     { id: 'playerStylingEnabled', label: 'Restyle the player', type: 'toggle', section: 'Now Playing bar', hint: 'Unlocks the controls below for the Spicy Lyrics player bar.', keywords: 'nowbar controls player' },
     { id: 'playerArtRadius', label: 'Album art roundness', type: 'slider', section: 'Now Playing bar', min: 0, max: 50, step: 1, unit: '%', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'corner radius rounded' },
     { id: 'playerProgressThickness', label: 'Progress bar thickness', type: 'slider', section: 'Now Playing bar', min: 0.5, max: 5, step: 0.5, unit: 'x', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'seek bar height' },

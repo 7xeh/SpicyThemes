@@ -1,4 +1,4 @@
-import { YtModulePlayer, YtModuleQualities, YtModuleEdges, YtModuleFrame, YTMODULE_STATE, ytModuleParentOrigin, parseEdges } from './ytmodule';
+import { YtModulePlayer, YtModuleQualities, YtModuleEdges, YtModuleFrame, YtModuleAmbient, YTMODULE_STATE, ytModuleParentOrigin, parseEdges } from './ytmodule';
 import { debug } from './debug';
 import { storage } from './storage';
 import { themeState } from './state';
@@ -108,6 +108,12 @@ const LAYOUT_CLASS = 'st-mv-js';
 const BOXED_CLASS = 'st-mv-boxed';
 const STAGE_CLASS = 'st-mv-stage';
 const LAYOUT_VARS = ['--st-mv-x', '--st-mv-y', '--st-mv-w', '--st-mv-h', '--st-mv-fx', '--st-mv-fy', '--st-mv-fw', '--st-mv-fh', '--st-mv-ft', '--st-mv-mask-x', '--st-mv-mask-y'];
+const AMBIENT_CLASS = 'st-mv-amb';
+const AMBIENT_MIN_FADE = 24;
+const BAR_DETECT_AT_MS = [1000, 26000, 56000];
+const BARS_KEY = 'mv-bars';
+const BARS_MAX = 300;
+const BARS_MIRROR_MIN = 0.04;
 const STAGE_FEATHER = 0.45;
 const DOCK_CLASS = 'CanvasImmersive';
 const DOCK_OWNED_CLASS = 'st-mv-dock';
@@ -157,6 +163,10 @@ let ytApiLoading = false;
 const ytApiCallbacks: Array<() => void> = [];
 
 let mediaPlaying = false;
+let barDetectTries = 0;
+let barDetectPlayedMs = 0;
+let barDetectLastTs = 0;
+let cachedBars: YtModuleEdges | null = null;
 let mediaVisible = false;
 let loadDeadline = 0;
 let adActive = false;
@@ -961,8 +971,69 @@ function clearStrandedCompact(): void {
     page.classList.remove('CompactMode', 'ForcedCompactMode', 'CompactifyEnabledCompactMode');
 }
 
+function syncBarDetect(ts: number): void {
+    const elapsed = barDetectLastTs ? Math.min(ts - barDetectLastTs, 1000) : 0;
+    barDetectLastTs = ts;
+    if (!themeState.activeTheme.musicVideoTrimBars || currentMeta?.crop || embedFrame?.bars || cachedBars) return;
+    if (ytEngine !== 'ytmodule' || !ytModulePlayer?.isReady()) return;
+    if (!mediaPlaying || document.visibilityState !== 'visible') return;
+    barDetectPlayedMs += elapsed;
+    if (barDetectTries >= BAR_DETECT_AT_MS.length || barDetectPlayedMs < BAR_DETECT_AT_MS[barDetectTries]) return;
+    barDetectTries++;
+    debug('music video: re-requesting bar detection', barDetectTries);
+    ytModulePlayer.detectBars();
+}
+
+function symmetricBars(bars: YtModuleEdges): YtModuleEdges {
+    const pair = (a: number, b: number) => (a === 0 && b >= BARS_MIRROR_MIN ? b : a);
+    return {
+        top: pair(bars.top, bars.bottom),
+        bottom: pair(bars.bottom, bars.top),
+        left: pair(bars.left, bars.right),
+        right: pair(bars.right, bars.left),
+    };
+}
+
+function barsCache(): Record<string, YtModuleEdges> {
+    try {
+        const parsed = JSON.parse(storage.get(BARS_KEY) || '{}');
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function loadCachedBars(videoId: string): YtModuleEdges | null {
+    const hit = barsCache()[videoId];
+    const bars = hit ? parseEdges(hit) : null;
+    return bars ? symmetricBars(bars) : null;
+}
+
+function rememberBars(videoId: string, bars: YtModuleEdges): void {
+    const cache = barsCache();
+    delete cache[videoId];
+    cache[videoId] = bars;
+    const ids = Object.keys(cache);
+    ids.slice(0, Math.max(0, ids.length - BARS_MAX)).forEach(id => delete cache[id]);
+    storage.set(BARS_KEY, JSON.stringify(cache));
+}
+
+function canvasFullscreen(page: Element): boolean {
+    return themeState.activeTheme.musicVideoFullscreenLayout === 'canvas'
+        && page.classList.contains('Fullscreen')
+        && !page.closest('.spicy-pip-wrapper');
+}
+
 function syncAutoCompact(ts: number): void {
     const page = fullscreenPage();
+    if (themeState.activeTheme.musicVideoFullscreenLayout !== 'compact') {
+        if (autoCompactOwned && page) releaseAutoCompact();
+        else document.querySelector('#SpicyLyricsPage')?.classList.remove(MV_AUTO_COMPACT_CLASS);
+        videoOffSince = 0;
+        fullscreenSince = 0;
+        autoCompactDeclinedId = null;
+        return;
+    }
     if (!page) {
         if (fullscreenSince) clearStrandedCompact();
         else document.querySelector('#SpicyLyricsPage')?.classList.remove(MV_AUTO_COMPACT_CLASS);
@@ -1027,7 +1098,7 @@ function dockWanted(page: HTMLElement | null): boolean {
         && running
         && mediaVisible
         && !adActive
-        && themeState.activeTheme.musicVideoDockPlayer !== false
+        && (themeState.activeTheme.musicVideoDockPlayer !== false || canvasFullscreen(page))
         && page.classList.contains('st-mv-active')
         && page.classList.contains('NowBarStatus__Open')
         && !page.matches('.CardMode, .CompactMode, .ForcedCompactMode');
@@ -1119,6 +1190,7 @@ interface Box {
 
 interface StageRegion extends Box {
     feather: number;
+    centered?: boolean;
 }
 
 interface VideoLayout {
@@ -1129,10 +1201,11 @@ interface VideoLayout {
     maskY: string;
     boxed: boolean;
     stage: boolean;
+    ambient: YtModuleAmbient | null;
 }
 
 function stageRegion(page: HTMLElement, W: number, H: number): StageRegion | null {
-    if (themeState.activeTheme.musicVideoLayout !== 'stage') return null;
+    if (themeState.activeTheme.musicVideoLayout !== 'stage' && !canvasFullscreen(page)) return null;
     if (!page.classList.contains('NowBarStatus__Open')) return null;
     if (page.matches('.CardMode, .CompactMode, .ForcedCompactMode')) return null;
     const content = page.querySelector<HTMLElement>(':scope > .ContentBox, .ContentBox');
@@ -1144,12 +1217,19 @@ function stageRegion(page: HTMLElement, W: number, H: number): StageRegion | nul
     if (pr.width <= 0 || br.width <= 0) return null;
     const scale = pr.width / W;
     const feather = (br.width / scale) * STAGE_FEATHER;
-    if (page.classList.contains('NowBarSide__Left') || bar.classList.contains('LeftSide')) {
-        const w = Math.min(W, (br.right - pr.left) / scale + feather);
-        return w < W * 0.9 ? { x: 0, y: 0, w, h: H, feather } : null;
-    }
-    const x = Math.max(0, (br.left - pr.left) / scale - feather);
-    return x > W * 0.1 ? { x, y: 0, w: W - x, h: H, feather } : null;
+    const left = page.classList.contains('NowBarSide__Left') || bar.classList.contains('LeftSide');
+    const region: StageRegion | null = left
+        ? (() => {
+            const w = Math.min(W, (br.right - pr.left) / scale + feather);
+            return w < W * 0.9 ? { x: 0, y: 0, w, h: H, feather } : null;
+        })()
+        : (() => {
+            const x = Math.max(0, (br.left - pr.left) / scale - feather);
+            return x > W * 0.1 ? { x, y: 0, w: W - x, h: H, feather } : null;
+        })();
+    if (!region || !canvasFullscreen(page) || !ambientAvailable()) return region;
+    const band = W * Math.min(Math.max(Number(themeState.activeTheme.musicVideoAmbientBand) || 0, 0), 30) / 100;
+    return { x: band, y: 0, w: W - band * 2, h: H, feather: band, centered: true };
 }
 
 function sourceShape(): { aspect: number; picture: Box } {
@@ -1194,7 +1274,7 @@ function computeLayout(page: HTMLElement): VideoLayout | null {
     const stage = stageRegion(page, W, H);
     const shape = sourceShape();
     const crop = cfg.musicVideoTrimBars
-        ? (currentMeta?.crop || (ytEngine === 'ytmodule' ? embedFrame?.bars : null) || null)
+        ? (currentMeta?.crop || (ytEngine === 'ytmodule' ? embedFrame?.bars || cachedBars : null) || null)
         : null;
     const pictureFull = shape.picture.w > 0.999 && shape.picture.h > 0.999;
     if (!stage && fit !== 'blend' && !crop && pictureFull) return null;
@@ -1254,7 +1334,7 @@ function computeLayout(page: HTMLElement): VideoLayout | null {
     const sideFade = (gap: boolean, lyricsSide: boolean) => {
         if (!gap) return 0;
         const base = feather * box.w;
-        return Math.min(box.w / 2, lyricsSide && stage ? Math.max(base, stage.feather) : base);
+        return Math.min(box.w / 2, (lyricsSide || stage?.centered) && stage ? Math.max(base, stage.feather) : base);
     };
     const stageOnLeft = !!stage && stage.x <= 0.5;
     const fadeL = sideFade(gapL, !!stage && !stageOnLeft);
@@ -1262,6 +1342,18 @@ function computeLayout(page: HTMLElement): VideoLayout | null {
     const fadeT = gapT ? Math.min(box.h / 2, feather * box.h) : 0;
     const fadeB = gapB ? Math.min(box.h / 2, feather * box.h) : 0;
     const top = box.y - frameY;
+    const boxed = gapL || gapR || gapT || gapB;
+    const picture: Box = {
+        x: frameX + shape.picture.x * frameW,
+        y: frameY + shape.picture.y * frameH,
+        w: shape.picture.w * frameW,
+        h: shape.picture.h * frameH,
+    };
+    const ambient = boxed && transform === 'none' ? ambientLayout(W, H, box, picture, [fadeT, fadeR, fadeB, fadeL], [gapT, gapR, gapB, gapL]) : null;
+    if (ambient) {
+        const full: Box = { x: 0, y: 0, w: W, h: H };
+        return { box: full, frame: full, transform: 'none', maskX: 'none', maskY: 'none', boxed: false, stage: !!stage, ambient };
+    }
 
     return {
         box,
@@ -1269,8 +1361,29 @@ function computeLayout(page: HTMLElement): VideoLayout | null {
         transform,
         maskX: edgeMask('to right', box.w, 0, box.w, fadeL, fadeR),
         maskY: edgeMask('to bottom', frameH, top, top + box.h, fadeT, fadeB),
-        boxed: gapL || gapR || gapT || gapB,
+        boxed,
         stage: !!stage,
+        ambient: null,
+    };
+}
+
+function ambientAvailable(): boolean {
+    return themeState.activeTheme.musicVideoAmbient !== false
+        && activeSource === 'youtube'
+        && ytEngine === 'ytmodule'
+        && !!ytModulePlayer?.supportsAmbient();
+}
+
+function ambientLayout(W: number, H: number, clip: Box, picture: Box, fades: number[], gaps: boolean[]): YtModuleAmbient | null {
+    if (!ambientAvailable()) return null;
+    const r = (n: number) => Math.round(n * 10) / 10;
+    const rect = (b: Box) => ({ x: r(b.x), y: r(b.y), w: r(b.w), h: r(b.h) });
+    const fade = (i: number, length: number) => gaps[i] ? r(Math.min(length / 2, Math.max(fades[i], AMBIENT_MIN_FADE))) : 0;
+    return {
+        size: { w: W, h: H },
+        picture: rect(picture),
+        clip: rect(clip),
+        fade: { top: fade(0, clip.h), right: fade(1, clip.w), bottom: fade(2, clip.h), left: fade(3, clip.w) },
     };
 }
 
@@ -1280,7 +1393,8 @@ function clearLayout(c: HTMLElement | null, page: HTMLElement | null): void {
         c.classList.remove(LAYOUT_CLASS);
         LAYOUT_VARS.forEach(v => c.style.removeProperty(v));
     }
-    page?.classList.remove(BOXED_CLASS, STAGE_CLASS);
+    page?.classList.remove(BOXED_CLASS, STAGE_CLASS, AMBIENT_CLASS);
+    ytModulePlayer?.setAmbient(null);
 }
 
 function updateLayout(): void {
@@ -1288,7 +1402,7 @@ function updateLayout(): void {
     const page = document.querySelector<HTMLElement>('#SpicyLyricsPage');
     const layout = c && page ? computeLayout(page) : null;
     if (!c || !page || !layout) {
-        if (layoutKey || c?.classList.contains(LAYOUT_CLASS) || page?.classList.contains(BOXED_CLASS) || page?.classList.contains(STAGE_CLASS)) clearLayout(c, page);
+        if (layoutKey || c?.classList.contains(LAYOUT_CLASS) || page?.classList.contains(BOXED_CLASS) || page?.classList.contains(STAGE_CLASS) || page?.classList.contains(AMBIENT_CLASS)) clearLayout(c, page);
         return;
     }
     const values: [string, string][] = [
@@ -1304,13 +1418,15 @@ function updateLayout(): void {
         ['--st-mv-mask-x', layout.maskX],
         ['--st-mv-mask-y', layout.maskY],
     ];
-    const key = values.map(v => v[1]).join('|') + `|${layout.boxed}|${layout.stage}`;
+    const key = values.map(v => v[1]).join('|') + `|${layout.boxed}|${layout.stage}|${layout.ambient ? JSON.stringify(layout.ambient) : ''}`;
     if (key === layoutKey && c.classList.contains(LAYOUT_CLASS)) return;
     layoutKey = key;
     values.forEach(([name, value]) => c.style.setProperty(name, value));
     c.classList.add(LAYOUT_CLASS);
     page.classList.toggle(BOXED_CLASS, layout.boxed);
     page.classList.toggle(STAGE_CLASS, layout.stage);
+    page.classList.toggle(AMBIENT_CLASS, !!layout.ambient);
+    ytModulePlayer?.setAmbient(layout.ambient);
 }
 
 function loadYouTubeAPI(cb: () => void): void {
@@ -1423,7 +1539,9 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
             },
             onFrame: (frame, player) => {
                 if (token !== buildToken || ytModulePlayer !== player) return;
-                embedFrame = frame;
+                const measured = frame.measured && frame.bars ? { ...frame, bars: symmetricBars(frame.bars) } : frame;
+                embedFrame = measured.measured || !embedFrame ? measured : { ...measured, bars: embedFrame.bars, measured: embedFrame.measured };
+                if (measured.measured && measured.bars) rememberBars(videoId, measured.bars);
                 updateLayout();
             },
             onQualities: (qualities, player) => {
@@ -1620,6 +1738,9 @@ function buildSource(id: string, meta: VideoMeta): void {
     currentMeta = meta;
     activeSource = meta.source_type;
     embedFrame = null;
+    cachedBars = meta.source_type === 'youtube' ? loadCachedBars(meta.source_ref) : null;
+    barDetectTries = 0;
+    barDetectPlayedMs = 0;
     mediaPlaying = false;
     mediaVisible = false;
     adActive = false;
@@ -1986,6 +2107,7 @@ function tick(ts: number): void {
     if (ts - lastModeCheck > MODE_CHECK_MS) {
         lastModeCheck = ts;
         syncAutoCompact(ts);
+        syncBarDetect(ts);
         updateLayout();
         syncDock();
         const large = isLargeView();

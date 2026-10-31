@@ -160,6 +160,11 @@ export interface ThemeConfig {
     lineWindowEnabled: boolean;
     lineWindowSungLines: number;
     lineWindowUnsungLines: number;
+    lineWindowFadeStyle: string;
+    lineWindowFadeMs: number;
+    lineWindowGapMode: string;
+    lineWindowEdgeBlur: number;
+    lineWindowHoverReveal: boolean;
     scaleActive: number;
     inactiveLineScale: number;
     focusDuration: number;
@@ -334,6 +339,9 @@ export interface ThemeConfig {
     musicVideoEdgeFeather: number;
     musicVideoTrimBars: boolean;
     musicVideoDockPlayer: boolean;
+    musicVideoFullscreenLayout: string;
+    musicVideoAmbient: boolean;
+    musicVideoAmbientBand: number;
     musicVideoBlend: number;
     musicVideoPlayerFade: number;
     musicVideoCredit: string;
@@ -397,6 +405,11 @@ export const DEFAULT_THEME: ThemeConfig = {
     lineWindowEnabled: false,
     lineWindowSungLines: 2,
     lineWindowUnsungLines: 3,
+    lineWindowFadeStyle: 'fade',
+    lineWindowFadeMs: 350,
+    lineWindowGapMode: 'hide',
+    lineWindowEdgeBlur: 0,
+    lineWindowHoverReveal: false,
     scaleActive: 1.02,
     inactiveLineScale: 1,
     focusDuration: 0.5,
@@ -571,6 +584,9 @@ export const DEFAULT_THEME: ThemeConfig = {
     musicVideoEdgeFeather: 18,
     musicVideoTrimBars: true,
     musicVideoDockPlayer: true,
+    musicVideoFullscreenLayout: 'canvas',
+    musicVideoAmbient: true,
+    musicVideoAmbientBand: 11,
     musicVideoBlend: 0.5,
     musicVideoPlayerFade: 0,
     musicVideoCredit: 'video',
@@ -1103,6 +1119,8 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     textShadowOffsetY: [-10, 10],
     lineWindowSungLines: [0, 10],
     lineWindowUnsungLines: [0, 10],
+    lineWindowFadeMs: [0, 1000],
+    lineWindowEdgeBlur: [0, 6],
     glowIntensity: [0, 15],
     activeGlowIntensity: [0, 15],
     bgGlowIntensity: [0, 30],
@@ -1168,6 +1186,7 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     musicVideoBlend: [0.1, 1],
     musicVideoPlayerFade: [0, 100],
     musicVideoEdgeFeather: [0, 45],
+    musicVideoAmbientBand: [0, 30],
     eqSize: [0.4, 2.5],
     eqSpeed: [0.3, 3.0],
 };
@@ -1347,6 +1366,14 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
         normalized.eqPosition = 'both';
     }
 
+    if (!['cut', 'fade', 'gradient'].includes(normalized.lineWindowFadeStyle)) {
+        normalized.lineWindowFadeStyle = 'fade';
+    }
+
+    if (!['hide', 'line', 'window'].includes(normalized.lineWindowGapMode)) {
+        normalized.lineWindowGapMode = 'hide';
+    }
+
     if (!['auto', 'horizontal', 'vertical', 'diagonal', 'custom'].includes(normalized.gradientDirection)) {
         normalized.gradientDirection = 'auto';
     }
@@ -1401,6 +1428,10 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
 
     if (!['background', 'stage'].includes(normalized.musicVideoLayout)) {
         normalized.musicVideoLayout = 'background';
+    }
+
+    if (!['canvas', 'compact', 'keep'].includes(normalized.musicVideoFullscreenLayout)) {
+        normalized.musicVideoFullscreenLayout = 'canvas';
     }
 
     if (!['video', 'always', 'off'].includes(normalized.musicVideoCredit)) {

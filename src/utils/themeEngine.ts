@@ -1112,17 +1112,11 @@ ${blurTargets} {
 `);
 
         if (config.blurProgressive) {
-            const ramp = [0.3, 0.6, 0.85];
-            const rampRules = ramp.map((factor, idx) => {
+            const rampRules = BLUR_RAMP.map((factor, idx) => {
                 const k = idx + 1;
-                const ahead = Array(k).fill('+ [data-index]');
-                ahead[ahead.length - 1] = '+ [data-index]:not(.st-preview-line)';
-                const behind = Array(k).fill('+ [data-index]');
-                behind[behind.length - 1] = '+ [data-index] > .line.Active';
-
                 const targets = ALL.flatMap(b => [
-                    `${b} [data-index]:has(> .line.Active) ${ahead.join(' ')} > .line`,
-                    `${b} [data-index]:not(.st-preview-line):has(${behind.join(' ')}) > .line`,
+                    `${b} [data-index][${BLUR_RAMP_ATTR}="${k}"]:not(.st-preview-line) > .line`,
+                    `${b} [data-index][${BLUR_RAMP_ATTR}="-${k}"]:not(.st-preview-line) > .line`,
                 ]).join(',\n');
 
                 const amount = Math.round(config.blurAmount * factor * 100) / 100;
@@ -1216,38 +1210,54 @@ ${strokeTargets} {
         const sungN = Math.min(Math.max(Math.round(config.lineWindowSungLines), 0), 10);
         const unsungN = Math.min(Math.max(Math.round(config.lineWindowUnsungLines), 0), 10);
 
-        const hideTargets = ALL.flatMap(b => [
-            `${b} [data-index]:has(> .line.Sung)`,
-            `${b} [data-index]:has(> .line.NotSung)`,
-        ]).join(',\n');
+        const fadeMs = config.lineWindowFadeStyle === 'cut'
+            ? 0
+            : Math.min(Math.max(Math.round(config.lineWindowFadeMs), 0), 1000);
+        const gradient = config.lineWindowFadeStyle === 'gradient';
+        const edgeBlur = Math.min(Math.max(config.lineWindowEdgeBlur, 0), 6);
+
         lyrics.push(`
-${hideTargets} {
+${ALL.map(b => `${b} [data-index]:has(> .line):not([${LINE_WINDOW_ATTR}])`).join(',\n')} {
     opacity: 0 !important;
     visibility: hidden !important;
     pointer-events: none !important;
-    transition: opacity 0.35s ease, visibility 0s linear 0.35s !important;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity ${fadeMs}ms ease, filter ${fadeMs}ms ease, visibility 0s linear ${fadeMs}ms !important;
 }
-`);
-
-        const showTargets: string[] = [...ALL.map(b => `${b} [data-index]:has(> .line.Active)`)];
-        for (let k = 1; k <= unsungN; k++) {
-            const fwd = Array(k).fill('+ [data-index]').join(' ');
-            showTargets.push(...ALL.map(b => `${b} [data-index]:has(> .line.Active) ${fwd}`));
-        }
-        for (let k = 1; k <= sungN; k++) {
-            const parts = Array(k).fill('+ [data-index]');
-            parts[parts.length - 1] = '+ [data-index] > .line.Active';
-            const inner = parts.join(' ');
-            showTargets.push(...ALL.map(b => `${b} [data-index]:has(${inner})`));
-        }
-        lyrics.push(`
-${showTargets.join(',\n')} {
+${ALL.map(b => `${b} [data-index][${LINE_WINDOW_ATTR}]`).join(',\n')} {
     opacity: 1 !important;
     visibility: visible !important;
     pointer-events: auto !important;
-    transition: opacity 0.35s ease, visibility 0s !important;
+    filter: none !important;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity ${fadeMs}ms ease, filter ${fadeMs}ms ease, visibility 0s !important;
 }
 `);
+
+        const sides: Array<[number, number]> = [[-1, sungN], [1, unsungN]];
+        for (const [sign, n] of sides) {
+            for (let d = 1; d <= n; d++) {
+                const decls: string[] = [];
+                if (gradient) decls.push(`opacity: ${(1 - d / (n + 1)).toFixed(3)} !important;`);
+                if (edgeBlur > 0) decls.push(`filter: blur(${(edgeBlur * d / n).toFixed(2)}px) !important;`);
+                if (decls.length === 0) continue;
+                lyrics.push(`
+${ALL.map(b => `${b} [data-index][${LINE_WINDOW_ATTR}="${sign * d}"]`).join(',\n')} {
+    ${decls.join('\n    ')}
+}
+`);
+            }
+        }
+
+        if (config.lineWindowHoverReveal) {
+            lyrics.push(`
+${ALL.map(b => `${b}:hover [data-index]:has(> .line)`).join(',\n')} {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    filter: none !important;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity ${fadeMs}ms ease, filter ${fadeMs}ms ease, visibility 0s !important;
+}
+`);
+        }
     }
 
     if (config.bgGlowEnabled) {
@@ -1904,7 +1914,7 @@ ${notFs.map(p => `${p} .PlaybackControls .PlaybackControl.Pressed`).join(',\n')}
     opacity: 0 !important;
     transition: opacity 0.4s ease !important;
 }
-#SpicyLyricsPage.st-mv-active.st-mv-stage:not(.CardMode) .ContentBox .NowBar .Header .MediaBox:hover .MediaImageContainer {
+#SpicyLyricsPage.st-mv-active.st-mv-stage:not(.CardMode):not(.st-mv-dock) .ContentBox .NowBar .Header .MediaBox:hover .MediaImageContainer {
     opacity: 1 !important;
 }`;
         css.push(`
@@ -2607,6 +2617,9 @@ function removeMusicVideo(): void {
     stopMusicVideo();
 }
 
+const LINE_WINDOW_ATTR = 'data-st-win';
+const BLUR_RAMP_ATTR = 'data-st-dist';
+const BLUR_RAMP = [0.3, 0.6, 0.85];
 const WORD_TAG_CLASSES = ['st-sung-word', 'st-word-live'];
 const NOT_STARTED = -19.5;
 const FINISHED = 99;
@@ -2729,21 +2742,144 @@ function refreshBlurPreviewIn(doc: Document, n: number): void {
     }
 }
 
-export function refreshBlurPreview(): void {
+type LineWindowSpec = { sungN: number; unsungN: number; gapMode: string };
+type LineSlot = { wrapper: HTMLElement; active: boolean; musical: boolean; sung: boolean; notSung: boolean };
+
+function lineWindowTags(slots: Map<number, LineSlot>, spec: LineWindowSpec): Map<HTMLElement, string> {
+    const tags = new Map<HTMLElement, string>();
+    const holding = spec.gapMode !== 'hide';
+    const order = Array.from(slots.keys())
+        .filter(i => !(holding && slots.get(i)!.musical))
+        .sort((a, b) => a - b)
+        .map(i => slots.get(i)!);
+
+    let lo = -1;
+    let hi = -1;
+    order.forEach((s, r) => {
+        if (!s.active) return;
+        if (lo < 0) lo = r;
+        hi = r;
+    });
+
+    if (lo < 0) {
+        if (!holding) return tags;
+        let lastSung = -1;
+        order.forEach((s, r) => {
+            if (s.sung) lastSung = r;
+        });
+        if (spec.gapMode === 'line') {
+            if (lastSung >= 0) tags.set(order[lastSung].wrapper, '0');
+            return tags;
+        }
+        if (lastSung >= 0) lo = hi = lastSung;
+        else if (order.some(s => s.notSung)) lo = hi = order.findIndex(s => s.notSung) - 1;
+        else return tags;
+    }
+
+    order.forEach((s, r) => {
+        const d = r < lo ? r - lo : r > hi ? r - hi : 0;
+        if (d < -spec.sungN || d > spec.unsungN) return;
+        tags.set(s.wrapper, String(d));
+    });
+    return tags;
+}
+
+function collectLineSlots(doc: Document): Map<number, LineSlot>[] {
+    const containers = new Map<Element, Map<number, LineSlot>>();
+    doc.querySelectorAll<HTMLElement>('#SpicyLyricsPage [data-index] > .line').forEach(line => {
+        const wrapper = line.parentElement as HTMLElement;
+        const container = wrapper.parentElement;
+        const idx = parseInt(wrapper.getAttribute('data-index') || '', 10);
+        if (!container || Number.isNaN(idx)) return;
+        let slots = containers.get(container);
+        if (!slots) {
+            slots = new Map();
+            containers.set(container, slots);
+        }
+        let slot = slots.get(idx);
+        if (!slot) {
+            slot = { wrapper, active: false, musical: false, sung: false, notSung: false };
+            slots.set(idx, slot);
+        }
+        const cl = line.classList;
+        slot.active ||= cl.contains('Active');
+        slot.musical ||= cl.contains('musical-line');
+        slot.sung ||= cl.contains('Sung');
+        slot.notSung ||= cl.contains('NotSung');
+    });
+    return Array.from(containers.values());
+}
+
+function blurRampTags(slots: Map<number, LineSlot>): Map<HTMLElement, string> {
+    const tags = new Map<HTMLElement, string>();
+    let lo = Infinity;
+    let hi = -Infinity;
+    slots.forEach((s, i) => {
+        if (!s.active) return;
+        lo = Math.min(lo, i);
+        hi = Math.max(hi, i);
+    });
+    if (lo === Infinity) return tags;
+    slots.forEach((s, i) => {
+        const d = i < lo ? i - lo : i > hi ? i - hi : 0;
+        if (d !== 0 && Math.abs(d) <= BLUR_RAMP.length) tags.set(s.wrapper, String(d));
+    });
+    return tags;
+}
+
+function applyLineAttr(doc: Document, attr: string, wanted: Map<HTMLElement, string>): void {
+    doc.querySelectorAll<HTMLElement>(`#SpicyLyricsPage [${attr}]`).forEach(el => {
+        if (!wanted.has(el)) el.removeAttribute(attr);
+    });
+    wanted.forEach((v, el) => {
+        if (el.getAttribute(attr) !== v) el.setAttribute(attr, v);
+    });
+}
+
+function refreshLineAttrsIn(doc: Document, spec: LineWindowSpec | null, ramp: boolean): void {
+    const windowTags = new Map<HTMLElement, string>();
+    const rampTags = new Map<HTMLElement, string>();
+    if (spec || ramp) {
+        collectLineSlots(doc).forEach(slots => {
+            if (spec) lineWindowTags(slots, spec).forEach((v, el) => windowTags.set(el, v));
+            if (ramp) blurRampTags(slots).forEach((v, el) => rampTags.set(el, v));
+        });
+    }
+    applyLineAttr(doc, LINE_WINDOW_ATTR, windowTags);
+    applyLineAttr(doc, BLUR_RAMP_ATTR, rampTags);
+}
+
+function lineWindowSpec(): LineWindowSpec | null {
+    const t = themeState.activeTheme;
+    if (!themeState.isEnabled || !t.lyricsStylingEnabled || !t.lineWindowEnabled) return null;
+    return {
+        sungN: Math.min(Math.max(Math.round(t.lineWindowSungLines), 0), 10),
+        unsungN: Math.min(Math.max(Math.round(t.lineWindowUnsungLines), 0), 10),
+        gapMode: t.lineWindowGapMode,
+    };
+}
+
+function refreshLineTags(): void {
     blurPreviewScheduled = false;
     const enabled = themeState.isEnabled && themeState.activeTheme.blurUnsung;
     const n = enabled ? Math.max(0, Math.round(themeState.activeTheme.blurPreviewLines)) : 0;
+    const spec = lineWindowSpec();
+    const ramp = enabled && !!themeState.activeTheme.lyricsStylingEnabled && !!themeState.activeTheme.blurProgressive;
     try {
         refreshBlurPreviewIn(document, n);
+        refreshLineAttrsIn(document, spec, ramp);
         const pipWindow = getPIPWindow();
-        if (pipWindow) refreshBlurPreviewIn(pipWindow.document, n);
+        if (pipWindow) {
+            refreshBlurPreviewIn(pipWindow.document, n);
+            refreshLineAttrsIn(pipWindow.document, spec, ramp);
+        }
     } catch (e) {}
 }
 
 function scheduleBlurPreview(): void {
     if (blurPreviewScheduled) return;
     blurPreviewScheduled = true;
-    requestAnimationFrame(refreshBlurPreview);
+    requestAnimationFrame(refreshLineTags);
 }
 
 function watchBlurPreviewIn(doc: Document): void {
@@ -2758,6 +2894,15 @@ function watchBlurPreviewIn(doc: Document): void {
 
     const observer = new MutationObserver((muts) => {
         for (const m of muts) {
+            if (m.type === 'childList') {
+                for (const n of Array.from(m.addedNodes)) {
+                    if (n.nodeType === 1 && (n as Element).hasAttribute('data-index')) {
+                        scheduleBlurPreview();
+                        return;
+                    }
+                }
+                continue;
+            }
             const t = m.target as HTMLElement;
             if (t.classList && t.classList.contains('line')) {
                 scheduleBlurPreview();
@@ -2765,7 +2910,7 @@ function watchBlurPreviewIn(doc: Document): void {
             }
         }
     });
-    observer.observe(target, { attributes: true, attributeFilter: ['class'], subtree: true });
+    observer.observe(target, { attributes: true, attributeFilter: ['class'], subtree: true, childList: true });
     blurPreviewWatches.set(doc, { target, observer });
 }
 

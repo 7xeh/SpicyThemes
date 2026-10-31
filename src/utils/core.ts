@@ -85,6 +85,7 @@ function openVariantMenu(button: HTMLElement): void {
     if (variants.length < 2) return;
     if (!variantMenuHost || !variantMenuHost.isConnected) {
         variantMenuHost = document.createElement('div');
+        variantMenuHost.className = 'st-ui-menu-host';
         paintTone(variantMenuHost, 'accent');
         document.body.append(variantMenuHost);
     }

@@ -33,6 +33,21 @@ export interface YtModuleFrame {
     width: number;
     height: number;
     bars: YtModuleEdges | null;
+    measured: boolean;
+}
+
+export interface YtModuleRect {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+
+export interface YtModuleAmbient {
+    size: { w: number; h: number };
+    picture: YtModuleRect;
+    clip: YtModuleRect;
+    fade: YtModuleEdges;
 }
 
 export interface YtModuleOptions {
@@ -51,6 +66,7 @@ export interface YtModuleOptions {
     onQualities?: (qualities: YtModuleQualities, player: YtModulePlayer) => void;
     onCaptionsChange?: (showing: number, tracks: number, player: YtModulePlayer) => void;
     onFrame?: (frame: YtModuleFrame, player: YtModulePlayer) => void;
+    onAmbient?: (on: boolean, player: YtModulePlayer) => void;
 }
 
 type StateName = keyof typeof YTMODULE_STATE;
@@ -100,7 +116,7 @@ function parseFrame(d: any): YtModuleFrame | null {
     const width = typeof d.width === 'number' && isFinite(d.width) ? Math.round(d.width) : 0;
     const height = typeof d.height === 'number' && isFinite(d.height) ? Math.round(d.height) : 0;
     if (width <= 0 || height <= 0 || width > 16384 || height > 16384) return null;
-    return { width, height, bars: parseEdges(d.bars) };
+    return { width, height, bars: parseEdges(d.bars), measured: 'bars' in d };
 }
 
 function parseQualities(d: any): YtModuleQualities {
@@ -138,6 +154,9 @@ export class YtModulePlayer {
     private ticketSentAt = 0;
     private ticketResends = 0;
     private qualities: YtModuleQualities | null = null;
+    private features: string[] = [];
+    private ambientSent = '';
+    private ambientWanted: YtModuleAmbient | null = null;
 
     constructor(container: HTMLElement, opts: YtModuleOptions) {
         this.opts = opts;
@@ -180,7 +199,10 @@ export class YtModulePlayer {
             this.dur = typeof d.duration === 'number' && isFinite(d.duration) ? d.duration : 0;
             this.capShowing = typeof d.showing === 'number' ? d.showing : 0;
             this.capTracks = typeof d.tracks === 'number' ? d.tracks : 0;
+            this.features = Array.isArray(d.features) ? d.features.filter((f: unknown) => typeof f === 'string') : [];
+            this.ambientSent = '';
             this.flushTicket();
+            this.flushAmbient();
             this.opts.onReady?.(this);
         } else if (d.event === 'time') {
             if (typeof d.sec === 'number' && isFinite(d.sec)) {
@@ -206,6 +228,8 @@ export class YtModulePlayer {
         } else if (d.event === 'frame') {
             const frame = parseFrame(d);
             if (frame) this.opts.onFrame?.(frame, this);
+        } else if (d.event === 'ambient') {
+            this.opts.onAmbient?.(d.on === true, this);
         } else if (d.event === 'cmderror') {
             this.opts.onCommandError?.(
                 String(d.cmd || 'unknown'),
@@ -267,6 +291,24 @@ export class YtModulePlayer {
         return this.ready;
     }
 
+    supportsAmbient(): boolean {
+        return this.ready && this.features.includes('ambient');
+    }
+
+    setAmbient(layout: YtModuleAmbient | null): void {
+        this.ambientWanted = layout;
+        this.flushAmbient();
+    }
+
+    private flushAmbient(): void {
+        if (!this.supportsAmbient()) return;
+        const layout = this.ambientWanted;
+        const key = layout ? JSON.stringify(layout) : '';
+        if (key === this.ambientSent) return;
+        this.ambientSent = key;
+        this.send('ambient', layout ? { on: true, ...layout } : { on: false });
+    }
+
     setTicket(vq: string | null): void {
         this.ticketWanted = vq || '';
         this.flushTicket();
@@ -274,6 +316,10 @@ export class YtModulePlayer {
 
     getQualities(): YtModuleQualities | null {
         return this.qualities;
+    }
+
+    detectBars(): void {
+        if (this.ready) this.send('detect');
     }
 
     requestQualities(): void {
