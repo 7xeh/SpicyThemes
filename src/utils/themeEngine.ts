@@ -310,11 +310,13 @@ export function wordEffectTrigger(config: ThemeConfig): WordEffectTrigger | null
 
 const SLT_WORD_ANIM_TARGETS = (nth: string, gate: string) => [
     `.slt-interleaved-translation.Active .slt-sync-word${nth}${gate}`,
+    `.slt-bg-translation.Active .slt-sync-word${nth}${gate}`,
     `.slt-replace-line.Active .slt-replace-word${nth}${gate}`,
 ];
 
 const SLT_LINE_ANIM_TARGETS = [
     '.slt-interleaved-translation.Active',
+    '.slt-bg-translation.Active',
     '.slt-replace-line.Active',
 ];
 
@@ -426,19 +428,24 @@ function wordEffectCSS(config: ThemeConfig, bases: string[], baseShadow: string,
     });
 }
 
-const SLT_LINE_BASE = ['.slt-replace-line', '.slt-interleaved-translation'];
+const SLT_BG_LINE = '.slt-bg-translation';
+const SLT_LINE_BASE = ['.slt-replace-line', '.slt-interleaved-translation', SLT_BG_LINE];
 const SLT_WORD_BASE = ['.slt-replace-word', '.slt-sync-word'];
-const SLT_ACTIVE_LINE = [
-    ':is(.slt-replace-line.Active, .slt-replace-line.active, .line.Active + .slt-replace-line)',
+const SLT_ACTIVE_REPLACE = ':is(.slt-replace-line.Active, .slt-replace-line.active, .line.Active + .slt-replace-line)';
+const SLT_ACTIVE_SYNC = [
     ':is(.slt-interleaved-translation.Active, .slt-interleaved-translation.active, .line.Active + .slt-interleaved-translation)',
+    ':is(.slt-bg-translation.Active, .slt-bg-translation.active, .line.bg-line.Active + .slt-bg-translation)',
 ];
+const SLT_ACTIVE_LINE = [SLT_ACTIVE_REPLACE, ...SLT_ACTIVE_SYNC];
 const SLT_SUNG_LINE = [
     ':is(.slt-replace-line.Sung, .line.Sung + .slt-replace-line)',
     ':is(.slt-interleaved-translation.Sung, .line.Sung + .slt-interleaved-translation)',
+    ':is(.slt-bg-translation.Sung, .line.bg-line.Sung + .slt-bg-translation)',
 ];
 const SLT_NOTSUNG_LINE = [
     ':is(.slt-replace-line.NotSung, .line.NotSung + .slt-replace-line)',
     ':is(.slt-interleaved-translation.NotSung, .line.NotSung + .slt-interleaved-translation)',
+    ':is(.slt-bg-translation.NotSung, .line.bg-line.NotSung + .slt-bg-translation)',
 ];
 const SLT_ACTIVE_WORD = ['.slt-replace-word.word-active', '.slt-sync-word.slt-word-active'];
 const SLT_SUNG_WORD = ['.slt-replace-word.word-sung', '.slt-sync-word.slt-word-past'];
@@ -447,7 +454,7 @@ const SLT_NOTSUNG_WORD = [
     '.slt-replace-word.word-notsng',
     '.slt-sync-word.slt-word-future',
 ];
-const SLT_SYNC_LINE = '.slt-sync-translation.slt-interleaved-translation';
+const SLT_SYNC_LINES = ['.slt-sync-translation.slt-interleaved-translation', SLT_BG_LINE];
 
 const LEARNING_HEADER = '#SpicyLyricsPage .slt-learning-row .slt-learning-translation';
 const LEARNING_HEADER_COMPACT = [
@@ -487,6 +494,7 @@ function translationCSS(config: ThemeConfig): string[] {
     const fontFamily = config.sltFontFamily || config.fontFamily;
     const fontFamilyDecl = fontFamily ? `font-family: ${fontFamily}, system-ui, sans-serif !important;` : '';
     const scale = round(clamp(config.sltLyricsScale, 0.25, 2), 4);
+    const bgScale = round(clamp(config.sltBgLineScale, 0.25, 1.5), 4);
     const animationSpeed = clamp(config.sltAnimationSpeed, 0.3, 3);
     const transitionMs = Math.max(8.333, 110 / animationSpeed).toFixed(3);
     const snapMs = Math.max(8.333, 56 / animationSpeed).toFixed(3);
@@ -544,6 +552,8 @@ function translationCSS(config: ThemeConfig): string[] {
         out.push(`
 #SpicyLyricsPage .slt-interleaved-translation.slt-interleaved-translation,
 #SpicyLyricsPage .slt-interleaved-translation.slt-interleaved-translation *,
+#SpicyLyricsPage .slt-bg-translation.slt-bg-translation,
+#SpicyLyricsPage .slt-bg-translation.slt-bg-translation *,
 #SpicyLyricsPage .slt-replace-line.slt-replace-line,
 #SpicyLyricsPage .slt-replace-line.slt-replace-line * {
     ${fontFamilyDecl}
@@ -577,12 +587,16 @@ ${SLT_LINE_BASE.join(',\n')} {
     ${lineTransition}
 }
 
-${SLT_SYNC_LINE} {
+${SLT_BG_LINE} {
+    font-size: calc(1em * ${round(scale * bgScale, 4)}) !important;
+}
+
+${SLT_SYNC_LINES.join(',\n')} {
     ${syncExtras}
 }
 
 .slt-replace-line:has(.slt-replace-word),
-${SLT_SYNC_LINE}:has(.slt-sync-word) {
+${SLT_SYNC_LINES.map(s => `${s}:has(.slt-sync-word)`).join(',\n')} {
     background-image: none !important;
     -webkit-text-fill-color: ${baseColor} !important;
 }
@@ -648,8 +662,8 @@ ${SLT_NOTSUNG_WORD.join(',\n')} {
 
     if (config.sltBlurSungWords) {
         const targets = [
-            `${SLT_ACTIVE_LINE[0]} .slt-replace-word.word-sung`,
-            `${SLT_ACTIVE_LINE[1]} .slt-sync-word.slt-word-past`,
+            `${SLT_ACTIVE_REPLACE} .slt-replace-word.word-sung`,
+            ...SLT_ACTIVE_SYNC.map(s => `${s} .slt-sync-word.slt-word-past`),
         ].join(',\n');
         out.push(`
 ${targets} {
@@ -716,12 +730,12 @@ ${lineOriginRules(SLT_ACTIVE_LINE)}
         scope: '#SpicyLyricsPage',
         words: (_root, nth, gate) => (gate
             ? [
-                `${SLT_ACTIVE_LINE[0]} .slt-replace-word.word-active${nth}`,
-                `${SLT_ACTIVE_LINE[1]} .slt-sync-word.slt-word-active${nth}`,
+                `${SLT_ACTIVE_REPLACE} .slt-replace-word.word-active${nth}`,
+                ...SLT_ACTIVE_SYNC.map(s => `${s} .slt-sync-word.slt-word-active${nth}`),
             ]
             : [
-                `${SLT_ACTIVE_LINE[0]} .slt-replace-word${nth}`,
-                `${SLT_ACTIVE_LINE[1]} .slt-sync-word${nth}`,
+                `${SLT_ACTIVE_REPLACE} .slt-replace-word${nth}`,
+                ...SLT_ACTIVE_SYNC.map(s => `${s} .slt-sync-word${nth}`),
             ]),
         lines: () => SLT_ACTIVE_LINE,
     }));
@@ -741,7 +755,7 @@ ${lineOriginRules(SLT_ACTIVE_LINE)}
 
     out.push(`
 #SpicyLyricsPage .slt-replace-line:has(.slt-replace-word),
-#SpicyLyricsPage ${SLT_SYNC_LINE}:has(.slt-sync-word) {
+${SLT_SYNC_LINES.map(s => `#SpicyLyricsPage ${s}:has(.slt-sync-word)`).join(',\n')} {
     background-image: none !important;
 }
 `);
@@ -877,6 +891,7 @@ export function generateThemeCSS(config: ThemeConfig): string {
     const sltFont = sltTranslationFont || fontFamily;
     const sltFontFamilyDecl = sltFont ? `font-family: ${sltFont}, system-ui, sans-serif !important;` : '';
     const sltCombinedScale = Math.round(config.sltTranslationFontSize * config.lyricsScale * 10000) / 10000;
+    const sltBgScale = round(clamp(config.sltBgLineScale, 0.25, 1.5), 4);
     const sltFontOverrides = buildProps(
         sltCombinedScale !== 1.0 && `font-size: calc(1em * ${sltCombinedScale}) !important;`,
         sltFontFamilyDecl,
@@ -1101,6 +1116,10 @@ ${ALL.map(b => `${b} .line.Active`).join(',\n')} {
                 '.line.NotSung + .slt-replace-line',
                 '.line.Sung + .slt-interleaved-translation',
                 '.line.NotSung + .slt-interleaved-translation',
+                '.slt-bg-translation.Sung',
+                '.slt-bg-translation.NotSung',
+                '.line.bg-line.Sung + .slt-bg-translation',
+                '.line.bg-line.NotSung + .slt-bg-translation',
             ]),
         ].join(',\n');
         const blurFilter = filterDecl(`blur(${config.blurAmount}px)`, glowNormalFn, shadowFilter);
@@ -1132,6 +1151,7 @@ ${blurTargets} {
             ...ALL.map(b => `${b} [data-index].st-preview-line > .line.NotSung`),
             ...sltShared([
                 '[data-index].st-preview-line .slt-interleaved-translation',
+                '[data-index].st-preview-line .slt-bg-translation',
                 '[data-index].st-preview-line .slt-replace-line',
                 '.slt-replace-line.Active',
                 '.slt-replace-line.active',
@@ -1139,6 +1159,9 @@ ${blurTargets} {
                 '.slt-interleaved-translation.Active',
                 '.slt-interleaved-translation.active',
                 '.line.Active + .slt-interleaved-translation',
+                '.slt-bg-translation.Active',
+                '.slt-bg-translation.active',
+                '.line.bg-line.Active + .slt-bg-translation',
             ]),
         ];
         lyrics.push(`
@@ -1175,6 +1198,7 @@ ${sungWordTargets} {
             ...sltShared([
                 '.slt-replace-line',
                 '.slt-interleaved-translation',
+                '.slt-bg-translation',
             ]),
         ].join(',\n');
         lyrics.push(`
@@ -1196,6 +1220,8 @@ ${shadowTargets} {
                 '.slt-replace-line .slt-replace-word',
                 '.slt-interleaved-translation',
                 '.slt-interleaved-translation .slt-sync-word',
+                '.slt-bg-translation',
+                '.slt-bg-translation .slt-sync-word',
             ]),
         ].join(',\n');
         lyrics.push(`
@@ -1436,6 +1462,8 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
         lyrics.push(`
 #SpicyLyricsPage .slt-interleaved-translation.slt-interleaved-translation,
 #SpicyLyricsPage .slt-interleaved-translation.slt-interleaved-translation *,
+#SpicyLyricsPage .slt-bg-translation.slt-bg-translation,
+#SpicyLyricsPage .slt-bg-translation.slt-bg-translation *,
 #SpicyLyricsPage .slt-replace-line.slt-replace-line,
 #SpicyLyricsPage .slt-replace-line.slt-replace-line * {
     ${sltFontFamilyDecl}
@@ -1488,7 +1516,8 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
     backface-visibility: hidden !important;
 }
 
-.slt-sync-translation.slt-interleaved-translation {
+.slt-sync-translation.slt-interleaved-translation,
+.slt-bg-translation {
     ${buildProps(
         notSungGrad,
         `opacity: ${config.sltTranslationOpacity} !important;`,
@@ -1504,7 +1533,12 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
     backface-visibility: hidden !important;
 }
 
-.slt-sync-translation.slt-interleaved-translation:has(.slt-sync-word) {
+.slt-bg-translation {
+    font-size: calc(1em * ${round(sltCombinedScale * sltBgScale, 4)}) !important;
+}
+
+.slt-sync-translation.slt-interleaved-translation:has(.slt-sync-word),
+.slt-bg-translation:has(.slt-sync-word) {
     background-image: none !important;
     -webkit-text-fill-color: ${sltBaseColor} !important;
 }
@@ -1542,7 +1576,10 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
 }
 
 .line.Active + .slt-sync-translation.slt-interleaved-translation,
-.slt-sync-translation.slt-interleaved-translation.active {
+.slt-sync-translation.slt-interleaved-translation.active,
+.line.bg-line.Active + .slt-bg-translation,
+.slt-bg-translation.active,
+.slt-bg-translation.Active {
     ${buildProps(
         activeGrad,
         `opacity: ${sltActiveOpacity} !important;`,
@@ -1574,7 +1611,9 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
     )}
 }
 
-.line.Sung + .slt-sync-translation.slt-interleaved-translation {
+.line.Sung + .slt-sync-translation.slt-interleaved-translation,
+.line.bg-line.Sung + .slt-bg-translation,
+.slt-bg-translation.Sung {
     ${buildProps(
         sungGrad,
         `opacity: ${sltSungOpacity} !important;`,
@@ -1607,7 +1646,9 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
     )}
 }
 
-.line.NotSung + .slt-sync-translation.slt-interleaved-translation {
+.line.NotSung + .slt-sync-translation.slt-interleaved-translation,
+.line.bg-line.NotSung + .slt-bg-translation,
+.slt-bg-translation.NotSung {
     ${buildProps(
         notSungGrad,
         `opacity: ${sltNotSungOpacity} !important;`,
@@ -1624,7 +1665,8 @@ ${mvHidden.map(c => `#SpicyLyricsPage.${c}.st-mv-active .ContentBox > #${ANIM_BG
 }
 
 #SpicyLyricsPage .slt-replace-line:has(.slt-replace-word),
-#SpicyLyricsPage .slt-sync-translation.slt-interleaved-translation:has(.slt-sync-word) {
+#SpicyLyricsPage .slt-sync-translation.slt-interleaved-translation:has(.slt-sync-word),
+#SpicyLyricsPage .slt-bg-translation:has(.slt-sync-word) {
     background-image: none !important;
 }
 `);
@@ -1673,6 +1715,9 @@ ${lineOriginRules(ALL.flatMap(b => [`${b} .line.Sung`, `${b} .line.NotSung`, `${
                 '.slt-interleaved-translation.Active',
                 '.slt-interleaved-translation.active',
                 '.line.Active + .slt-interleaved-translation',
+                '.slt-bg-translation.Active',
+                '.slt-bg-translation.active',
+                '.line.bg-line.Active + .slt-bg-translation',
             ]),
         ].join(',\n');
         lyrics.push(`
@@ -1689,6 +1734,7 @@ ${lineOriginRules([
     ...sltShared([
         '.slt-replace-line.Active',
         '.slt-interleaved-translation.Active',
+        '.slt-bg-translation.Active',
     ]),
 ])}
 `);
@@ -2719,70 +2765,9 @@ export function stopSungWordTagger(): void {
     if (pipWindow) clearWordTags(pipWindow.document);
 }
 
-type BlurPreviewWatch = { target: Element; observer: MutationObserver };
-const blurPreviewWatches = new Map<Document, BlurPreviewWatch>();
-let blurPreviewScheduled = false;
-
-function refreshBlurPreviewIn(doc: Document, n: number): void {
-    doc.querySelectorAll('#SpicyLyricsPage [data-index].st-preview-line')
-        .forEach(el => el.classList.remove('st-preview-line'));
-
-    if (n <= 0) return;
-
-    const active = doc.querySelector('#SpicyLyricsPage .line.Active');
-    const activeWrapper = active?.closest('[data-index]') as HTMLElement | null;
-    const container = activeWrapper?.parentElement;
-    if (!activeWrapper || !container) return;
-    const activeIdx = parseInt(activeWrapper.getAttribute('data-index') || '', 10);
-    if (Number.isNaN(activeIdx)) return;
-
-    for (let k = 1; k <= n; k++) {
-        const w = container.querySelector(`[data-index="${activeIdx + k}"]`) as HTMLElement | null;
-        if (w) w.classList.add('st-preview-line');
-    }
-}
-
 type LineWindowSpec = { sungN: number; unsungN: number; gapMode: string };
-type LineSlot = { wrapper: HTMLElement; active: boolean; musical: boolean; sung: boolean; notSung: boolean };
-
-function lineWindowTags(slots: Map<number, LineSlot>, spec: LineWindowSpec): Map<HTMLElement, string> {
-    const tags = new Map<HTMLElement, string>();
-    const holding = spec.gapMode !== 'hide';
-    const order = Array.from(slots.keys())
-        .filter(i => !(holding && slots.get(i)!.musical))
-        .sort((a, b) => a - b)
-        .map(i => slots.get(i)!);
-
-    let lo = -1;
-    let hi = -1;
-    order.forEach((s, r) => {
-        if (!s.active) return;
-        if (lo < 0) lo = r;
-        hi = r;
-    });
-
-    if (lo < 0) {
-        if (!holding) return tags;
-        let lastSung = -1;
-        order.forEach((s, r) => {
-            if (s.sung) lastSung = r;
-        });
-        if (spec.gapMode === 'line') {
-            if (lastSung >= 0) tags.set(order[lastSung].wrapper, '0');
-            return tags;
-        }
-        if (lastSung >= 0) lo = hi = lastSung;
-        else if (order.some(s => s.notSung)) lo = hi = order.findIndex(s => s.notSung) - 1;
-        else return tags;
-    }
-
-    order.forEach((s, r) => {
-        const d = r < lo ? r - lo : r > hi ? r - hi : 0;
-        if (d < -spec.sungN || d > spec.unsungN) return;
-        tags.set(s.wrapper, String(d));
-    });
-    return tags;
-}
+type LineSlot = { wrapper: HTMLElement; bg: boolean; active: boolean; musical: boolean; sung: boolean; notSung: boolean };
+type LineUnit = { slots: HTMLElement[]; active: boolean; musical: boolean; sung: boolean; notSung: boolean };
 
 function collectLineSlots(doc: Document): Map<number, LineSlot>[] {
     const containers = new Map<Element, Map<number, LineSlot>>();
@@ -2798,10 +2783,11 @@ function collectLineSlots(doc: Document): Map<number, LineSlot>[] {
         }
         let slot = slots.get(idx);
         if (!slot) {
-            slot = { wrapper, active: false, musical: false, sung: false, notSung: false };
+            slot = { wrapper, bg: true, active: false, musical: false, sung: false, notSung: false };
             slots.set(idx, slot);
         }
         const cl = line.classList;
+        slot.bg &&= cl.contains('bg-line');
         slot.active ||= cl.contains('Active');
         slot.musical ||= cl.contains('musical-line');
         slot.sung ||= cl.contains('Sung');
@@ -2810,21 +2796,112 @@ function collectLineSlots(doc: Document): Map<number, LineSlot>[] {
     return Array.from(containers.values());
 }
 
-function blurRampTags(slots: Map<number, LineSlot>): Map<HTMLElement, string> {
-    const tags = new Map<HTMLElement, string>();
-    let lo = Infinity;
-    let hi = -Infinity;
-    slots.forEach((s, i) => {
-        if (!s.active) return;
-        lo = Math.min(lo, i);
-        hi = Math.max(hi, i);
+function lineUnits(slots: Map<number, LineSlot>): LineUnit[] {
+    const units: LineUnit[] = [];
+    Array.from(slots.keys()).sort((a, b) => a - b).forEach(i => {
+        const s = slots.get(i)!;
+        let unit = units[units.length - 1];
+        if (!unit || !s.bg) {
+            unit = { slots: [], active: false, musical: false, sung: false, notSung: false };
+            units.push(unit);
+        }
+        unit.slots.push(s.wrapper);
+        unit.active ||= s.active;
+        unit.musical ||= s.musical;
+        unit.sung ||= s.sung;
+        unit.notSung ||= s.notSung;
     });
-    if (lo === Infinity) return tags;
-    slots.forEach((s, i) => {
-        const d = i < lo ? i - lo : i > hi ? i - hi : 0;
-        if (d !== 0 && Math.abs(d) <= BLUR_RAMP.length) tags.set(s.wrapper, String(d));
+    return units;
+}
+
+function inInstrumentalBreak(units: LineUnit[]): boolean {
+    if (units.some(u => u.musical && u.active)) return true;
+
+    let last = -1;
+    units.forEach((u, r) => {
+        if (u.sung && !u.musical) last = r;
+    });
+    for (let r = last + 1; r < units.length; r++) {
+        if (units[r].musical) return true;
+        if (units[r].notSung) return false;
+    }
+    return false;
+}
+
+function lineWindowTags(units: LineUnit[], spec: LineWindowSpec): Map<HTMLElement, string> {
+    const tags = new Map<HTMLElement, string>();
+    const tag = (u: LineUnit, v: string) => u.slots.forEach(el => tags.set(el, v));
+    const order = units.filter(u => !u.musical);
+
+    let lo = -1;
+    let hi = -1;
+    order.forEach((u, r) => {
+        if (!u.active) return;
+        if (lo < 0) lo = r;
+        hi = r;
+    });
+
+    if (lo < 0) {
+        let lastSung = -1;
+        order.forEach((u, r) => {
+            if (u.sung) lastSung = r;
+        });
+
+        if (inInstrumentalBreak(units)) {
+            if (spec.gapMode === 'hide') return tags;
+            units.forEach(u => {
+                if (u.musical && u.active) tag(u, '0');
+            });
+            if (spec.gapMode === 'line') {
+                if (lastSung >= 0) tag(order[lastSung], '0');
+                return tags;
+            }
+        }
+
+        if (lastSung >= 0) lo = hi = lastSung;
+        else if (order.some(u => u.notSung)) lo = hi = order.findIndex(u => u.notSung) - 1;
+        else return tags;
+    }
+
+    order.forEach((u, r) => {
+        const d = r < lo ? r - lo : r > hi ? r - hi : 0;
+        if (d < -spec.sungN || d > spec.unsungN) return;
+        tag(u, String(d));
     });
     return tags;
+}
+
+function blurRampTags(units: LineUnit[]): Map<HTMLElement, string> {
+    const tags = new Map<HTMLElement, string>();
+    let lo = -1;
+    let hi = -1;
+    units.forEach((u, r) => {
+        if (!u.active) return;
+        if (lo < 0) lo = r;
+        hi = r;
+    });
+    if (lo < 0) return tags;
+    units.forEach((u, r) => {
+        const d = r < lo ? r - lo : r > hi ? r - hi : 0;
+        if (d === 0 || Math.abs(d) > BLUR_RAMP.length) return;
+        u.slots.forEach(el => tags.set(el, String(d)));
+    });
+    return tags;
+}
+
+function previewWrappers(units: LineUnit[], n: number): HTMLElement[] {
+    if (n <= 0) return [];
+    let hi = -1;
+    units.forEach((u, r) => {
+        if (u.active) hi = r;
+    });
+    if (hi < 0) return [];
+    const out: HTMLElement[] = [];
+    for (let k = 1; k <= n; k++) {
+        const u = units[hi + k];
+        if (u) out.push(...u.slots);
+    }
+    return out;
 }
 
 function applyLineAttr(doc: Document, attr: string, wanted: Map<HTMLElement, string>): void {
@@ -2836,17 +2913,32 @@ function applyLineAttr(doc: Document, attr: string, wanted: Map<HTMLElement, str
     });
 }
 
-function refreshLineAttrsIn(doc: Document, spec: LineWindowSpec | null, ramp: boolean): void {
+function applyLineClass(doc: Document, cls: string, wanted: Set<HTMLElement>): void {
+    doc.querySelectorAll<HTMLElement>(`#SpicyLyricsPage [data-index].${cls}`).forEach(el => {
+        if (!wanted.has(el)) el.classList.remove(cls);
+    });
+    wanted.forEach(el => {
+        if (!el.classList.contains(cls)) el.classList.add(cls);
+    });
+}
+
+function refreshLineTagsIn(doc: Document, job: LineTagJob): void {
     const windowTags = new Map<HTMLElement, string>();
     const rampTags = new Map<HTMLElement, string>();
-    if (spec || ramp) {
+    const preview = new Set<HTMLElement>();
+
+    if (job.spec || job.ramp || job.preview > 0) {
         collectLineSlots(doc).forEach(slots => {
-            if (spec) lineWindowTags(slots, spec).forEach((v, el) => windowTags.set(el, v));
-            if (ramp) blurRampTags(slots).forEach((v, el) => rampTags.set(el, v));
+            const units = lineUnits(slots);
+            if (job.spec) lineWindowTags(units, job.spec).forEach((v, el) => windowTags.set(el, v));
+            if (job.ramp) blurRampTags(units).forEach((v, el) => rampTags.set(el, v));
+            previewWrappers(units, job.preview).forEach(el => preview.add(el));
         });
     }
+
     applyLineAttr(doc, LINE_WINDOW_ATTR, windowTags);
     applyLineAttr(doc, BLUR_RAMP_ATTR, rampTags);
+    applyLineClass(doc, 'st-preview-line', preview);
 }
 
 function lineWindowSpec(): LineWindowSpec | null {
@@ -2859,79 +2951,61 @@ function lineWindowSpec(): LineWindowSpec | null {
     };
 }
 
-function refreshLineTags(): void {
-    blurPreviewScheduled = false;
-    const enabled = themeState.isEnabled && themeState.activeTheme.blurUnsung;
-    const n = enabled ? Math.max(0, Math.round(themeState.activeTheme.blurPreviewLines)) : 0;
-    const spec = lineWindowSpec();
-    const ramp = enabled && !!themeState.activeTheme.lyricsStylingEnabled && !!themeState.activeTheme.blurProgressive;
+type LineTagJob = { spec: LineWindowSpec | null; ramp: boolean; preview: number };
+
+const IDLE_LINE_TAG_JOB: LineTagJob = { spec: null, ramp: false, preview: 0 };
+
+let lineTagFrame: number | null = null;
+
+function lineTagJob(): LineTagJob {
+    const t = themeState.activeTheme;
+    const blur = themeState.isEnabled && !!t.blurUnsung;
+    return {
+        spec: lineWindowSpec(),
+        ramp: blur && !!t.lyricsStylingEnabled && !!t.blurProgressive,
+        preview: blur ? Math.max(0, Math.round(t.blurPreviewLines)) : 0,
+    };
+}
+
+function lineTagJobIdle(job: LineTagJob): boolean {
+    return !job.spec && !job.ramp && job.preview <= 0;
+}
+
+function refreshLineTags(job: LineTagJob): void {
     try {
-        refreshBlurPreviewIn(document, n);
-        refreshLineAttrsIn(document, spec, ramp);
+        refreshLineTagsIn(document, job);
         const pipWindow = getPIPWindow();
-        if (pipWindow) {
-            refreshBlurPreviewIn(pipWindow.document, n);
-            refreshLineAttrsIn(pipWindow.document, spec, ramp);
-        }
+        if (pipWindow) refreshLineTagsIn(pipWindow.document, job);
     } catch (e) {}
 }
 
-function scheduleBlurPreview(): void {
-    if (blurPreviewScheduled) return;
-    blurPreviewScheduled = true;
-    requestAnimationFrame(refreshLineTags);
-}
-
-function watchBlurPreviewIn(doc: Document): void {
-    const target = doc.querySelector('#SpicyLyricsPage');
-    const existing = blurPreviewWatches.get(doc);
-    if (existing) {
-        if (existing.target === target && target?.isConnected) return;
-        existing.observer.disconnect();
-        blurPreviewWatches.delete(doc);
+function lineTagLoop(): void {
+    const job = lineTagJob();
+    refreshLineTags(job);
+    if (lineTagJobIdle(job)) {
+        lineTagFrame = null;
+        return;
     }
-    if (!target) return;
-
-    const observer = new MutationObserver((muts) => {
-        for (const m of muts) {
-            if (m.type === 'childList') {
-                for (const n of Array.from(m.addedNodes)) {
-                    if (n.nodeType === 1 && (n as Element).hasAttribute('data-index')) {
-                        scheduleBlurPreview();
-                        return;
-                    }
-                }
-                continue;
-            }
-            const t = m.target as HTMLElement;
-            if (t.classList && t.classList.contains('line')) {
-                scheduleBlurPreview();
-                return;
-            }
-        }
-    });
-    observer.observe(target, { attributes: true, attributeFilter: ['class'], subtree: true, childList: true });
-    blurPreviewWatches.set(doc, { target, observer });
+    lineTagFrame = requestAnimationFrame(lineTagLoop);
 }
 
-export function startBlurPreviewObserver(): void {
-    try {
-        blurPreviewWatches.forEach((watch, doc) => {
-            if (doc !== document && !doc.defaultView) {
-                watch.observer.disconnect();
-                blurPreviewWatches.delete(doc);
-            }
-        });
-        watchBlurPreviewIn(document);
-        const pipWindow = getPIPWindow();
-        if (pipWindow) watchBlurPreviewIn(pipWindow.document);
-    } catch (e) {}
-    scheduleBlurPreview();
+export function startLineTagLoop(): void {
+    const job = lineTagJob();
+    if (lineTagJobIdle(job)) {
+        if (lineTagFrame === null) refreshLineTags(job);
+        return;
+    }
+    if (lineTagFrame !== null) return;
+    refreshLineTags(job);
+    lineTagFrame = requestAnimationFrame(lineTagLoop);
 }
 
-export function stopBlurPreviewObserver(): void {
-    blurPreviewWatches.forEach(w => w.observer.disconnect());
-    blurPreviewWatches.clear();
+export function stopLineTagLoop(): void {
+    if (lineTagFrame !== null) {
+        cancelAnimationFrame(lineTagFrame);
+        lineTagFrame = null;
+    }
+    refreshLineTags(IDLE_LINE_TAG_JOB);
 }
 
 export function injectThemeStyles(): void {
@@ -2968,7 +3042,7 @@ export function injectThemeStyles(): void {
     } else {
         stopSungWordTagger();
     }
-    scheduleBlurPreview();
+    startLineTagLoop();
     noteThemeModeApplied();
 }
 
@@ -2990,6 +3064,7 @@ export function removeThemeStyles(): void {
     removeAnimatedBackground();
     removeThemeCredit();
     stopSungWordTagger();
+    stopLineTagLoop();
     noteThemeModeApplied();
 }
 

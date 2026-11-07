@@ -213,6 +213,7 @@ export interface ThemeConfig {
     sltStylingEnabled: boolean;
     sltTranslationOpacity: number;
     sltTranslationFontSize: number;
+    sltBgLineScale: number;
     sltTranslationFont: string;
     sltTranslationColorEnabled: boolean;
     sltTranslationColor: string;
@@ -458,6 +459,7 @@ export const DEFAULT_THEME: ThemeConfig = {
     sltStylingEnabled: true,
     sltTranslationOpacity: 0.8,
     sltTranslationFontSize: 0.75,
+    sltBgLineScale: 0.75,
     sltTranslationFont: '',
     sltTranslationColorEnabled: false,
     sltTranslationColor: '#ffffff',
@@ -1127,6 +1129,7 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     glowPulseSpeed: [0.3, 3.0],
     activeLineWeight: [0, 900],
     sltTranslationFontSize: [0.25, 2.0],
+    sltBgLineScale: [0.25, 1.5],
     sltActiveLineOpacity: [0, 1],
     sltSungLineOpacity: [0, 1],
     sltNotSungLineOpacity: [0, 1],

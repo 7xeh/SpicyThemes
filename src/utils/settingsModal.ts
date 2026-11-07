@@ -282,8 +282,8 @@ export const SCHEMA: FieldDef[] = [
         { value: 'contain', text: 'Fit (show whole video)' },
         { value: 'blend', text: 'Fit and blend edges' },
         { value: 'stretch', text: 'Stretch' },
-    ], hint: 'How the video is sized to the window or stage. Zoom crops a little extra so YouTube’s player edges never show; Fit adds bars on screens that aren’t 16:9; Fit and blend fades the video’s edges into the background instead of showing bars.', keywords: 'music video size scale zoom fill fit stretch crop aspect ratio 16:10 letterbox blend feather edges bars mv' },
-    { id: 'musicVideoEdgeFeather', label: 'Edge fade', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 45, step: 1, unit: '%', parent: 'musicVideoFit', when: (t) => t.musicVideoFit === 'blend' || t.musicVideoLayout === 'stage' || t.musicVideoFullscreenLayout === 'canvas', hint: 'How far the video fades into the background, or into its blurred copy, at edges that don’t reach the window.', keywords: 'music video feather fade soft edges blend mv' },
+    ], hint: 'How the video is sized to the window or stage. Zoom crops a little extra so YouTube’s player edges never show; Fit adds bars on screens that aren’t 16:9; Fit and blend is the same size but fades those bars away instead. Only Fit and blend softens the video’s own edges — the edge facing the lyrics always fades in the stage and Canvas layouts.', keywords: 'music video size scale zoom fill fit stretch crop aspect ratio 16:10 letterbox blend feather edges bars mv' },
+    { id: 'musicVideoEdgeFeather', label: 'Edge fade', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 45, step: 1, unit: '%', parent: 'musicVideoFit', when: (t) => t.musicVideoFit === 'blend' || t.musicVideoLayout === 'stage' || t.musicVideoFullscreenLayout === 'canvas', hint: 'How far the video fades into the background, or into its blurred copy. Applies to the edge facing the lyrics in the stage and Canvas layouts, and to every uncovered edge when Video fit is Fit and blend. Set it to 0 for a hard edge.', keywords: 'music video feather fade soft edges blend mv' },
     { id: 'musicVideoDockPlayer', label: 'Dock the player', type: 'toggle', section: MUSIC_VIDEO_SECTION, hint: 'While a video plays, hides the cover and moves the title and progress bar to the bottom corner, like Spicy Lyrics’ Canvas view. Needs a Spicy Lyrics version with Canvas view.', keywords: 'music video dock player hide cover artwork canvas immersive title corner mv' },
     { id: 'musicVideoTrimBars', label: 'Trim black bars', type: 'toggle', section: MUSIC_VIDEO_SECTION, hint: 'Crops bars that are part of the video itself when the uploader or the player has marked them.', keywords: 'music video black bars letterbox pillarbox crop trim mv' },
     { id: 'musicVideoBackdrop', label: 'Video backdrop', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
@@ -373,11 +373,12 @@ export const SCHEMA: FieldDef[] = [
     { id: 'eqStereoSpread', label: 'Stereo spread', type: 'toggle', section: 'Equalizer', parent: 'eqEnabled', when: (t) => t.eqEnabled && t.eqPosition === 'both', hint: 'Offsets the two sides in time and spectrum so they move independently instead of mirroring each other. Spotify only publishes a mono analysis, so this is a stereo-style spread rather than real left and right channels.', keywords: 'stereo channel split independent dual separate' },
     { id: 'eqStereoAmount', label: 'Spread amount', type: 'slider', section: 'Equalizer', min: 0.1, max: 1.0, step: 0.05, parent: 'eqStereoSpread', when: (t) => t.eqEnabled && t.eqPosition === 'both' && t.eqStereoSpread },
 
-    { id: 'sltStylingEnabled', label: 'Style translated lines', type: 'toggle', section: 'Translation', hint: 'Requires the Spicy Lyrics Translator extension. Styles the translation lines and Learning Mode word cards it adds.', keywords: 'slt translator subtitle' },
+    { id: 'sltStylingEnabled', label: 'Style translated lines', type: 'toggle', section: 'Translation', hint: 'Requires the Spicy Lyrics Translator extension. Styles the translation lines and Learning Mode word cards it adds, including the translations under background vocals.', keywords: 'slt translator subtitle background vocals backing vocals bg lines' },
     { id: 'sltIndependent', label: 'Style translations independently', type: 'toggle', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled, hint: 'Gives translated lines their own copy of every lyric control — colours, gradient, typography, glow, focus and motion — instead of following the main lyrics.', keywords: 'independent separate own controls mirror full' },
     { id: 'sltTranslationFont', label: 'Font', type: 'dropdown', section: 'Translation', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
     { id: 'sltTranslationFont', label: 'Custom font name', type: 'text', section: 'Translation', placeholder: "e.g. 'Inter', sans-serif", parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent && t.sltTranslationFont !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltTranslationFont) },
-    { id: 'sltTranslationFontSize', label: 'Text size', type: 'slider', section: 'Translation', min: 0.25, max: 2.0, step: 0.05, unit: 'x', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltTranslationFontSize', label: 'Text size', type: 'slider', section: 'Translation', min: 0.25, max: 2.0, step: 0.05, unit: 'x', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent, hint: 'Scales every translation line. Translations under background vocals keep their smaller size relative to this.', keywords: 'background vocals backing vocals bg lines scale' },
+    { id: 'sltBgLineScale', label: 'Background vocal size', type: 'slider', section: 'Translation', min: 0.25, max: 1.5, step: 0.05, unit: 'x', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled, hint: 'How big the translation under a background vocal line is next to the other translation lines. 1x makes them match.', keywords: 'background vocals backing vocals bg lines smaller shrink size scale' },
     { id: 'sltTranslationOpacity', label: 'Opacity', type: 'slider', section: 'Translation', min: 0.1, max: 1.0, step: 0.05, parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
     { id: 'sltHighlightStartColor', label: 'Highlight start', type: 'color', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
     { id: 'sltHighlightEndColor', label: 'Highlight end', type: 'color', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
@@ -2601,7 +2602,10 @@ function scoreItem(item: PaletteItem, q: string): number {
     const words = label.split(/[\s›·“”]+/);
     if (words.some(w => w.startsWith(q))) return 70 - label.length * 0.1;
     if (label.includes(q)) return 50;
-    if (`${item.hint || ''} ${item.keywords || ''}`.toLowerCase().includes(q)) return 20;
+    const extra = `${item.hint || ''} ${item.keywords || ''}`.toLowerCase();
+    if (extra.includes(q)) return 20;
+    const terms = q.split(/\s+/).filter(Boolean);
+    if (terms.length > 1 && terms.every(t => `${label} ${extra}`.includes(t))) return 10;
     return -1;
 }
 

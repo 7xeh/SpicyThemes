@@ -19,6 +19,7 @@ interface VideoBreak {
     start_ms: number;
     end_ms: number;
     hold_ms?: number;
+    loop_from_ms?: number;
 }
 
 interface VideoMeta {
@@ -287,7 +288,7 @@ function clearExpectation(): void {
 function flushQualityBuffer(player: YtModulePlayer): void {
     if (ytModulePlayer !== player || !currentMeta) return;
     const live = songIsPlaying();
-    const ms = songMsToVideoMs(currentMeta, currentSongMs()) + (live ? seekLeadMs : 0);
+    const ms = songMsToVideoMs(currentMeta, currentSongMs() + (live ? seekLeadMs : 0));
     if (!isFinite(ms) || ms >= currentMeta.video_end_ms) return;
     player.seekTo(ms / 1000);
     markSeek(ms, performance.now(), live, live);
@@ -679,7 +680,11 @@ function normalizeMeta(raw: any, id: string): VideoMeta | null {
                   if (!b) return null;
                   const br: VideoBreak = { start_ms: num(b.start_ms, NaN), end_ms: num(b.end_ms, NaN) };
                   const hold = num(b.hold_ms, 0);
-                  if (isFinite(hold) && hold > 0) br.hold_ms = hold;
+                  if (isFinite(hold) && hold > 0) {
+                      br.hold_ms = hold;
+                      const lf = num(b.loop_from_ms, NaN);
+                      if (isFinite(lf) && lf >= 0 && br.start_ms - lf >= 1000) br.loop_from_ms = lf;
+                  }
                   return br;
               })
               .filter(
@@ -866,7 +871,10 @@ export function songMsToVideoMs(v: VideoMeta, songMs: number): number {
         if (remaining <= segLen) return segStart + remaining;
         remaining -= segLen;
         if (b.hold_ms && b.hold_ms > 0) {
-            if (remaining <= b.hold_ms) return b.start_ms;
+            if (remaining <= b.hold_ms) {
+                if (b.loop_from_ms !== undefined) return b.loop_from_ms + (remaining % (b.start_ms - b.loop_from_ms));
+                return b.start_ms;
+            }
             remaining -= b.hold_ms;
             segStart = b.start_ms;
         } else {
@@ -884,7 +892,7 @@ function songMsInHold(v: VideoMeta, songMs: number): boolean {
         if (remaining <= segLen) return false;
         remaining -= segLen;
         if (b.hold_ms && b.hold_ms > 0) {
-            if (remaining <= b.hold_ms) return true;
+            if (remaining <= b.hold_ms) return b.loop_from_ms === undefined;
             remaining -= b.hold_ms;
             segStart = b.start_ms;
         } else {
@@ -1277,7 +1285,7 @@ function computeLayout(page: HTMLElement): VideoLayout | null {
         ? (currentMeta?.crop || (ytEngine === 'ytmodule' ? embedFrame?.bars || cachedBars : null) || null)
         : null;
     const pictureFull = shape.picture.w > 0.999 && shape.picture.h > 0.999;
-    if (!stage && fit !== 'blend' && !crop && pictureFull) return null;
+    if (!stage && fit !== 'blend' && fit !== 'contain' && !crop && pictureFull) return null;
 
     const c = crop || { top: 0, right: 0, bottom: 0, left: 0 };
     const cx = shape.picture.x + c.left * shape.picture.w;
@@ -1331,16 +1339,16 @@ function computeLayout(page: HTMLElement): VideoLayout | null {
     const gapR = box.x + box.w < W - 0.5;
     const gapT = box.y > 0.5;
     const gapB = box.y + box.h < H - 0.5;
-    const sideFade = (gap: boolean, lyricsSide: boolean) => {
-        if (!gap) return 0;
-        const base = feather * box.w;
-        return Math.min(box.w / 2, (lyricsSide || stage?.centered) && stage ? Math.max(base, stage.feather) : base);
-    };
+    const blurFill = fit === 'blend' || ambientAvailable();
     const stageOnLeft = !!stage && stage.x <= 0.5;
-    const fadeL = sideFade(gapL, !!stage && !stageOnLeft);
-    const fadeR = sideFade(gapR, stageOnLeft);
-    const fadeT = gapT ? Math.min(box.h / 2, feather * box.h) : 0;
-    const fadeB = gapB ? Math.min(box.h / 2, feather * box.h) : 0;
+    const stageEdgeL = !!stage && (!stageOnLeft || !!stage.centered);
+    const stageEdgeR = !!stage && (stageOnLeft || !!stage.centered);
+    const hFade = Math.min(box.w / 2, feather * box.w);
+    const vFade = Math.min(box.h / 2, feather * box.h);
+    const fadeL = gapL && (blurFill || stageEdgeL) ? hFade : 0;
+    const fadeR = gapR && (blurFill || stageEdgeR) ? hFade : 0;
+    const fadeT = gapT && blurFill ? vFade : 0;
+    const fadeB = gapB && blurFill ? vFade : 0;
     const top = box.y - frameY;
     const boxed = gapL || gapR || gapT || gapB;
     const picture: Box = {
@@ -1378,7 +1386,7 @@ function ambientLayout(W: number, H: number, clip: Box, picture: Box, fades: num
     if (!ambientAvailable()) return null;
     const r = (n: number) => Math.round(n * 10) / 10;
     const rect = (b: Box) => ({ x: r(b.x), y: r(b.y), w: r(b.w), h: r(b.h) });
-    const fade = (i: number, length: number) => gaps[i] ? r(Math.min(length / 2, Math.max(fades[i], AMBIENT_MIN_FADE))) : 0;
+    const fade = (i: number, length: number) => gaps[i] && fades[i] > 0 ? r(Math.min(length / 2, Math.max(fades[i], AMBIENT_MIN_FADE))) : 0;
     return {
         size: { w: W, h: H },
         picture: rect(picture),
@@ -1521,7 +1529,7 @@ function createYtModulePlayer(container: HTMLElement, videoId: string): void {
                 player.mute();
                 if (currentMeta) {
                     const live = songIsPlaying();
-                    const target = songMsToVideoMs(currentMeta, currentSongMs()) + (live ? seekLeadMs : 0);
+                    const target = songMsToVideoMs(currentMeta, currentSongMs() + (live ? seekLeadMs : 0));
                     player.seekTo(target / 1000);
                     markSeek(target, performance.now(), live, live);
                 }
@@ -2232,12 +2240,12 @@ function tick(ts: number): void {
     }
 
     if (!isFinite(actualVideoMs)) {
-        seekVideo(targetVideoMs + (live ? seekLeadMs : 0), ts, live, live);
+        seekVideo(songMsToVideoMs(v, songMs + (live ? seekLeadMs : 0)), ts, live, live);
     } else if (live) {
         if (Math.abs(drift) > (canNudgeRate() ? DRIFT_SEEK_MS : SEEK_THRESHOLD_MS)) {
             nudging = false;
             setVideoRate(base);
-            seekVideo(targetVideoMs + seekLeadMs, ts, true, true);
+            seekVideo(songMsToVideoMs(v, songMs + seekLeadMs), ts, true, true);
         } else {
             setVideoRate(nudgedRate(drift, base));
         }
