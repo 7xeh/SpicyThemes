@@ -132,233 +132,254 @@ function animStyle(t: ThemeConfig) {
 }
 
 export const SCHEMA: FieldDef[] = [
-    { id: 'lyricsStylingEnabled', label: 'Restyle lyrics', type: 'toggle', section: 'Line colors', hint: 'Off keeps Spicy Lyrics’ own lyric look, untouched. Changing any lyric setting turns it back on.', keywords: 'stock native original spicy lyrics look default plain' },
-    { id: 'activeLineColor', label: 'Active line', type: 'color', section: 'Line colors', when: (t) => !t.gradientEnabled, hint: 'The line currently being sung. Replaced by the gradient when gradient text is on.', keywords: 'current karaoke highlight' },
-    { id: 'sungLineColor', label: 'Already sung', type: 'color', section: 'Line colors', keywords: 'past previous' },
-    { id: 'notSungLineColor', label: 'Not yet sung', type: 'color', section: 'Line colors', keywords: 'upcoming future next' },
-    { id: 'activeLineOpacity', label: 'Active line opacity', type: 'slider', section: 'Line colors', min: 0.1, max: 1.0, step: 0.05, keywords: 'transparency fade' },
-    { id: 'sungLineOpacity', label: 'Sung line opacity', type: 'slider', section: 'Line colors', min: 0.1, max: 1.0, step: 0.05, keywords: 'transparency fade' },
-    { id: 'notSungLineOpacity', label: 'Unsung line opacity', type: 'slider', section: 'Line colors', min: 0.1, max: 1.0, step: 0.05, keywords: 'transparency fade' },
+    { id: 'lyricsStylingEnabled', label: 'Restyle lyrics', type: 'toggle', section: 'Lyric styling', hint: 'Off keeps Spicy Lyrics’ own lyric look, untouched. Changing any lyric setting turns it back on.', keywords: 'stock native original spicy lyrics look default plain' },
 
-    { id: 'gradientEnabled', label: 'Gradient text', type: 'toggle', section: 'Gradient', hint: 'Fills the active line with a two-colour gradient instead of a flat colour.', keywords: 'rainbow fade blend' },
-    { id: 'gradientStartColor', label: 'Sung colour', type: 'color', section: 'Gradient', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, hint: 'The part of the active line already sung.' },
-    { id: 'gradientEndColor', label: 'Upcoming colour', type: 'color', section: 'Gradient', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, hint: 'The part of the active line still to come.' },
-    { id: 'gradientDirection', label: 'Sweep direction', type: 'dropdown', section: 'Gradient', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, options: [
+    { id: 'activeLineColor', label: 'Active line', type: 'color', section: 'Line colours', when: (t) => !t.gradientEnabled, hint: 'The line currently being sung. Replaced by the gradient when gradient text is on.', keywords: 'current karaoke highlight' },
+    { id: 'sungLineColor', label: 'Already sung', type: 'color', section: 'Line colours', keywords: 'past previous' },
+    { id: 'notSungLineColor', label: 'Not yet sung', type: 'color', section: 'Line colours', keywords: 'upcoming future next' },
+    { id: 'activeLineOpacity', label: 'Active line opacity', type: 'slider', section: 'Line colours', min: 0.1, max: 1.0, step: 0.05, keywords: 'transparency fade' },
+    { id: 'sungLineOpacity', label: 'Sung line opacity', type: 'slider', section: 'Line colours', min: 0.1, max: 1.0, step: 0.05, keywords: 'transparency fade' },
+    { id: 'notSungLineOpacity', label: 'Unsung line opacity', type: 'slider', section: 'Line colours', min: 0.1, max: 1.0, step: 0.05, keywords: 'transparency fade' },
+
+    { id: 'gradientEnabled', label: 'Gradient text', type: 'toggle', section: 'Gradient text', hint: 'Fills the active line with a two-colour gradient instead of a flat colour.', keywords: 'rainbow fade blend' },
+    { id: 'gradientStartColor', label: 'Sung colour', type: 'color', section: 'Gradient text', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, hint: 'The part of the active line already sung.' },
+    { id: 'gradientEndColor', label: 'Upcoming colour', type: 'color', section: 'Gradient text', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, hint: 'The part of the active line still to come.' },
+    { id: 'gradientDirection', label: 'Sweep direction', type: 'dropdown', section: 'Gradient text', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, options: [
         { value: 'auto', text: 'Follow Spicy Lyrics' },
         { value: 'horizontal', text: 'Horizontal' },
         { value: 'vertical', text: 'Vertical' },
         { value: 'diagonal', text: 'Diagonal' },
         { value: 'custom', text: 'Custom angle' },
     ], hint: 'Which way the karaoke fill travels. Horizontal, diagonal and custom flip automatically for right-to-left lyrics.', keywords: 'angle direction karaoke sweep fill' },
-    { id: 'gradientAngle', label: 'Sweep angle', type: 'slider', section: 'Gradient', min: 0, max: 360, step: 5, unit: '°', parent: 'gradientEnabled', when: (t) => t.gradientEnabled && t.gradientDirection === 'custom', hint: '0° sweeps upward, 90° to the right, 180° downward.', keywords: 'degrees rotation direction' },
-    { id: 'gradientFeather', label: 'Fill softness', type: 'slider', section: 'Gradient', min: 0, max: 60, step: 1, unit: '%', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, hint: 'The length of the blend between the sung and upcoming colours. 0% is a hard wipe, higher values trail a long fade behind the karaoke position.', keywords: 'blend fade edge transition sharpness feather' },
+    { id: 'gradientAngle', label: 'Sweep angle', type: 'slider', section: 'Gradient text', min: 0, max: 360, step: 5, unit: '°', parent: 'gradientEnabled', when: (t) => t.gradientEnabled && t.gradientDirection === 'custom', hint: '0° sweeps upward, 90° to the right, 180° downward.', keywords: 'degrees rotation direction' },
+    { id: 'gradientFeather', label: 'Fill softness', type: 'slider', section: 'Gradient text', min: 0, max: 60, step: 1, unit: '%', parent: 'gradientEnabled', when: (t) => t.gradientEnabled, hint: 'The length of the blend between the sung and upcoming colours. 0% is a hard wipe, higher values trail a long fade behind the karaoke position.', keywords: 'blend fade edge transition sharpness feather' },
 
-    { id: 'fontFamily', label: 'Font', type: 'dropdown', section: 'Typography', options: [...FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], keywords: 'typeface family' },
-    { id: 'fontFamily', label: 'Custom font name', type: 'text', section: 'Typography', placeholder: "e.g. 'Inter', sans-serif", when: (t) => t.fontFamily !== '' && !FONT_OPTIONS.some(o => o.value === t.fontFamily) },
-    { id: 'fontWeight', label: 'Weight', type: 'dropdown', section: 'Typography', options: WEIGHT_OPTIONS, keywords: 'bold thin' },
-    { id: 'activeLineWeight', label: 'Active line weight', type: 'dropdown', section: 'Typography', options: [{ value: '0', text: 'Same as above' }, ...WEIGHT_OPTIONS], hint: 'Make the line being sung heavier than the rest.', keywords: 'bold emphasis active' },
-    { id: 'textTransform', label: 'Capitalisation', type: 'dropdown', section: 'Typography', options: [
+    { id: 'disableHighlight', label: 'Flat colour mode', type: 'toggle', section: 'Flat colour', hint: 'Turns off the sweeping karaoke fill — every line uses one solid colour.', keywords: 'no karaoke disable highlight solid' },
+    { id: 'highlightColor', label: 'Flat colour', type: 'color', section: 'Flat colour', parent: 'disableHighlight', when: (t) => t.disableHighlight },
+
+    { id: 'fontFamily', label: 'Font', type: 'dropdown', section: 'Font', options: [...FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], keywords: 'typeface family' },
+    { id: 'fontFamily', label: 'Custom font name', type: 'text', section: 'Font', placeholder: "e.g. 'Inter', sans-serif", when: (t) => t.fontFamily !== '' && !FONT_OPTIONS.some(o => o.value === t.fontFamily) },
+    { id: 'fontWeight', label: 'Weight', type: 'dropdown', section: 'Font', options: WEIGHT_OPTIONS, keywords: 'bold thin' },
+    { id: 'activeLineWeight', label: 'Active line weight', type: 'dropdown', section: 'Font', options: [{ value: '0', text: 'Same as above' }, ...WEIGHT_OPTIONS], hint: 'Make the line being sung heavier than the rest.', keywords: 'bold emphasis active' },
+    { id: 'textTransform', label: 'Capitalisation', type: 'dropdown', section: 'Font', options: [
         { value: 'none', text: 'As written' },
         { value: 'uppercase', text: 'UPPERCASE' },
         { value: 'lowercase', text: 'lowercase' },
         { value: 'capitalize', text: 'Title Case' },
     ], keywords: 'uppercase lowercase caps case' },
-    { id: 'fontStyle', label: 'Style', type: 'dropdown', section: 'Typography', options: [
+    { id: 'fontStyle', label: 'Style', type: 'dropdown', section: 'Font', options: [
         { value: 'normal', text: 'Upright' },
         { value: 'italic', text: 'Italic' },
         { value: 'oblique', text: 'Oblique (slanted)' },
     ], hint: 'Italic uses the font’s own italic cut if it ships one; oblique slants the upright cut mathematically.', keywords: 'italic slant oblique cursive' },
-    { id: 'lyricsScale', label: 'Text size', type: 'slider', section: 'Typography', min: 0.25, max: 2.0, step: 0.05, unit: 'x', keywords: 'scale bigger smaller font size' },
-    { id: 'letterSpacing', label: 'Letter spacing', type: 'slider', section: 'Typography', min: -0.1, max: 0.3, step: 0.01, unit: 'em', keywords: 'tracking kerning' },
-    { id: 'wordSpacing', label: 'Word spacing', type: 'slider', section: 'Typography', min: -0.1, max: 1.0, step: 0.02, unit: 'em', hint: 'Widens the gaps between words without touching the letters inside them.', keywords: 'gap space between words' },
-    { id: 'lineHeight', label: 'Line spacing', type: 'slider', section: 'Typography', min: 1.0, max: 2.5, step: 0.01, keywords: 'leading gap' },
-    { id: 'textAlign', label: 'Alignment', type: 'dropdown', section: 'Typography', options: [
+
+    { id: 'lyricsScale', label: 'Text size', type: 'slider', section: 'Size and spacing', min: 0.25, max: 2.0, step: 0.05, unit: 'x', keywords: 'scale bigger smaller font size' },
+    { id: 'letterSpacing', label: 'Letter spacing', type: 'slider', section: 'Size and spacing', min: -0.1, max: 0.3, step: 0.01, unit: 'em', keywords: 'tracking kerning' },
+    { id: 'wordSpacing', label: 'Word spacing', type: 'slider', section: 'Size and spacing', min: -0.1, max: 1.0, step: 0.02, unit: 'em', hint: 'Widens the gaps between words without touching the letters inside them.', keywords: 'gap space between words' },
+    { id: 'lineHeight', label: 'Line spacing', type: 'slider', section: 'Size and spacing', min: 1.0, max: 2.5, step: 0.01, keywords: 'leading gap' },
+
+    { id: 'textAlign', label: 'Alignment', type: 'dropdown', section: 'Line layout', options: [
         { value: 'default', text: 'Follow Spicy Lyrics' },
         { value: 'left', text: 'Left' },
         { value: 'center', text: 'Centre' },
         { value: 'right', text: 'Right' },
     ], hint: 'Overrides Spicy Lyrics’ own alignment, including its per-vocalist opposite alignment.', keywords: 'align left right centre centered justify' },
-    { id: 'maxLineWidth', label: 'Max line width', type: 'slider', section: 'Typography', min: 0, max: 100, step: 5, unit: '%', hint: 'Caps how wide a line can get before it wraps. 0% leaves it uncapped — lower values keep lines readable on wide screens.', keywords: 'measure wrap width narrow column readability' },
+    { id: 'maxLineWidth', label: 'Max line width', type: 'slider', section: 'Line layout', min: 0, max: 100, step: 5, unit: '%', hint: 'Caps how wide a line can get before it wraps. 0% leaves it uncapped — lower values keep lines readable on wide screens.', keywords: 'measure wrap width narrow column readability' },
 
-    { id: 'glowEnabled', label: 'Line glow', type: 'toggle', section: 'Glow', hint: 'Adds a soft halo around every lyric line.', keywords: 'halo neon shine bloom' },
-    { id: 'activeGlowColor', label: 'Active line colour', type: 'color', section: 'Glow', parent: 'glowEnabled', when: (t) => t.glowEnabled },
-    { id: 'activeGlowIntensity', label: 'Active line strength', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', parent: 'glowEnabled', when: (t) => t.glowEnabled },
-    { id: 'glowColor', label: 'Other lines colour', type: 'color', section: 'Glow', parent: 'glowEnabled', when: (t) => t.glowEnabled },
-    { id: 'glowIntensity', label: 'Other lines strength', type: 'slider', section: 'Glow', min: 0, max: 15, step: 1, unit: 'px', parent: 'glowEnabled', when: (t) => t.glowEnabled },
-    { id: 'glowPulse', label: 'Pulse the active line', type: 'toggle', section: 'Glow', parent: 'glowEnabled', when: (t) => t.glowEnabled, hint: 'The active line’s glow breathes in and out instead of sitting still.', keywords: 'breathe pulse animate throb' },
-    { id: 'glowPulseSpeed', label: 'Pulse speed', type: 'slider', section: 'Glow', min: 0.3, max: 3.0, step: 0.1, unit: 'x', parent: 'glowPulse', when: (t) => t.glowEnabled && t.glowPulse },
-    { id: 'bgGlowEnabled', label: 'Active word glow', type: 'toggle', section: 'Glow', hint: 'Lights up only the word being sung right now.', keywords: 'karaoke halo neon' },
-    { id: 'bgGlowColor', label: 'Word glow colour', type: 'color', section: 'Glow', parent: 'bgGlowEnabled', when: (t) => t.bgGlowEnabled },
-    { id: 'bgGlowIntensity', label: 'Word glow strength', type: 'slider', section: 'Glow', min: 0, max: 30, step: 1, unit: 'px', parent: 'bgGlowEnabled', when: (t) => t.bgGlowEnabled },
-    { id: 'textShadowEnabled', label: 'Text shadow', type: 'toggle', section: 'Glow', hint: 'A hard drop shadow — useful for readability over bright backgrounds.', keywords: 'drop shadow outline readability' },
-    { id: 'textShadowColor', label: 'Shadow colour', type: 'color', section: 'Glow', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
-    { id: 'textShadowOpacity', label: 'Shadow opacity', type: 'slider', section: 'Glow', min: 0, max: 1, step: 0.05, parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
-    { id: 'textShadowBlur', label: 'Shadow blur', type: 'slider', section: 'Glow', min: 0, max: 20, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
-    { id: 'textShadowOffsetX', label: 'Shadow offset X', type: 'slider', section: 'Glow', min: -10, max: 10, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
-    { id: 'textShadowOffsetY', label: 'Shadow offset Y', type: 'slider', section: 'Glow', min: -10, max: 10, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
-    { id: 'textStrokeEnabled', label: 'Text outline', type: 'toggle', section: 'Glow', hint: 'Draws a hard outline around every glyph. Holds up over busy backgrounds and music video better than a shadow does, and sits outside the karaoke gradient so the fill still shows through.', keywords: 'stroke border outline edge contour readability' },
-    { id: 'textStrokeColor', label: 'Outline colour', type: 'color', section: 'Glow', parent: 'textStrokeEnabled', when: (t) => t.textStrokeEnabled },
-    { id: 'textStrokeWidth', label: 'Outline width', type: 'slider', section: 'Glow', min: 0, max: 3, step: 0.1, unit: 'px', parent: 'textStrokeEnabled', when: (t) => t.textStrokeEnabled, hint: 'Above roughly 1.5px the outline starts eating into thin letterforms.' },
+    { id: 'glowEnabled', label: 'Line glow', type: 'toggle', section: 'Line glow', hint: 'Adds a soft halo around every lyric line.', keywords: 'halo neon shine bloom' },
+    { id: 'activeGlowColor', label: 'Active line colour', type: 'color', section: 'Line glow', parent: 'glowEnabled', when: (t) => t.glowEnabled },
+    { id: 'activeGlowIntensity', label: 'Active line strength', type: 'slider', section: 'Line glow', min: 0, max: 15, step: 1, unit: 'px', parent: 'glowEnabled', when: (t) => t.glowEnabled },
+    { id: 'glowColor', label: 'Other lines colour', type: 'color', section: 'Line glow', parent: 'glowEnabled', when: (t) => t.glowEnabled },
+    { id: 'glowIntensity', label: 'Other lines strength', type: 'slider', section: 'Line glow', min: 0, max: 15, step: 1, unit: 'px', parent: 'glowEnabled', when: (t) => t.glowEnabled },
+    { id: 'glowPulse', label: 'Pulse the active line', type: 'toggle', section: 'Line glow', parent: 'glowEnabled', when: (t) => t.glowEnabled, hint: 'The active line’s glow breathes in and out instead of sitting still.', keywords: 'breathe pulse animate throb' },
+    { id: 'glowPulseSpeed', label: 'Pulse speed', type: 'slider', section: 'Line glow', min: 0.3, max: 3.0, step: 0.1, unit: 'x', parent: 'glowPulse', when: (t) => t.glowEnabled && t.glowPulse },
 
-    { id: 'blurUnsung', label: 'Blur other lines', type: 'toggle', section: 'Focus', hint: 'Softens every line except the one being sung, so the eye lands on the right place.', keywords: 'depth of field defocus soft' },
-    { id: 'blurAmount', label: 'Blur amount', type: 'slider', section: 'Focus', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'blurUnsung', when: (t) => t.blurUnsung },
-    { id: 'blurPreviewLines', label: 'Keep upcoming lines sharp', type: 'slider', section: 'Focus', min: 0, max: 5, step: 1, unit: ' lines', parent: 'blurUnsung', when: (t) => t.blurUnsung, hint: 'How many lines ahead stay readable through the blur.' },
-    { id: 'blurProgressive', label: 'Ramp blur with distance', type: 'toggle', section: 'Focus', parent: 'blurUnsung', when: (t) => t.blurUnsung, hint: 'Lines near the active one blur gently and further ones blur fully, instead of everything blurring equally.', keywords: 'gradual depth falloff distance' },
-    { id: 'blurSungWords', label: 'Fade words as they pass', type: 'toggle', section: 'Focus', hint: 'Blurs each word of the active line once it has been sung.', keywords: 'karaoke word blur trail' },
-    { id: 'blurSungWholeWords', label: 'Fade whole words, not syllables', type: 'toggle', section: 'Focus', parent: 'blurSungWords', when: (t) => t.blurSungWords, hint: 'On syllable-synced lyrics, a word split into syllables only fades once its last syllable has been sung, instead of fading piece by piece.', keywords: 'syllable word whole group karaoke blur trail' },
-    { id: 'blurSungWordsAmount', label: 'Word blur amount', type: 'slider', section: 'Focus', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'blurSungWords', when: (t) => t.blurSungWords },
-    { id: 'blurSungWordsOpacity', label: 'Word opacity', type: 'slider', section: 'Focus', min: 0.05, max: 1.0, step: 0.05, parent: 'blurSungWords', when: (t) => t.blurSungWords },
-    { id: 'lineWindowEnabled', label: 'Limit visible lines', type: 'toggle', section: 'Focus', hint: 'Hides everything outside a window around the active line.', keywords: 'window hide crop few lines' },
-    { id: 'lineWindowSungLines', label: 'Sung lines shown', type: 'slider', section: 'Focus', min: 0, max: 10, step: 1, unit: ' lines', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled },
-    { id: 'lineWindowUnsungLines', label: 'Upcoming lines shown', type: 'slider', section: 'Focus', min: 0, max: 10, step: 1, unit: ' lines', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled },
-    { id: 'lineWindowFadeStyle', label: 'Edge style', type: 'dropdown', section: 'Focus', options: [
+    { id: 'bgGlowEnabled', label: 'Active word glow', type: 'toggle', section: 'Word glow', hint: 'Lights up only the word being sung right now.', keywords: 'karaoke halo neon' },
+    { id: 'bgGlowColor', label: 'Word glow colour', type: 'color', section: 'Word glow', parent: 'bgGlowEnabled', when: (t) => t.bgGlowEnabled },
+    { id: 'bgGlowIntensity', label: 'Word glow strength', type: 'slider', section: 'Word glow', min: 0, max: 30, step: 1, unit: 'px', parent: 'bgGlowEnabled', when: (t) => t.bgGlowEnabled },
+
+    { id: 'textShadowEnabled', label: 'Text shadow', type: 'toggle', section: 'Text shadow', hint: 'A hard drop shadow — useful for readability over bright backgrounds.', keywords: 'drop shadow outline readability' },
+    { id: 'textShadowColor', label: 'Shadow colour', type: 'color', section: 'Text shadow', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
+    { id: 'textShadowOpacity', label: 'Shadow opacity', type: 'slider', section: 'Text shadow', min: 0, max: 1, step: 0.05, parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
+    { id: 'textShadowBlur', label: 'Shadow blur', type: 'slider', section: 'Text shadow', min: 0, max: 20, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
+    { id: 'textShadowOffsetX', label: 'Shadow offset X', type: 'slider', section: 'Text shadow', min: -10, max: 10, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
+    { id: 'textShadowOffsetY', label: 'Shadow offset Y', type: 'slider', section: 'Text shadow', min: -10, max: 10, step: 1, unit: 'px', parent: 'textShadowEnabled', when: (t) => t.textShadowEnabled },
+
+    { id: 'textStrokeEnabled', label: 'Text outline', type: 'toggle', section: 'Text outline', hint: 'Draws a hard outline around every glyph. Holds up over busy backgrounds and music video better than a shadow does, and sits outside the karaoke gradient so the fill still shows through.', keywords: 'stroke border outline edge contour readability' },
+    { id: 'textStrokeColor', label: 'Outline colour', type: 'color', section: 'Text outline', parent: 'textStrokeEnabled', when: (t) => t.textStrokeEnabled },
+    { id: 'textStrokeWidth', label: 'Outline width', type: 'slider', section: 'Text outline', min: 0, max: 3, step: 0.1, unit: 'px', parent: 'textStrokeEnabled', when: (t) => t.textStrokeEnabled, hint: 'Above roughly 1.5px the outline starts eating into thin letterforms.' },
+
+    { id: 'blurUnsung', label: 'Blur other lines', type: 'toggle', section: 'Blur other lines', hint: 'Softens every line except the one being sung, so the eye lands on the right place.', keywords: 'depth of field defocus soft' },
+    { id: 'blurAmount', label: 'Blur amount', type: 'slider', section: 'Blur other lines', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'blurUnsung', when: (t) => t.blurUnsung },
+    { id: 'blurPreviewLines', label: 'Keep upcoming lines sharp', type: 'slider', section: 'Blur other lines', min: 0, max: 5, step: 1, unit: ' lines', parent: 'blurUnsung', when: (t) => t.blurUnsung, hint: 'How many lines ahead stay readable through the blur.' },
+    { id: 'blurProgressive', label: 'Ramp blur with distance', type: 'toggle', section: 'Blur other lines', parent: 'blurUnsung', when: (t) => t.blurUnsung, hint: 'Lines near the active one blur gently and further ones blur fully, instead of everything blurring equally.', keywords: 'gradual depth falloff distance' },
+
+    { id: 'blurSungWords', label: 'Fade words as they pass', type: 'toggle', section: 'Fade sung words', hint: 'Blurs each word of the active line once it has been sung.', keywords: 'karaoke word blur trail' },
+    { id: 'blurSungWholeWords', label: 'Fade whole words, not syllables', type: 'toggle', section: 'Fade sung words', parent: 'blurSungWords', when: (t) => t.blurSungWords, hint: 'On syllable-synced lyrics, a word split into syllables only fades once its last syllable has been sung, instead of fading piece by piece.', keywords: 'syllable word whole group karaoke blur trail' },
+    { id: 'blurSungWordsAmount', label: 'Word blur amount', type: 'slider', section: 'Fade sung words', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'blurSungWords', when: (t) => t.blurSungWords },
+    { id: 'blurSungWordsOpacity', label: 'Word opacity', type: 'slider', section: 'Fade sung words', min: 0.05, max: 1.0, step: 0.05, parent: 'blurSungWords', when: (t) => t.blurSungWords },
+
+    { id: 'lineWindowEnabled', label: 'Limit visible lines', type: 'toggle', section: 'Visible lines', hint: 'Hides everything outside a window around the active line.', keywords: 'window hide crop few lines' },
+    { id: 'lineWindowSungLines', label: 'Sung lines shown', type: 'slider', section: 'Visible lines', min: 0, max: 10, step: 1, unit: ' lines', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled },
+    { id: 'lineWindowUnsungLines', label: 'Upcoming lines shown', type: 'slider', section: 'Visible lines', min: 0, max: 10, step: 1, unit: ' lines', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled },
+    { id: 'lineWindowFadeStyle', label: 'Edge style', type: 'dropdown', section: 'Visible lines', options: [
         { value: 'cut', text: 'Hard cut' },
         { value: 'fade', text: 'Fade' },
         { value: 'gradient', text: 'Gradient' },
     ], parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled, hint: 'Hard cut snaps lines on and off. Fade eases them. Gradient also dims each line the further it sits from the active one.', keywords: 'fade gradient dim edge transition soft' },
-    { id: 'lineWindowFadeMs', label: 'Fade speed', type: 'slider', section: 'Focus', min: 0, max: 1000, step: 25, unit: 'ms', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled && t.lineWindowFadeStyle !== 'cut', hint: 'How long a line takes to appear or vanish.', keywords: 'duration fade transition time' },
-    { id: 'lineWindowGapMode', label: 'During instrumental breaks', type: 'dropdown', section: 'Focus', options: [
+    { id: 'lineWindowFadeMs', label: 'Fade speed', type: 'slider', section: 'Visible lines', min: 0, max: 1000, step: 25, unit: 'ms', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled && t.lineWindowFadeStyle !== 'cut', hint: 'How long a line takes to appear or vanish.', keywords: 'duration fade transition time' },
+    { id: 'lineWindowGapMode', label: 'During instrumental breaks', type: 'dropdown', section: 'Visible lines', options: [
         { value: 'hide', text: 'Hide everything' },
         { value: 'line', text: 'Keep the last line' },
         { value: 'window', text: 'Keep the whole window' },
     ], parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled, hint: 'What stays on screen while no line is being sung, until the next one starts.', keywords: 'gap break instrumental intro hold keep previous last line' },
-    { id: 'lineWindowEdgeBlur', label: 'Blur edge lines', type: 'slider', section: 'Focus', min: 0, max: 6, step: 0.5, unit: 'px', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled, hint: 'Blurs lines more the closer they sit to the edge of the window.', keywords: 'blur edge soft depth falloff' },
-    { id: 'lineWindowHoverReveal', label: 'Show all lines on hover', type: 'toggle', section: 'Focus', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled, hint: 'Brings every line back while the pointer is over the lyrics, so you can scroll back.', keywords: 'hover reveal mouse show all scroll' },
+    { id: 'lineWindowEdgeBlur', label: 'Blur edge lines', type: 'slider', section: 'Visible lines', min: 0, max: 6, step: 0.5, unit: 'px', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled, hint: 'Blurs lines more the closer they sit to the edge of the window.', keywords: 'blur edge soft depth falloff' },
+    { id: 'lineWindowHoverReveal', label: 'Show all lines on hover', type: 'toggle', section: 'Visible lines', parent: 'lineWindowEnabled', when: (t) => t.lineWindowEnabled, hint: 'Brings every line back while the pointer is over the lyrics, so you can scroll back.', keywords: 'hover reveal mouse show all scroll' },
 
-    { id: 'disableHighlight', label: 'Flat colour mode', type: 'toggle', section: 'Motion', hint: 'Turns off the sweeping karaoke fill — every line uses one solid colour.', keywords: 'no karaoke disable highlight solid' },
-    { id: 'highlightColor', label: 'Flat colour', type: 'color', section: 'Motion', parent: 'disableHighlight', when: (t) => t.disableHighlight },
-    { id: 'wordEffect', label: 'Word animation', type: 'dropdown', section: 'Motion', options: WORD_EFFECT_OPTIONS, hint: 'Animates individual words in the active line. Grouped by feel — Classic is subtle, Energetic is punchy, Smooth is understated, Dimensional uses 3D.', keywords: 'bounce pop wave stamp shake glitch rise sway focus swell flip depth lean animate word' },
-    { id: 'wordEffectTrigger', label: 'Fires', type: 'dropdown', section: 'Motion', options: [
+    { id: 'wordEffect', label: 'Word animation', type: 'dropdown', section: 'Word animation', options: WORD_EFFECT_OPTIONS, hint: 'Animates individual words in the active line. Grouped by feel — Classic is subtle, Energetic is punchy, Smooth is understated, Dimensional uses 3D.', keywords: 'bounce pop wave stamp shake glitch rise sway focus swell flip depth lean animate word' },
+    { id: 'wordEffectTrigger', label: 'Fires', type: 'dropdown', section: 'Word animation', options: [
         { value: 'auto', text: 'Recommended for this animation' },
         { value: 'word', text: 'As each word is sung' },
         { value: 'line', text: 'When the line starts' },
         { value: 'loop', text: 'Continuously' },
     ], parent: 'wordEffect', when: (t) => t.wordEffect !== 'none', hint: 'Per-word keeps the animation in time with the karaoke. Only the options an animation can actually do are accepted.', keywords: 'trigger timing sync karaoke per word' },
-    { id: 'wordEffectIntensity', label: 'Intensity', type: 'slider', section: 'Motion', min: 0.1, max: 2.0, step: 0.05, unit: 'x', parent: 'wordEffect', when: (t) => t.wordEffect !== 'none', hint: 'How far the animation travels. Scales with text size, so it stays proportional.', keywords: 'strength amount size distance' },
-    { id: 'wordEffectSpeed', label: 'Speed', type: 'slider', section: 'Motion', min: 0.3, max: 3.0, step: 0.05, unit: 'x', parent: 'wordEffect', when: (t) => t.wordEffect !== 'none', hint: 'Higher is faster. Applies to whichever animation is selected.', keywords: 'duration fast slow tempo' },
-    { id: 'wordEffectStagger', label: 'Stagger between words', type: 'slider', section: 'Motion', min: 0, max: 150, step: 5, unit: 'ms', parent: 'wordEffect', when: (t) => t.wordEffect !== 'none' && resolveWordTrigger(t.wordEffect, t.wordEffectTrigger) !== 'word', hint: 'Offsets each word so the animation ripples along the line instead of firing all at once.', keywords: 'delay ripple cascade offset sequence' },
-    { id: 'scaleActive', label: 'Active line zoom', type: 'slider', section: 'Motion', min: 0.95, max: 1.12, step: 0.01, unit: 'x', keywords: 'scale grow size' },
-    { id: 'inactiveLineScale', label: 'Inactive line size', type: 'slider', section: 'Motion', min: 0.5, max: 1, step: 0.01, unit: 'x', hint: 'Shrinks the lines that aren’t being sung. Each line grows back to full size as it becomes active.', keywords: 'scale shrink small inactive focus size zoom unfocused' },
-    { id: 'focusDuration', label: 'Focus animation', type: 'slider', section: 'Motion', min: 0.1, max: 1.5, step: 0.05, unit: 's', parent: 'inactiveLineScale', when: (t) => t.inactiveLineScale < 1, hint: 'How long a line takes to grow into focus and shrink back out.', keywords: 'focus transition speed duration grow shrink' },
-    { id: 'scaleInEffect', label: 'Zoom in on arrival', type: 'toggle', section: 'Motion', when: (t) => !(t.inactiveLineScale < 1), hint: 'Animates each line up to its zoom level as it becomes active.', keywords: 'scale in entrance animate' },
-    { id: 'scaleInFrom', label: 'Starting scale', type: 'slider', section: 'Motion', min: 0.85, max: 1.05, step: 0.01, unit: 'x', parent: 'scaleInEffect', when: (t) => t.scaleInEffect && !(t.inactiveLineScale < 1) },
-    { id: 'scaleInDuration', label: 'Zoom duration', type: 'slider', section: 'Motion', min: 0.1, max: 1.0, step: 0.05, unit: 's', parent: 'scaleInEffect', when: (t) => t.scaleInEffect && !(t.inactiveLineScale < 1) },
-    { id: 'animationSpeed', label: 'Overall animation speed', type: 'slider', section: 'Motion', min: 0.3, max: 3.0, step: 0.1, unit: 'x', hint: 'Scales every lyric transition. Higher is snappier.', keywords: 'transition tempo fast slow' },
+    { id: 'wordEffectIntensity', label: 'Intensity', type: 'slider', section: 'Word animation', min: 0.1, max: 2.0, step: 0.05, unit: 'x', parent: 'wordEffect', when: (t) => t.wordEffect !== 'none', hint: 'How far the animation travels. Scales with text size, so it stays proportional.', keywords: 'strength amount size distance' },
+    { id: 'wordEffectSpeed', label: 'Speed', type: 'slider', section: 'Word animation', min: 0.3, max: 3.0, step: 0.05, unit: 'x', parent: 'wordEffect', when: (t) => t.wordEffect !== 'none', hint: 'Higher is faster. Applies to whichever animation is selected.', keywords: 'duration fast slow tempo' },
+    { id: 'wordEffectStagger', label: 'Stagger between words', type: 'slider', section: 'Word animation', min: 0, max: 150, step: 5, unit: 'ms', parent: 'wordEffect', when: (t) => t.wordEffect !== 'none' && resolveWordTrigger(t.wordEffect, t.wordEffectTrigger) !== 'word', hint: 'Offsets each word so the animation ripples along the line instead of firing all at once.', keywords: 'delay ripple cascade offset sequence' },
 
-    { id: 'pageBgOverlay', label: 'Background tint', type: 'toggle', section: 'Background', hint: 'Lays a coloured wash over the album-art background to calm it down.', keywords: 'overlay dim darken tint' },
-    { id: 'pageBgColor', label: 'Tint colour', type: 'color', section: 'Background', parent: 'pageBgOverlay', when: (t) => t.pageBgOverlay },
-    { id: 'pageBgOpacity', label: 'Tint strength', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'pageBgOverlay', when: (t) => t.pageBgOverlay },
-    { id: 'pageBgImageEnabled', label: 'Custom background image', type: 'toggle', section: 'Background', hint: 'Replaces the Spicy Lyrics background — album colours, artist header or animated art — with a picture of your own. Music videos still play over it when one is available.', keywords: 'wallpaper picture photo upload image static custom artist header dynamic' },
-    { id: 'pageBgImage', label: 'Image', type: 'image', section: 'Background', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, hint: 'Saved on this device only, so it isn’t included when you export or share a theme.', keywords: 'upload file picture wallpaper photo' },
-    { id: 'pageBgImageFit', label: 'Fit', type: 'dropdown', section: 'Background', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, options: [
+    { id: 'scaleActive', label: 'Active line zoom', type: 'slider', section: 'Line emphasis', min: 0.95, max: 1.12, step: 0.01, unit: 'x', keywords: 'scale grow size' },
+    { id: 'inactiveLineScale', label: 'Inactive line size', type: 'slider', section: 'Line emphasis', min: 0.5, max: 1, step: 0.01, unit: 'x', hint: 'Shrinks the lines that aren’t being sung. Each line grows back to full size as it becomes active.', keywords: 'scale shrink small inactive focus size zoom unfocused' },
+    { id: 'focusDuration', label: 'Focus animation', type: 'slider', section: 'Line emphasis', min: 0.1, max: 1.5, step: 0.05, unit: 's', parent: 'inactiveLineScale', when: (t) => t.inactiveLineScale < 1, hint: 'How long a line takes to grow into focus and shrink back out.', keywords: 'focus transition speed duration grow shrink' },
+
+    { id: 'scaleInEffect', label: 'Zoom in on arrival', type: 'toggle', section: 'Line entrance', when: (t) => !(t.inactiveLineScale < 1), hint: 'Animates each line up to its zoom level as it becomes active.', keywords: 'scale in entrance animate' },
+    { id: 'scaleInFrom', label: 'Starting scale', type: 'slider', section: 'Line entrance', min: 0.85, max: 1.05, step: 0.01, unit: 'x', parent: 'scaleInEffect', when: (t) => t.scaleInEffect && !(t.inactiveLineScale < 1) },
+    { id: 'scaleInDuration', label: 'Zoom duration', type: 'slider', section: 'Line entrance', min: 0.1, max: 1.0, step: 0.05, unit: 's', parent: 'scaleInEffect', when: (t) => t.scaleInEffect && !(t.inactiveLineScale < 1) },
+
+    { id: 'animationSpeed', label: 'Overall animation speed', type: 'slider', section: 'Timing', min: 0.3, max: 3.0, step: 0.1, unit: 'x', hint: 'Scales every lyric transition. Higher is snappier.', keywords: 'transition tempo fast slow' },
+
+    { id: 'pageBgOverlay', label: 'Background tint', type: 'toggle', section: 'Colour tint', hint: 'Lays a coloured wash over the album-art background to calm it down.', keywords: 'overlay dim darken tint' },
+    { id: 'pageBgColor', label: 'Tint colour', type: 'color', section: 'Colour tint', parent: 'pageBgOverlay', when: (t) => t.pageBgOverlay },
+    { id: 'pageBgOpacity', label: 'Tint strength', type: 'slider', section: 'Colour tint', min: 0, max: 1, step: 0.05, parent: 'pageBgOverlay', when: (t) => t.pageBgOverlay },
+
+    { id: 'pageBgImageEnabled', label: 'Custom background image', type: 'toggle', section: 'Custom image', hint: 'Replaces the Spicy Lyrics background — album colours, artist header or animated art — with a picture of your own. Music videos still play over it when one is available.', keywords: 'wallpaper picture photo upload image static custom artist header dynamic' },
+    { id: 'pageBgImage', label: 'Image', type: 'image', section: 'Custom image', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, hint: 'Saved on this device only, so it isn’t included when you export or share a theme.', keywords: 'upload file picture wallpaper photo' },
+    { id: 'pageBgImageFit', label: 'Fit', type: 'dropdown', section: 'Custom image', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, options: [
         { value: 'cover', text: 'Fill (crop to fit)' },
         { value: 'contain', text: 'Fit (show whole image)' },
         { value: 'stretch', text: 'Stretch' },
         { value: 'tile', text: 'Tile' },
     ], keywords: 'cover contain stretch tile repeat scale' },
-    { id: 'pageBgImagePosition', label: 'Focus point', type: 'dropdown', section: 'Background', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled && (t.pageBgImageFit === 'cover' || t.pageBgImageFit === 'contain'), options: [
+    { id: 'pageBgImagePosition', label: 'Focus point', type: 'dropdown', section: 'Custom image', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled && (t.pageBgImageFit === 'cover' || t.pageBgImageFit === 'contain'), options: [
         { value: 'center', text: 'Centre' },
         { value: 'top', text: 'Top' },
         { value: 'bottom', text: 'Bottom' },
         { value: 'left', text: 'Left' },
         { value: 'right', text: 'Right' },
     ], hint: 'Which part of the image stays in view when it’s cropped.', keywords: 'position align anchor crop' },
-    { id: 'pageBgImageBlur', label: 'Blur', type: 'slider', section: 'Background', min: 0, max: 40, step: 1, unit: 'px', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, keywords: 'soften frosted' },
-    { id: 'pageBgImageDim', label: 'Dimming', type: 'slider', section: 'Background', min: 0, max: 1, step: 0.05, parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, hint: 'Darkens the image so lyrics stay readable.', keywords: 'darken brightness' },
-    { id: 'musicVideoDim', label: 'Video dimming', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 1, step: 0.05, hint: 'Darkens the video so lyrics stay readable.', keywords: 'music video darken brightness mv' },
-    { id: 'musicVideoLayout', label: 'Video layout', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
+    { id: 'pageBgImageBlur', label: 'Blur', type: 'slider', section: 'Custom image', min: 0, max: 40, step: 1, unit: 'px', parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, keywords: 'soften frosted' },
+    { id: 'pageBgImageDim', label: 'Dimming', type: 'slider', section: 'Custom image', min: 0, max: 1, step: 0.05, parent: 'pageBgImageEnabled', when: (t) => t.pageBgImageEnabled, hint: 'Darkens the image so lyrics stay readable.', keywords: 'darken brightness' },
+
+    { id: 'animBgEnabled', label: 'Animated background', type: 'toggle', section: 'Animated background', hint: 'Draws a live, music-reactive scene behind the lyrics. Music videos still play over it when one is available.', keywords: 'visualizer visualiser animated moving live webgl shader reactive audio spectrum unknown pleasures waves lines' },
+    { id: 'animBgStyle', label: 'Style', type: 'dropdown', section: 'Animated background', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: ANIM_BG_STYLE_OPTIONS, hint: 'Hover a style in the list for a description. Controls that don’t apply to it are hidden.', keywords: 'ridgelines silk halo aurora orbs horizon synthwave rings mode preset' },
+    { id: 'animBgPalette', label: 'Colours', type: 'dropdown', section: 'Animated background', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
+        { value: 'custom', text: 'Custom colours' },
+        { value: 'album', text: 'From album art' },
+        { value: 'spectrum', text: 'Rainbow spectrum' },
+    ], hint: 'Album colours fade smoothly into each new track’s palette.', keywords: 'palette colour color album art rainbow' },
+    { id: 'animBgColor', label: 'Primary colour', type: 'color', section: 'Animated background', parent: 'animBgPalette', when: (t) => t.animBgEnabled && t.animBgPalette === 'custom', hint: 'Used up front — the nearest lines, inner rings and lower layers.' },
+    { id: 'animBgColor2', label: 'Secondary colour', type: 'color', section: 'Animated background', parent: 'animBgPalette', when: (t) => t.animBgEnabled && t.animBgPalette === 'custom', hint: 'Blended in toward the back of the scene.' },
+    { id: 'animBgHueCycle', label: 'Colour cycling', type: 'slider', section: 'Animated background', min: 0, max: 1, step: 0.05, parent: 'animBgPalette', when: (t) => t.animBgEnabled, hint: 'Slowly rotates the hue of every colour over time. 0 keeps colours fixed.', keywords: 'hue rotate shift rainbow' },
+    { id: 'animBgBackdrop', label: 'Backdrop', type: 'dropdown', section: 'Animated background', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
+        { value: 'solid', text: 'Solid colour' },
+        { value: 'blend', text: 'Blend over Spicy Lyrics / image' },
+    ], hint: 'Blend draws just the lines and light on top of the album background or your custom image.', keywords: 'behind transparent overlay mix' },
+    { id: 'animBgBgColor', label: 'Backdrop colour', type: 'color', section: 'Animated background', parent: 'animBgBackdrop', when: (t) => t.animBgEnabled && t.animBgBackdrop === 'solid' },
+
+    { id: 'animBgSpeed', label: 'Speed', type: 'slider', section: 'Animated motion', min: 0, max: 3, step: 0.05, unit: 'x', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'tempo fast slow flow' },
+    { id: 'animBgReactivity', label: 'Music reactivity', type: 'slider', section: 'Animated motion', min: 0, max: 2, step: 0.05, unit: 'x', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How strongly the scene follows the track’s loudness, beats and spectrum. 0 turns it into a calm ambient loop.', keywords: 'audio beat bass sensitivity react' },
+    { id: 'animBgReactTo', label: 'Reacts to', type: 'dropdown', section: 'Animated motion', parent: 'animBgReactivity', when: (t) => t.animBgEnabled && t.animBgReactivity > 0, options: [
+        { value: 'all', text: 'Bass and highs' },
+        { value: 'bass', text: 'Bass only' },
+        { value: 'highs', text: 'Highs only' },
+    ], hint: 'Which part of the track drives the scene. Bass follows kicks and low end; highs follow vocals, hats and cymbals.', keywords: 'audio frequency bass treble highs lows kick beat focus range' },
+    { id: 'animBgIdleMotion', label: 'Motion while paused', type: 'slider', section: 'Animated motion', min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How much the scene keeps drifting when nothing is playing. 0 freezes it and stops redrawing.', keywords: 'idle pause freeze' },
+
+    { id: 'animBgDensity', label: 'Density', type: 'slider', section: 'Animated shape', min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How much is drawn — lines, rings, curtains, stars, waves or dots.', keywords: 'count lines rings amount' },
+    { id: 'animBgThickness', label: 'Thickness', type: 'slider', section: 'Animated shape', min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'Line weight — or curtain height, orb and dot size, and cloud contrast.', keywords: 'width weight size' },
+    { id: 'animBgAmplitude', label: 'Wave height', type: 'slider', section: 'Animated shape', min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How far the music pushes the scene — peak height, warping, bulges or streak length.', keywords: 'amplitude peaks height' },
+    { id: 'animBgAngle', label: 'Rotation', type: 'slider', section: 'Animated shape', min: -180, max: 180, step: 1, unit: '°', parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).angle, keywords: 'angle tilt diagonal rotate' },
+    { id: 'animBgPerspective', label: 'Perspective', type: 'slider', section: 'Animated shape', min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).perspective, hint: 'How deep the scene recedes. For Horizon it sets where the horizon sits; for Wormhole, how far you can see down it.', keywords: 'depth 3d distance horizon' },
+    { id: 'animBgMirror', label: 'Mirror spectrum', type: 'toggle', section: 'Animated shape', parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).mirror, hint: 'Puts the bass in the middle and mirrors the highs out to both sides.', keywords: 'symmetric symmetry bass centre' },
+    { id: 'animBgSolid', label: 'Solid ridges', type: 'toggle', section: 'Animated shape', parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).solid, hint: 'Each ridge hides the lines behind it, like a mountain range.', keywords: 'occlude hide behind fill mountain' },
+
+    { id: 'animBgGlow', label: 'Glow', type: 'slider', section: 'Animated finish', min: 0, max: 1.5, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'bloom halo neon soft' },
+    { id: 'animBgBrightness', label: 'Brightness', type: 'slider', section: 'Animated finish', min: 0.2, max: 2, step: 0.05, unit: 'x', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'intensity exposure' },
+    { id: 'animBgOpacity', label: 'Opacity', type: 'slider', section: 'Animated finish', min: 0.05, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'transparency fade' },
+    { id: 'animBgVignette', label: 'Vignette', type: 'slider', section: 'Animated finish', min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'Darkens the edges so the lyrics stand out.', keywords: 'edges darken corners' },
+    { id: 'animBgGrain', label: 'Film grain', type: 'slider', section: 'Animated finish', min: 0, max: 0.2, step: 0.01, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'A little noise hides colour banding in dark gradients.', keywords: 'noise dither texture' },
+    { id: 'animBgBlur', label: 'Blur', type: 'slider', section: 'Animated finish', min: 0, max: 30, step: 1, unit: 'px', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'Softens the whole scene. Blurred scenes render at a lower resolution, so this also saves power.', keywords: 'soften frosted defocus' },
+
+    { id: 'animBgQuality', label: 'Render quality', type: 'dropdown', section: 'Animated performance', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
+        { value: 'performance', text: 'Performance (half resolution)' },
+        { value: 'balanced', text: 'Balanced' },
+        { value: 'quality', text: 'Sharpest (full resolution)' },
+    ], hint: 'Lower resolutions use far less GPU on large or high-DPI screens.', keywords: 'resolution gpu performance fps lag' },
+    { id: 'animBgFps', label: 'Frame rate', type: 'dropdown', section: 'Animated performance', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
+        { value: '30', text: '30 fps' },
+        { value: '60', text: '60 fps' },
+        { value: 'max', text: 'Match display' },
+    ], keywords: 'fps frame rate smooth performance battery' },
+
+    { id: 'musicVideoDim', label: 'Video dimming', type: 'slider', section: 'Music video', min: 0, max: 1, step: 0.05, hint: 'Darkens the video so lyrics stay readable.', keywords: 'music video darken brightness mv' },
+    { id: 'musicVideoCredit', label: 'Video sync credit', type: 'dropdown', section: 'Music video', options: [
+        { value: 'video', text: 'While the video is showing' },
+        { value: 'always', text: 'Whenever the song has a sync' },
+        { value: 'off', text: 'Never' },
+    ], hint: 'Adds “Video synced by …” under the song credits, linking to the uploader’s profile.', keywords: 'music video credit uploader synced by profile mv' },
+
+    { id: 'musicVideoLayout', label: 'Video layout', type: 'dropdown', section: 'Video framing', options: [
         { value: 'background', text: 'Full background' },
         { value: 'stage', text: 'Stage beside the lyrics' },
     ], hint: 'Stage puts the video on the player’s side of the page and fades it into the album background, like Spicy Lyrics’ Canvas view. It falls back to the full background when the player is hidden or compact.', keywords: 'music video layout stage canvas side panel immersive full screen background mv' },
-    { id: 'musicVideoFullscreenLayout', label: 'Fullscreen layout', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
+    { id: 'musicVideoFullscreenLayout', label: 'Fullscreen layout', type: 'dropdown', section: 'Video framing', options: [
         { value: 'canvas', text: 'Canvas (video beside the lyrics)' },
         { value: 'compact', text: 'Switch to compact' },
         { value: 'keep', text: 'Keep my layout' },
     ], hint: 'How Spicy Lyrics fullscreen looks while a video plays. Canvas puts the video on the player’s side and docks the title and progress bar in the corner, whatever the layout above says. Switch to compact turns on the compact player every time a video starts.', keywords: 'music video fullscreen canvas compact layout stage dock immersive auto switch mv' },
-    { id: 'musicVideoAmbient', label: 'Blur the video into the edges', type: 'toggle', section: MUSIC_VIDEO_SECTION, hint: 'Fills the space around a staged or fitted video with a blurred copy of the same video instead of the album background. Needs the built-in 7Tube player; YouTube fallback and MP4 videos keep the album background.', keywords: 'music video ambient blur glow mirror sides edges bars background canvas mv' },
-    { id: 'musicVideoAmbientBand', label: 'Blurred sides in fullscreen', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 30, step: 1, unit: '%', parent: 'musicVideoAmbient', when: (t) => t.musicVideoFullscreenLayout === 'canvas' && t.musicVideoAmbient !== false, hint: 'How much of each side the blurred copy covers in Canvas fullscreen. The video keeps its full height either way, so this only trims the sides. Set it to 0% and the video fills the whole screen; a video shaped differently from your screen still blurs into the space it leaves.', keywords: 'music video blur edges sides ambient canvas fullscreen width band pillarbox full screen mv' },
-    { id: 'musicVideoFit', label: 'Video fit', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
+    { id: 'musicVideoFit', label: 'Video fit', type: 'dropdown', section: 'Video framing', options: [
         { value: 'zoom', text: 'Zoom (hide player edges)' },
         { value: 'cover', text: 'Fill (crop to fit)' },
         { value: 'contain', text: 'Fit (show whole video)' },
         { value: 'blend', text: 'Fit and blend edges' },
         { value: 'stretch', text: 'Stretch' },
     ], hint: 'How the video is sized to the window or stage. Zoom crops a little extra so YouTube’s player edges never show; Fit adds bars on screens that aren’t 16:9; Fit and blend is the same size but fades those bars away instead. Only Fit and blend softens the video’s own edges — the edge facing the lyrics always fades in the stage and Canvas layouts.', keywords: 'music video size scale zoom fill fit stretch crop aspect ratio 16:10 letterbox blend feather edges bars mv' },
-    { id: 'musicVideoEdgeFeather', label: 'Edge fade', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 45, step: 1, unit: '%', parent: 'musicVideoFit', when: (t) => t.musicVideoFit === 'blend' || t.musicVideoLayout === 'stage' || t.musicVideoFullscreenLayout === 'canvas', hint: 'How far the video fades into the background, or into its blurred copy. Applies to the edge facing the lyrics in the stage layout, to both blurred sides in Canvas fullscreen, and to every uncovered edge when Video fit is Fit and blend. Set it to 0 for a hard edge.', keywords: 'music video feather fade soft edges blend mv' },
-    { id: 'musicVideoDockPlayer', label: 'Dock the player', type: 'toggle', section: MUSIC_VIDEO_SECTION, hint: 'While a video plays, hides the cover and moves the title and progress bar to the bottom corner, like Spicy Lyrics’ Canvas view. Needs a Spicy Lyrics version with Canvas view.', keywords: 'music video dock player hide cover artwork canvas immersive title corner mv' },
-    { id: 'musicVideoTrimBars', label: 'Trim black bars', type: 'toggle', section: MUSIC_VIDEO_SECTION, hint: 'Crops bars that are part of the video itself when the uploader or the player has marked them.', keywords: 'music video black bars letterbox pillarbox crop trim mv' },
-    { id: 'musicVideoBackdrop', label: 'Video backdrop', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
+    { id: 'musicVideoEdgeFeather', label: 'Edge fade', type: 'slider', section: 'Video framing', min: 0, max: 45, step: 1, unit: '%', parent: 'musicVideoFit', when: (t) => t.musicVideoFit === 'blend' || t.musicVideoLayout === 'stage' || t.musicVideoFullscreenLayout === 'canvas', hint: 'How far the video fades into the background, or into its blurred copy. Applies to the edge facing the lyrics in the stage layout, to both blurred sides in Canvas fullscreen, and to every uncovered edge when Video fit is Fit and blend. Set it to 0 for a hard edge.', keywords: 'music video feather fade soft edges blend mv' },
+    { id: 'musicVideoTrimBars', label: 'Trim black bars', type: 'toggle', section: 'Video framing', hint: 'Crops bars that are part of the video itself when the uploader or the player has marked them.', keywords: 'music video black bars letterbox pillarbox crop trim mv' },
+    { id: 'musicVideoDockPlayer', label: 'Dock the player', type: 'toggle', section: 'Video framing', hint: 'While a video plays, hides the cover and moves the title and progress bar to the bottom corner, like Spicy Lyrics’ Canvas view. Needs a Spicy Lyrics version with Canvas view.', keywords: 'music video dock player hide cover artwork canvas immersive title corner mv' },
+    { id: 'musicVideoCompact', label: 'Also in compact player', type: 'toggle', section: 'Video framing', keywords: 'music video compact card mv' },
+    { id: 'musicVideoFullscreenCompact', label: 'Also in fullscreen compact', type: 'toggle', section: 'Video framing', when: (t) => !t.musicVideoCompact, hint: 'Keeps the video behind the compact layout while fullscreen, without turning it on for the windowed or popout player.', keywords: 'music video fullscreen compact mv' },
+
+    { id: 'musicVideoAmbient', label: 'Blur the video into the edges', type: 'toggle', section: 'Video blending', hint: 'Fills the space around a staged or fitted video with a blurred copy of the same video instead of the album background. Needs the built-in 7Tube player; YouTube fallback and MP4 videos keep the album background.', keywords: 'music video ambient blur glow mirror sides edges bars background canvas mv' },
+    { id: 'musicVideoAmbientBand', label: 'Blurred sides in fullscreen', type: 'slider', section: 'Video blending', min: 0, max: 30, step: 1, unit: '%', parent: 'musicVideoAmbient', when: (t) => t.musicVideoFullscreenLayout === 'canvas' && t.musicVideoAmbient !== false, hint: 'How much of each side the blurred copy covers in Canvas fullscreen. The video keeps its full height either way, so this only trims the sides. Set it to 0% and the video fills the whole screen; a video shaped differently from your screen still blurs into the space it leaves.', keywords: 'music video blur edges sides ambient canvas fullscreen width band pillarbox full screen mv' },
+    { id: 'musicVideoBackdrop', label: 'Video backdrop', type: 'dropdown', section: 'Video blending', options: [
         { value: 'solid', text: 'Replace the background' },
         { value: 'blend', text: 'Blend over Spicy Lyrics / image' },
     ], hint: 'Blend mixes the video with the album background or your custom image instead of covering it.', keywords: 'music video behind transparent overlay mix mv' },
-    { id: 'musicVideoBlend', label: 'Video strength', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0.1, max: 1, step: 0.05, parent: 'musicVideoBackdrop', when: (t) => t.musicVideoBackdrop === 'blend', hint: 'How much of the video shows through. Lower values keep more of the background.', keywords: 'music video opacity mix amount mv' },
-    { id: 'musicVideoPlayerFade', label: 'Player transparency', type: 'slider', section: MUSIC_VIDEO_SECTION, min: 0, max: 100, step: 5, unit: '%', hint: 'Fades the cover, title and progress bar while a video plays so more of it shows. 100% hides them until you hover.', keywords: 'music video player nowbar cover artwork title progress hide fade transparent opacity minimize mv' },
-    { id: 'musicVideoCredit', label: 'Video sync credit', type: 'dropdown', section: MUSIC_VIDEO_SECTION, options: [
-        { value: 'video', text: 'While the video is showing' },
-        { value: 'always', text: 'Whenever the song has a sync' },
-        { value: 'off', text: 'Never' },
-    ], hint: 'Adds “Video synced by …” under the song credits, linking to the uploader’s profile.', keywords: 'music video credit uploader synced by profile mv' },
-    { id: 'musicVideoCompact', label: 'Also in compact player', type: 'toggle', section: MUSIC_VIDEO_SECTION, keywords: 'music video compact card mv' },
-    { id: 'musicVideoFullscreenCompact', label: 'Also in fullscreen compact', type: 'toggle', section: MUSIC_VIDEO_SECTION, when: (t) => !t.musicVideoCompact, hint: 'Keeps the video behind the compact layout while fullscreen, without turning it on for the windowed or popout player.', keywords: 'music video fullscreen compact mv' },
+    { id: 'musicVideoBlend', label: 'Video strength', type: 'slider', section: 'Video blending', min: 0.1, max: 1, step: 0.05, parent: 'musicVideoBackdrop', when: (t) => t.musicVideoBackdrop === 'blend', hint: 'How much of the video shows through. Lower values keep more of the background.', keywords: 'music video opacity mix amount mv' },
+    { id: 'musicVideoPlayerFade', label: 'Player transparency', type: 'slider', section: 'Video blending', min: 0, max: 100, step: 5, unit: '%', hint: 'Fades the cover, title and progress bar while a video plays so more of it shows. 100% hides them until you hover.', keywords: 'music video player nowbar cover artwork title progress hide fade transparent opacity minimize mv' },
 
-    { id: 'animBgEnabled', label: 'Animated background', type: 'toggle', section: ANIM_BG_SECTION, hint: 'Draws a live, music-reactive scene behind the lyrics. Music videos still play over it when one is available.', keywords: 'visualizer visualiser animated moving live webgl shader reactive audio spectrum unknown pleasures waves lines' },
-    { id: 'animBgStyle', label: 'Style', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: ANIM_BG_STYLE_OPTIONS, hint: 'Hover a style in the list for a description. Controls that don’t apply to it are hidden.', keywords: 'ridgelines silk halo aurora orbs horizon synthwave rings mode preset' },
-    { id: 'animBgPalette', label: 'Colours', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
-        { value: 'custom', text: 'Custom colours' },
-        { value: 'album', text: 'From album art' },
-        { value: 'spectrum', text: 'Rainbow spectrum' },
-    ], hint: 'Album colours fade smoothly into each new track’s palette.', keywords: 'palette colour color album art rainbow' },
-    { id: 'animBgColor', label: 'Primary colour', type: 'color', section: ANIM_BG_SECTION, parent: 'animBgPalette', when: (t) => t.animBgEnabled && t.animBgPalette === 'custom', hint: 'Used up front — the nearest lines, inner rings and lower layers.' },
-    { id: 'animBgColor2', label: 'Secondary colour', type: 'color', section: ANIM_BG_SECTION, parent: 'animBgPalette', when: (t) => t.animBgEnabled && t.animBgPalette === 'custom', hint: 'Blended in toward the back of the scene.' },
-    { id: 'animBgHueCycle', label: 'Colour cycling', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgPalette', when: (t) => t.animBgEnabled, hint: 'Slowly rotates the hue of every colour over time. 0 keeps colours fixed.', keywords: 'hue rotate shift rainbow' },
-    { id: 'animBgBackdrop', label: 'Backdrop', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
-        { value: 'solid', text: 'Solid colour' },
-        { value: 'blend', text: 'Blend over Spicy Lyrics / image' },
-    ], hint: 'Blend draws just the lines and light on top of the album background or your custom image.', keywords: 'behind transparent overlay mix' },
-    { id: 'animBgBgColor', label: 'Backdrop colour', type: 'color', section: ANIM_BG_SECTION, parent: 'animBgBackdrop', when: (t) => t.animBgEnabled && t.animBgBackdrop === 'solid' },
-    { id: 'animBgSpeed', label: 'Speed', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 3, step: 0.05, unit: 'x', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'tempo fast slow flow' },
-    { id: 'animBgReactivity', label: 'Music reactivity', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 2, step: 0.05, unit: 'x', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How strongly the scene follows the track’s loudness, beats and spectrum. 0 turns it into a calm ambient loop.', keywords: 'audio beat bass sensitivity react' },
-    { id: 'animBgReactTo', label: 'Reacts to', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgReactivity', when: (t) => t.animBgEnabled && t.animBgReactivity > 0, options: [
-        { value: 'all', text: 'Bass and highs' },
-        { value: 'bass', text: 'Bass only' },
-        { value: 'highs', text: 'Highs only' },
-    ], hint: 'Which part of the track drives the scene. Bass follows kicks and low end; highs follow vocals, hats and cymbals.', keywords: 'audio frequency bass treble highs lows kick beat focus range' },
-    { id: 'animBgIdleMotion', label: 'Motion while paused', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How much the scene keeps drifting when nothing is playing. 0 freezes it and stops redrawing.', keywords: 'idle pause freeze' },
-    { id: 'animBgDensity', label: 'Density', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How much is drawn — lines, rings, curtains, stars, waves or dots.', keywords: 'count lines rings amount' },
-    { id: 'animBgThickness', label: 'Thickness', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'Line weight — or curtain height, orb and dot size, and cloud contrast.', keywords: 'width weight size' },
-    { id: 'animBgAmplitude', label: 'Wave height', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'How far the music pushes the scene — peak height, warping, bulges or streak length.', keywords: 'amplitude peaks height' },
-    { id: 'animBgAngle', label: 'Rotation', type: 'slider', section: ANIM_BG_SECTION, min: -180, max: 180, step: 1, unit: '°', parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).angle, keywords: 'angle tilt diagonal rotate' },
-    { id: 'animBgPerspective', label: 'Perspective', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).perspective, hint: 'How deep the scene recedes. For Horizon it sets where the horizon sits; for Wormhole, how far you can see down it.', keywords: 'depth 3d distance horizon' },
-    { id: 'animBgMirror', label: 'Mirror spectrum', type: 'toggle', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).mirror, hint: 'Puts the bass in the middle and mirrors the highs out to both sides.', keywords: 'symmetric symmetry bass centre' },
-    { id: 'animBgSolid', label: 'Solid ridges', type: 'toggle', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled && animStyle(t).solid, hint: 'Each ridge hides the lines behind it, like a mountain range.', keywords: 'occlude hide behind fill mountain' },
-    { id: 'animBgGlow', label: 'Glow', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1.5, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'bloom halo neon soft' },
-    { id: 'animBgBrightness', label: 'Brightness', type: 'slider', section: ANIM_BG_SECTION, min: 0.2, max: 2, step: 0.05, unit: 'x', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'intensity exposure' },
-    { id: 'animBgOpacity', label: 'Opacity', type: 'slider', section: ANIM_BG_SECTION, min: 0.05, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, keywords: 'transparency fade' },
-    { id: 'animBgVignette', label: 'Vignette', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 1, step: 0.05, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'Darkens the edges so the lyrics stand out.', keywords: 'edges darken corners' },
-    { id: 'animBgGrain', label: 'Film grain', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 0.2, step: 0.01, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'A little noise hides colour banding in dark gradients.', keywords: 'noise dither texture' },
-    { id: 'animBgBlur', label: 'Blur', type: 'slider', section: ANIM_BG_SECTION, min: 0, max: 30, step: 1, unit: 'px', parent: 'animBgEnabled', when: (t) => t.animBgEnabled, hint: 'Softens the whole scene. Blurred scenes render at a lower resolution, so this also saves power.', keywords: 'soften frosted defocus' },
-    { id: 'animBgQuality', label: 'Render quality', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
-        { value: 'performance', text: 'Performance (half resolution)' },
-        { value: 'balanced', text: 'Balanced' },
-        { value: 'quality', text: 'Sharpest (full resolution)' },
-    ], hint: 'Lower resolutions use far less GPU on large or high-DPI screens.', keywords: 'resolution gpu performance fps lag' },
-    { id: 'animBgFps', label: 'Frame rate', type: 'dropdown', section: ANIM_BG_SECTION, parent: 'animBgEnabled', when: (t) => t.animBgEnabled, options: [
-        { value: '30', text: '30 fps' },
-        { value: '60', text: '60 fps' },
-        { value: 'max', text: 'Match display' },
-    ], keywords: 'fps frame rate smooth performance battery' },
+    { id: 'playerStylingEnabled', label: 'Restyle the player', type: 'toggle', section: 'Player styling', hint: 'Unlocks the controls below for the Spicy Lyrics player bar.', keywords: 'nowbar controls player' },
+    { id: 'playerArtRadius', label: 'Album art roundness', type: 'slider', section: 'Player styling', min: 0, max: 50, step: 1, unit: '%', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'corner radius rounded' },
+    { id: 'playerProgressThickness', label: 'Progress bar thickness', type: 'slider', section: 'Player styling', min: 0.5, max: 5, step: 0.5, unit: 'x', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'seek bar height' },
+    { id: 'playerAccentEnabled', label: 'Custom progress colour', type: 'toggle', section: 'Player styling', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, hint: 'Overrides the accent colour on the progress and volume bars.', keywords: 'accent seek volume colour' },
+    { id: 'playerAccentColor', label: 'Progress colour', type: 'color', section: 'Player styling', parent: 'playerAccentEnabled', when: (t) => t.playerStylingEnabled && t.playerAccentEnabled },
+    { id: 'playerControlsAnimation', label: 'Animate control buttons', type: 'toggle', section: 'Player styling', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'hover bounce buttons' },
 
-    { id: 'playerStylingEnabled', label: 'Restyle the player', type: 'toggle', section: 'Now Playing bar', hint: 'Unlocks the controls below for the Spicy Lyrics player bar.', keywords: 'nowbar controls player' },
-    { id: 'playerArtRadius', label: 'Album art roundness', type: 'slider', section: 'Now Playing bar', min: 0, max: 50, step: 1, unit: '%', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'corner radius rounded' },
-    { id: 'playerProgressThickness', label: 'Progress bar thickness', type: 'slider', section: 'Now Playing bar', min: 0.5, max: 5, step: 0.5, unit: 'x', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'seek bar height' },
-    { id: 'playerAccentEnabled', label: 'Custom progress colour', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, hint: 'Overrides the accent colour on the progress and volume bars.', keywords: 'accent seek volume colour' },
-    { id: 'playerAccentColor', label: 'Progress colour', type: 'color', section: 'Now Playing bar', parent: 'playerAccentEnabled', when: (t) => t.playerStylingEnabled && t.playerAccentEnabled },
-    { id: 'playerControlsAnimation', label: 'Animate control buttons', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, keywords: 'hover bounce buttons' },
-    { id: 'playerHideShuffle', label: 'Hide shuffle', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled },
-    { id: 'playerHideRepeat', label: 'Hide repeat', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled },
-    { id: 'playerHideLike', label: 'Hide like (heart)', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled },
-    { id: 'playerHideVolume', label: 'Hide volume slider', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, hint: 'Removes the fullscreen volume capsule. Spotify’s own volume still works.', keywords: 'volume slider capsule sound' },
-    { id: 'playerHideViewControls', label: 'Hide top buttons', type: 'toggle', section: 'Now Playing bar', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, hint: 'Keeps the compact, translate, video, fullscreen, settings and close buttons invisible until you point at them.', keywords: 'view controls buttons toolbar close settings fullscreen compact translate top bar' },
+    { id: 'playerHideShuffle', label: 'Hide shuffle', type: 'toggle', section: 'Hide controls', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled },
+    { id: 'playerHideRepeat', label: 'Hide repeat', type: 'toggle', section: 'Hide controls', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled },
+    { id: 'playerHideLike', label: 'Hide like (heart)', type: 'toggle', section: 'Hide controls', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled },
+    { id: 'playerHideVolume', label: 'Hide volume slider', type: 'toggle', section: 'Hide controls', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, hint: 'Removes the fullscreen volume capsule. Spotify’s own volume still works.', keywords: 'volume slider capsule sound' },
+    { id: 'playerHideViewControls', label: 'Hide top buttons', type: 'toggle', section: 'Hide controls', parent: 'playerStylingEnabled', when: (t) => t.playerStylingEnabled, hint: 'Keeps the compact, translate, video, fullscreen, settings and close buttons invisible until you point at them.', keywords: 'view controls buttons toolbar close settings fullscreen compact translate top bar' },
 
     { id: 'eqEnabled', label: 'Song title equalizer', type: 'toggle', section: 'Equalizer', hint: 'Audio-reactive bars beside the song title in the Now Playing bar.', keywords: 'visualizer spectrum bars audio reactive' },
     { id: 'eqStyle', label: 'Style', type: 'dropdown', section: 'Equalizer', options: EQ_STYLE_OPTIONS, parent: 'eqEnabled', when: (t) => t.eqEnabled, hint: 'Grouped by feel, the same way word animations are — Classic reads as a meter, Energetic hits on the beat, Smooth drifts, Dimensional works in 3D.', keywords: 'equalizer dot wave waveform ladder bounce glitch pulse signal breathe sway orbit spectrum ring helix' },
@@ -373,19 +394,20 @@ export const SCHEMA: FieldDef[] = [
     { id: 'eqStereoSpread', label: 'Stereo spread', type: 'toggle', section: 'Equalizer', parent: 'eqEnabled', when: (t) => t.eqEnabled && t.eqPosition === 'both', hint: 'Offsets the two sides in time and spectrum so they move independently instead of mirroring each other. Spotify only publishes a mono analysis, so this is a stereo-style spread rather than real left and right channels.', keywords: 'stereo channel split independent dual separate' },
     { id: 'eqStereoAmount', label: 'Spread amount', type: 'slider', section: 'Equalizer', min: 0.1, max: 1.0, step: 0.05, parent: 'eqStereoSpread', when: (t) => t.eqEnabled && t.eqPosition === 'both' && t.eqStereoSpread },
 
-    { id: 'sltStylingEnabled', label: 'Style translated lines', type: 'toggle', section: 'Translation', hint: 'Requires the Spicy Lyrics Translator extension. Styles the translation lines and Learning Mode word cards it adds, including the translations under background vocals.', keywords: 'slt translator subtitle background vocals backing vocals bg lines' },
-    { id: 'sltIndependent', label: 'Style translations independently', type: 'toggle', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled, hint: 'Gives translated lines their own copy of every lyric control — colours, gradient, typography, glow, focus and motion — instead of following the main lyrics.', keywords: 'independent separate own controls mirror full' },
-    { id: 'sltTranslationFont', label: 'Font', type: 'dropdown', section: 'Translation', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
-    { id: 'sltTranslationFont', label: 'Custom font name', type: 'text', section: 'Translation', placeholder: "e.g. 'Inter', sans-serif", parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent && t.sltTranslationFont !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltTranslationFont) },
-    { id: 'sltTranslationFontSize', label: 'Text size', type: 'slider', section: 'Translation', min: 0.25, max: 2.0, step: 0.05, unit: 'x', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent, hint: 'Scales every translation line. Translations under background vocals keep their smaller size relative to this.', keywords: 'background vocals backing vocals bg lines scale' },
-    { id: 'sltBgLineScale', label: 'Background vocal size', type: 'slider', section: 'Translation', min: 0.25, max: 1.5, step: 0.05, unit: 'x', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled, hint: 'How big the translation under a background vocal line is next to the other translation lines. 1x makes them match.', keywords: 'background vocals backing vocals bg lines smaller shrink size scale' },
-    { id: 'sltTranslationOpacity', label: 'Opacity', type: 'slider', section: 'Translation', min: 0.1, max: 1.0, step: 0.05, parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
-    { id: 'sltHighlightStartColor', label: 'Highlight start', type: 'color', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
-    { id: 'sltHighlightEndColor', label: 'Highlight end', type: 'color', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
-    { id: 'sltTranslationColorEnabled', label: 'Custom base colour', type: 'toggle', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
-    { id: 'sltTranslationColor', label: 'Base colour', type: 'color', section: 'Translation', parent: 'sltTranslationColorEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent && t.sltTranslationColorEnabled },
-    { id: 'sltGlowColorEnabled', label: 'Custom glow colour', type: 'toggle', section: 'Translation', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
-    { id: 'sltGlowColor', label: 'Glow colour', type: 'color', section: 'Translation', parent: 'sltGlowColorEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent && t.sltGlowColorEnabled },
+    { id: 'sltStylingEnabled', label: 'Style translated lines', type: 'toggle', section: 'Translated lines', hint: 'Requires the Spicy Lyrics Translator extension. Styles the translation lines and Learning Mode word cards it adds, including the translations under background vocals.', keywords: 'slt translator subtitle background vocals backing vocals bg lines' },
+    { id: 'sltIndependent', label: 'Style translations independently', type: 'toggle', section: 'Translated lines', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled, hint: 'Gives translated lines their own copy of every lyric control — colours, gradient, typography, glow, focus and motion — instead of following the main lyrics.', keywords: 'independent separate own controls mirror full' },
+
+    { id: 'sltTranslationFont', label: 'Font', type: 'dropdown', section: 'Translation basics', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltTranslationFont', label: 'Custom font name', type: 'text', section: 'Translation basics', placeholder: "e.g. 'Inter', sans-serif", parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent && t.sltTranslationFont !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltTranslationFont) },
+    { id: 'sltTranslationFontSize', label: 'Text size', type: 'slider', section: 'Translation basics', min: 0.25, max: 2.0, step: 0.05, unit: 'x', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent, hint: 'Scales every translation line. Translations under background vocals keep their smaller size relative to this.', keywords: 'background vocals backing vocals bg lines scale' },
+    { id: 'sltBgLineScale', label: 'Background vocal size', type: 'slider', section: 'Translation basics', min: 0.25, max: 1.5, step: 0.05, unit: 'x', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled, hint: 'How big the translation under a background vocal line is next to the other translation lines. 1x makes them match.', keywords: 'background vocals backing vocals bg lines smaller shrink size scale' },
+    { id: 'sltTranslationOpacity', label: 'Opacity', type: 'slider', section: 'Translation basics', min: 0.1, max: 1.0, step: 0.05, parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltHighlightStartColor', label: 'Highlight start', type: 'color', section: 'Translation basics', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltHighlightEndColor', label: 'Highlight end', type: 'color', section: 'Translation basics', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltTranslationColorEnabled', label: 'Custom base colour', type: 'toggle', section: 'Translation basics', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltTranslationColor', label: 'Base colour', type: 'color', section: 'Translation basics', parent: 'sltTranslationColorEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent && t.sltTranslationColorEnabled },
+    { id: 'sltGlowColorEnabled', label: 'Custom glow colour', type: 'toggle', section: 'Translation basics', parent: 'sltStylingEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent },
+    { id: 'sltGlowColor', label: 'Glow colour', type: 'color', section: 'Translation basics', parent: 'sltGlowColorEnabled', when: (t) => t.sltStylingEnabled && !t.sltIndependent && t.sltGlowColorEnabled },
 
     { id: 'sltActiveLineColor', label: 'Active line', type: 'color', section: 'Translation colours', when: (t) => t.sltStylingEnabled && t.sltIndependent && !t.sltGradientEnabled, hint: 'The translation of the line currently being sung. Replaced by the gradient when gradient text is on.', keywords: 'translation current karaoke highlight' },
     { id: 'sltSungLineColor', label: 'Already sung', type: 'color', section: 'Translation colours', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation past previous' },
@@ -407,32 +429,37 @@ export const SCHEMA: FieldDef[] = [
     { id: 'sltGradientAngle', label: 'Sweep angle', type: 'slider', section: 'Translation gradient', min: 0, max: 360, step: 5, unit: '°', parent: 'sltGradientEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGradientEnabled && t.sltGradientDirection === 'custom', keywords: 'translation degrees rotation' },
     { id: 'sltGradientFeather', label: 'Fill softness', type: 'slider', section: 'Translation gradient', min: 0, max: 60, step: 1, unit: '%', parent: 'sltGradientEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGradientEnabled, keywords: 'translation blend fade edge feather' },
 
-    { id: 'sltFontFamily', label: 'Font', type: 'dropdown', section: 'Translation typography', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation typeface family' },
-    { id: 'sltFontFamily', label: 'Custom font name', type: 'text', section: 'Translation typography', placeholder: "e.g. 'Inter', sans-serif", when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltFontFamily !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltFontFamily) },
-    { id: 'sltFontWeight', label: 'Weight', type: 'dropdown', section: 'Translation typography', options: WEIGHT_OPTIONS, when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation bold thin' },
-    { id: 'sltActiveLineWeight', label: 'Active line weight', type: 'dropdown', section: 'Translation typography', options: [{ value: '0', text: 'Same as above' }, ...WEIGHT_OPTIONS], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation bold emphasis active' },
-    { id: 'sltTextTransform', label: 'Capitalisation', type: 'dropdown', section: 'Translation typography', options: [
+    { id: 'sltDisableHighlight', label: 'Flat colour mode', type: 'toggle', section: 'Translation flat colour', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Turns off the sweeping fill on translations — every translated line uses one solid colour.', keywords: 'translation no karaoke disable highlight solid' },
+    { id: 'sltHighlightColor', label: 'Flat colour', type: 'color', section: 'Translation flat colour', parent: 'sltDisableHighlight', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltDisableHighlight },
+
+    { id: 'sltFontFamily', label: 'Font', type: 'dropdown', section: 'Translation font', options: [...TRANSLATION_FONT_OPTIONS, { value: '__custom__', text: 'Custom…' }], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation typeface family' },
+    { id: 'sltFontFamily', label: 'Custom font name', type: 'text', section: 'Translation font', placeholder: "e.g. 'Inter', sans-serif", when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltFontFamily !== '' && !TRANSLATION_FONT_OPTIONS.some(o => o.value === t.sltFontFamily) },
+    { id: 'sltFontWeight', label: 'Weight', type: 'dropdown', section: 'Translation font', options: WEIGHT_OPTIONS, when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation bold thin' },
+    { id: 'sltActiveLineWeight', label: 'Active line weight', type: 'dropdown', section: 'Translation font', options: [{ value: '0', text: 'Same as above' }, ...WEIGHT_OPTIONS], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation bold emphasis active' },
+    { id: 'sltTextTransform', label: 'Capitalisation', type: 'dropdown', section: 'Translation font', options: [
         { value: 'none', text: 'As written' },
         { value: 'uppercase', text: 'UPPERCASE' },
         { value: 'lowercase', text: 'lowercase' },
         { value: 'capitalize', text: 'Title Case' },
     ], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation uppercase lowercase caps case' },
-    { id: 'sltFontStyle', label: 'Style', type: 'dropdown', section: 'Translation typography', options: [
+    { id: 'sltFontStyle', label: 'Style', type: 'dropdown', section: 'Translation font', options: [
         { value: 'normal', text: 'Upright' },
         { value: 'italic', text: 'Italic' },
         { value: 'oblique', text: 'Oblique (slanted)' },
     ], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation italic slant oblique' },
-    { id: 'sltLyricsScale', label: 'Text size', type: 'slider', section: 'Translation typography', min: 0.25, max: 2.0, step: 0.05, unit: 'x', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation scale bigger smaller font size' },
-    { id: 'sltLetterSpacing', label: 'Letter spacing', type: 'slider', section: 'Translation typography', min: -0.1, max: 0.3, step: 0.01, unit: 'em', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation tracking kerning' },
-    { id: 'sltWordSpacing', label: 'Word spacing', type: 'slider', section: 'Translation typography', min: -0.1, max: 1.0, step: 0.02, unit: 'em', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation gap space between words' },
-    { id: 'sltLineHeight', label: 'Line spacing', type: 'slider', section: 'Translation typography', min: 1.0, max: 2.5, step: 0.01, when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation leading gap' },
-    { id: 'sltTextAlign', label: 'Alignment', type: 'dropdown', section: 'Translation typography', options: [
+
+    { id: 'sltLyricsScale', label: 'Text size', type: 'slider', section: 'Translation size', min: 0.25, max: 2.0, step: 0.05, unit: 'x', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation scale bigger smaller font size' },
+    { id: 'sltLetterSpacing', label: 'Letter spacing', type: 'slider', section: 'Translation size', min: -0.1, max: 0.3, step: 0.01, unit: 'em', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation tracking kerning' },
+    { id: 'sltWordSpacing', label: 'Word spacing', type: 'slider', section: 'Translation size', min: -0.1, max: 1.0, step: 0.02, unit: 'em', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation gap space between words' },
+    { id: 'sltLineHeight', label: 'Line spacing', type: 'slider', section: 'Translation size', min: 1.0, max: 2.5, step: 0.01, when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation leading gap' },
+
+    { id: 'sltTextAlign', label: 'Alignment', type: 'dropdown', section: 'Translation layout', options: [
         { value: 'default', text: 'Follow Spicy Lyrics' },
         { value: 'left', text: 'Left' },
         { value: 'center', text: 'Centre' },
         { value: 'right', text: 'Right' },
     ], when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation align left right centre' },
-    { id: 'sltMaxLineWidth', label: 'Max line width', type: 'slider', section: 'Translation typography', min: 0, max: 100, step: 5, unit: '%', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation measure wrap width column' },
+    { id: 'sltMaxLineWidth', label: 'Max line width', type: 'slider', section: 'Translation layout', min: 0, max: 100, step: 5, unit: '%', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation measure wrap width column' },
 
     { id: 'sltGlowEnabled', label: 'Line glow', type: 'toggle', section: 'Translation glow', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Adds a soft halo around every translated line.', keywords: 'translation halo neon shine bloom' },
     { id: 'sltActiveGlowColor', label: 'Active line colour', type: 'color', section: 'Translation glow', parent: 'sltGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGlowEnabled },
@@ -441,37 +468,40 @@ export const SCHEMA: FieldDef[] = [
     { id: 'sltGlowIntensity', label: 'Other lines strength', type: 'slider', section: 'Translation glow', min: 0, max: 15, step: 1, unit: 'px', parent: 'sltGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGlowEnabled },
     { id: 'sltGlowPulse', label: 'Pulse the active line', type: 'toggle', section: 'Translation glow', parent: 'sltGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGlowEnabled, keywords: 'translation breathe pulse animate' },
     { id: 'sltGlowPulseSpeed', label: 'Pulse speed', type: 'slider', section: 'Translation glow', min: 0.3, max: 3.0, step: 0.1, unit: 'x', parent: 'sltGlowPulse', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltGlowEnabled && t.sltGlowPulse },
-    { id: 'sltBgGlowEnabled', label: 'Active word glow', type: 'toggle', section: 'Translation glow', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Lights up only the translated word being sung right now.', keywords: 'translation karaoke halo neon' },
-    { id: 'sltBgGlowColor', label: 'Word glow colour', type: 'color', section: 'Translation glow', parent: 'sltBgGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBgGlowEnabled },
-    { id: 'sltBgGlowIntensity', label: 'Word glow strength', type: 'slider', section: 'Translation glow', min: 0, max: 30, step: 1, unit: 'px', parent: 'sltBgGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBgGlowEnabled },
-    { id: 'sltTextShadowEnabled', label: 'Text shadow', type: 'toggle', section: 'Translation glow', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation drop shadow outline readability' },
-    { id: 'sltTextShadowColor', label: 'Shadow colour', type: 'color', section: 'Translation glow', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
-    { id: 'sltTextShadowOpacity', label: 'Shadow opacity', type: 'slider', section: 'Translation glow', min: 0, max: 1, step: 0.05, parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
-    { id: 'sltTextShadowBlur', label: 'Shadow blur', type: 'slider', section: 'Translation glow', min: 0, max: 20, step: 1, unit: 'px', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
-    { id: 'sltTextShadowOffsetX', label: 'Shadow offset X', type: 'slider', section: 'Translation glow', min: -10, max: 10, step: 1, unit: 'px', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
-    { id: 'sltTextShadowOffsetY', label: 'Shadow offset Y', type: 'slider', section: 'Translation glow', min: -10, max: 10, step: 1, unit: 'px', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
-    { id: 'sltTextStrokeEnabled', label: 'Text outline', type: 'toggle', section: 'Translation glow', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation stroke border outline edge' },
-    { id: 'sltTextStrokeColor', label: 'Outline colour', type: 'color', section: 'Translation glow', parent: 'sltTextStrokeEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextStrokeEnabled },
-    { id: 'sltTextStrokeWidth', label: 'Outline width', type: 'slider', section: 'Translation glow', min: 0, max: 3, step: 0.1, unit: 'px', parent: 'sltTextStrokeEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextStrokeEnabled },
 
-    { id: 'sltBlurUnsung', label: 'Blur other lines', type: 'toggle', section: 'Translation focus', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Softens every translated line except the one being sung.', keywords: 'translation depth of field defocus soft' },
-    { id: 'sltBlurAmount', label: 'Blur amount', type: 'slider', section: 'Translation focus', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'sltBlurUnsung', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBlurUnsung },
-    { id: 'sltBlurSungWords', label: 'Fade words as they pass', type: 'toggle', section: 'Translation focus', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Blurs each translated word once it has been sung.', keywords: 'translation karaoke word blur trail' },
-    { id: 'sltBlurSungWordsAmount', label: 'Word blur amount', type: 'slider', section: 'Translation focus', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'sltBlurSungWords', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBlurSungWords },
-    { id: 'sltBlurSungWordsOpacity', label: 'Word opacity', type: 'slider', section: 'Translation focus', min: 0.05, max: 1.0, step: 0.05, parent: 'sltBlurSungWords', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBlurSungWords },
+    { id: 'sltBgGlowEnabled', label: 'Active word glow', type: 'toggle', section: 'Translation word glow', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Lights up only the translated word being sung right now.', keywords: 'translation karaoke halo neon' },
+    { id: 'sltBgGlowColor', label: 'Word glow colour', type: 'color', section: 'Translation word glow', parent: 'sltBgGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBgGlowEnabled },
+    { id: 'sltBgGlowIntensity', label: 'Word glow strength', type: 'slider', section: 'Translation word glow', min: 0, max: 30, step: 1, unit: 'px', parent: 'sltBgGlowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBgGlowEnabled },
 
-    { id: 'sltDisableHighlight', label: 'Flat colour mode', type: 'toggle', section: 'Translation motion', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Turns off the sweeping fill on translations — every translated line uses one solid colour.', keywords: 'translation no karaoke disable highlight solid' },
-    { id: 'sltHighlightColor', label: 'Flat colour', type: 'color', section: 'Translation motion', parent: 'sltDisableHighlight', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltDisableHighlight },
-    { id: 'sltWordEffect', label: 'Word animation', type: 'dropdown', section: 'Translation motion', options: WORD_EFFECT_OPTIONS, when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Animates individual words in the active translation.', keywords: 'translation bounce pop wave stamp shake glitch rise sway animate word' },
-    { id: 'sltWordEffectTrigger', label: 'Fires', type: 'dropdown', section: 'Translation motion', options: [
+    { id: 'sltTextShadowEnabled', label: 'Text shadow', type: 'toggle', section: 'Translation shadow', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation drop shadow outline readability' },
+    { id: 'sltTextShadowColor', label: 'Shadow colour', type: 'color', section: 'Translation shadow', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
+    { id: 'sltTextShadowOpacity', label: 'Shadow opacity', type: 'slider', section: 'Translation shadow', min: 0, max: 1, step: 0.05, parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
+    { id: 'sltTextShadowBlur', label: 'Shadow blur', type: 'slider', section: 'Translation shadow', min: 0, max: 20, step: 1, unit: 'px', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
+    { id: 'sltTextShadowOffsetX', label: 'Shadow offset X', type: 'slider', section: 'Translation shadow', min: -10, max: 10, step: 1, unit: 'px', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
+    { id: 'sltTextShadowOffsetY', label: 'Shadow offset Y', type: 'slider', section: 'Translation shadow', min: -10, max: 10, step: 1, unit: 'px', parent: 'sltTextShadowEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextShadowEnabled },
+
+    { id: 'sltTextStrokeEnabled', label: 'Text outline', type: 'toggle', section: 'Translation outline', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation stroke border outline edge' },
+    { id: 'sltTextStrokeColor', label: 'Outline colour', type: 'color', section: 'Translation outline', parent: 'sltTextStrokeEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextStrokeEnabled },
+    { id: 'sltTextStrokeWidth', label: 'Outline width', type: 'slider', section: 'Translation outline', min: 0, max: 3, step: 0.1, unit: 'px', parent: 'sltTextStrokeEnabled', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltTextStrokeEnabled },
+
+    { id: 'sltBlurUnsung', label: 'Blur other lines', type: 'toggle', section: 'Translation blur', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Softens every translated line except the one being sung.', keywords: 'translation depth of field defocus soft' },
+    { id: 'sltBlurAmount', label: 'Blur amount', type: 'slider', section: 'Translation blur', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'sltBlurUnsung', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBlurUnsung },
+
+    { id: 'sltBlurSungWords', label: 'Fade words as they pass', type: 'toggle', section: 'Translation word fade', when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Blurs each translated word once it has been sung.', keywords: 'translation karaoke word blur trail' },
+    { id: 'sltBlurSungWordsAmount', label: 'Word blur amount', type: 'slider', section: 'Translation word fade', min: 0, max: 8, step: 0.5, unit: 'px', parent: 'sltBlurSungWords', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBlurSungWords },
+    { id: 'sltBlurSungWordsOpacity', label: 'Word opacity', type: 'slider', section: 'Translation word fade', min: 0.05, max: 1.0, step: 0.05, parent: 'sltBlurSungWords', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltBlurSungWords },
+
+    { id: 'sltWordEffect', label: 'Word animation', type: 'dropdown', section: 'Translation word animation', options: WORD_EFFECT_OPTIONS, when: (t) => t.sltStylingEnabled && t.sltIndependent, hint: 'Animates individual words in the active translation.', keywords: 'translation bounce pop wave stamp shake glitch rise sway animate word' },
+    { id: 'sltWordEffectTrigger', label: 'Fires', type: 'dropdown', section: 'Translation word animation', options: [
         { value: 'auto', text: 'Recommended for this animation' },
         { value: 'word', text: 'As each word is sung' },
         { value: 'line', text: 'When the line starts' },
         { value: 'loop', text: 'Continuously' },
     ], parent: 'sltWordEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltWordEffect !== 'none', keywords: 'translation trigger timing sync' },
-    { id: 'sltWordEffectIntensity', label: 'Intensity', type: 'slider', section: 'Translation motion', min: 0.1, max: 2.0, step: 0.05, unit: 'x', parent: 'sltWordEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltWordEffect !== 'none', keywords: 'translation strength amount' },
-    { id: 'sltWordEffectSpeed', label: 'Speed', type: 'slider', section: 'Translation motion', min: 0.3, max: 3.0, step: 0.05, unit: 'x', parent: 'sltWordEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltWordEffect !== 'none', keywords: 'translation duration fast slow' },
-    { id: 'sltWordEffectStagger', label: 'Stagger between words', type: 'slider', section: 'Translation motion', min: 0, max: 150, step: 5, unit: 'ms', parent: 'sltWordEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltWordEffect !== 'none' && resolveWordTrigger(t.sltWordEffect, t.sltWordEffectTrigger) !== 'word', keywords: 'translation delay ripple cascade' },
+    { id: 'sltWordEffectIntensity', label: 'Intensity', type: 'slider', section: 'Translation word animation', min: 0.1, max: 2.0, step: 0.05, unit: 'x', parent: 'sltWordEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltWordEffect !== 'none', keywords: 'translation strength amount' },
+    { id: 'sltWordEffectSpeed', label: 'Speed', type: 'slider', section: 'Translation word animation', min: 0.3, max: 3.0, step: 0.05, unit: 'x', parent: 'sltWordEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltWordEffect !== 'none', keywords: 'translation duration fast slow' },
+    { id: 'sltWordEffectStagger', label: 'Stagger between words', type: 'slider', section: 'Translation word animation', min: 0, max: 150, step: 5, unit: 'ms', parent: 'sltWordEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltWordEffect !== 'none' && resolveWordTrigger(t.sltWordEffect, t.sltWordEffectTrigger) !== 'word', keywords: 'translation delay ripple cascade' },
+
     { id: 'sltScaleActive', label: 'Active line zoom', type: 'slider', section: 'Translation motion', min: 0.95, max: 1.12, step: 0.01, unit: 'x', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation scale grow size' },
     { id: 'sltScaleInEffect', label: 'Zoom in on arrival', type: 'toggle', section: 'Translation motion', when: (t) => t.sltStylingEnabled && t.sltIndependent, keywords: 'translation scale in entrance animate' },
     { id: 'sltScaleInFrom', label: 'Starting scale', type: 'slider', section: 'Translation motion', min: 0.85, max: 1.05, step: 0.01, unit: 'x', parent: 'sltScaleInEffect', when: (t) => t.sltStylingEnabled && t.sltIndependent && t.sltScaleInEffect },
@@ -771,7 +801,7 @@ function liveApply(key: keyof ThemeConfig, apply: () => void, resync = false): v
 function matchesQuery(def: FieldDef, q: string): boolean {
     if (!q) return true;
     const cover = isCoverField(def) ? ' cover album artwork art song colour color hue saturation brightness hsv' : '';
-    return `${def.label} ${def.section} ${def.hint || ''} ${def.keywords || ''}${cover}`.toLowerCase().includes(q);
+    return `${def.label} ${def.section} ${sectionLabel(def.section)} ${def.hint || ''} ${def.keywords || ''}${cover}`.toLowerCase().includes(q);
 }
 
 function isCoverField(def: FieldDef): boolean {
@@ -967,6 +997,12 @@ function applyCustomizeFilter(): void {
     liveContainer.querySelectorAll<HTMLElement>('.st-m-cz-sections .st-m-section').forEach(sec => {
         const anyVisible = Array.from(sec.querySelectorAll<HTMLElement>('.st-m-field')).some(f => f.style.display !== 'none');
         sec.style.display = anyVisible ? '' : 'none';
+        const bodyRows = Array.from(sec.querySelectorAll<HTMLElement>('.st-m-sec-body .st-m-field'));
+        sec.classList.toggle('st-m-sec-folded', !bodyRows.some(f => f.style.display !== 'none'));
+    });
+
+    czSectionHandles.forEach(h => {
+        if (h.jump) h.jump.style.display = h.el.style.display === 'none' ? 'none' : '';
     });
 
     liveContainer.querySelectorAll<HTMLElement>('.st-m-cz-category').forEach(cat => {
@@ -996,6 +1032,8 @@ function applyCustomizeFilter(): void {
 
     const clear = liveContainer.querySelector<HTMLElement>('.st-m-cz-clear');
     if (clear) clear.style.display = searching ? '' : 'none';
+
+    refreshSectionMeters();
 }
 
 function formatFieldValue(value: unknown, unit = ''): string {
@@ -1035,6 +1073,7 @@ function buildField(def: FieldDef, index: number): FieldHandle {
         const hint = document.createElement('div');
         hint.className = 'st-m-field-hint';
         hint.textContent = def.hint;
+        hint.title = def.hint;
         labelBox.appendChild(hint);
     }
     row.appendChild(labelBox);
@@ -1282,7 +1321,9 @@ function buildField(def: FieldDef, index: number): FieldHandle {
     control.appendChild(reset);
 
     const refreshReset = () => {
-        reset.classList.toggle('st-m-field-reset-on', !isBaselineValue(def));
+        const changed = !isBaselineValue(def);
+        row.classList.toggle('st-m-changed', changed);
+        reset.classList.toggle('st-m-field-reset-on', changed);
         const label = `Reset “${def.label}” to ${baseline.name === 'default' ? 'the default' : `“${baseline.name}”`}`;
         reset.title = label;
         reset.setAttribute('aria-label', label);
@@ -1303,6 +1344,7 @@ function buildField(def: FieldDef, index: number): FieldHandle {
 function refreshResetIndicators(): void {
     czFields = czFields.filter(f => f.row.isConnected);
     czFields.forEach(f => f.refreshReset());
+    refreshSectionMeters();
 }
 
 function syncAllFields(): void {
@@ -1320,48 +1362,134 @@ interface CzCategory {
     sections: string[];
 }
 
+interface CzSectionDef {
+    name: string;
+    label?: string;
+    desc?: string;
+    master?: keyof ThemeConfig;
+}
+
+const CZ_SECTIONS: CzSectionDef[] = [
+    { name: 'Lyric styling', master: 'lyricsStylingEnabled' },
+    { name: 'Line colours', desc: 'The three states every line moves through as a song plays.' },
+    { name: 'Gradient text', master: 'gradientEnabled' },
+    { name: 'Flat colour', master: 'disableHighlight' },
+    { name: 'Font', desc: 'Typeface, weight and casing.' },
+    { name: 'Size and spacing', desc: 'How big the lyrics are and how much air sits between them.' },
+    { name: 'Line layout', desc: 'Where lines sit and how far they are allowed to run.' },
+
+    { name: 'Line glow', master: 'glowEnabled' },
+    { name: 'Word glow', master: 'bgGlowEnabled' },
+    { name: 'Text shadow', master: 'textShadowEnabled' },
+    { name: 'Text outline', master: 'textStrokeEnabled' },
+
+    { name: 'Blur other lines', master: 'blurUnsung' },
+    { name: 'Fade sung words', master: 'blurSungWords' },
+    { name: 'Visible lines', master: 'lineWindowEnabled' },
+
+    { name: 'Word animation', desc: 'Animates single words inside the line being sung.' },
+    { name: 'Line emphasis', desc: 'How far the active line stands out from the lines around it.' },
+    { name: 'Line entrance', master: 'scaleInEffect' },
+    { name: 'Timing', desc: 'One multiplier over every animation above.' },
+
+    { name: 'Colour tint', master: 'pageBgOverlay' },
+    { name: 'Custom image', master: 'pageBgImageEnabled' },
+    { name: 'Animated background', master: 'animBgEnabled' },
+    { name: 'Animated motion', desc: 'How fast it moves and how hard it reacts to the music.' },
+    { name: 'Animated shape', desc: 'The geometry the chosen style draws with.' },
+    { name: 'Animated finish', desc: 'Light, grain and softness over the finished frame.' },
+    { name: 'Animated performance', desc: 'Turn these down if the background costs you frames.' },
+    { name: 'Music video', master: 'musicVideoEnabled' },
+    { name: 'Video framing', desc: 'Where the video sits and how it is cropped.' },
+    { name: 'Video blending', desc: 'How the video meets whatever is around it.' },
+    { name: 'Video quality', desc: 'The resolution the built-in player asks for.' },
+
+    { name: 'Player styling', master: 'playerStylingEnabled' },
+    { name: 'Hide controls', desc: 'Take buttons off the player you never press.' },
+    { name: 'Equalizer', label: 'Song title equalizer', master: 'eqEnabled' },
+
+    { name: 'Translated lines', master: 'sltStylingEnabled' },
+    { name: 'Translation basics', label: 'Shared look', desc: 'Applies while translations follow the main lyric styling.' },
+    { name: 'Translation colours', label: 'Line colours' },
+    { name: 'Translation gradient', label: 'Gradient text', master: 'sltGradientEnabled' },
+    { name: 'Translation flat colour', label: 'Flat colour', master: 'sltDisableHighlight' },
+    { name: 'Translation font', label: 'Font' },
+    { name: 'Translation size', label: 'Size and spacing' },
+    { name: 'Translation layout', label: 'Line layout' },
+    { name: 'Translation glow', label: 'Line glow', master: 'sltGlowEnabled' },
+    { name: 'Translation word glow', label: 'Word glow', master: 'sltBgGlowEnabled' },
+    { name: 'Translation shadow', label: 'Text shadow', master: 'sltTextShadowEnabled' },
+    { name: 'Translation outline', label: 'Text outline', master: 'sltTextStrokeEnabled' },
+    { name: 'Translation blur', label: 'Blur other lines', master: 'sltBlurUnsung' },
+    { name: 'Translation word fade', label: 'Fade sung words', master: 'sltBlurSungWords' },
+    { name: 'Translation word animation', label: 'Word animation' },
+    { name: 'Translation motion', label: 'Motion' },
+];
+
+const CZ_SECTION_BY_NAME = new Map(CZ_SECTIONS.map(s => [s.name, s]));
+
+function sectionLabel(name: string): string {
+    return CZ_SECTION_BY_NAME.get(name)?.label || name;
+}
+
+function categoryChangedCount(cat: CzCategory): number {
+    return dedupedSchema().filter(def => cat.sections.includes(def.section) && !isBaselineValue(def)).length;
+}
+
 const CZ_CATEGORIES: CzCategory[] = [
     {
         id: 'cz-text',
         label: 'Text',
         icon: 'Aa',
         description: 'The colour, font and size of the lyrics themselves.',
-        sections: ['Line colors', 'Gradient', 'Typography'],
+        sections: ['Lyric styling', 'Line colours', 'Gradient text', 'Flat colour', 'Font', 'Size and spacing', 'Line layout'],
     },
     {
         id: 'cz-glow',
         label: 'Glow',
         icon: '✦',
-        description: 'Halos and shadows behind the text.',
-        sections: ['Glow'],
+        description: 'Halos, shadows and outlines around the text.',
+        sections: ['Line glow', 'Word glow', 'Text shadow', 'Text outline'],
     },
     {
         id: 'cz-focus',
         label: 'Focus',
         icon: '◎',
         description: 'Draw the eye to the line being sung by softening or hiding the rest.',
-        sections: ['Focus'],
+        sections: ['Blur other lines', 'Fade sung words', 'Visible lines'],
     },
     {
         id: 'cz-motion',
         label: 'Motion',
         icon: '⟩',
         description: 'How lines and words animate as the song plays.',
-        sections: ['Motion'],
+        sections: ['Word animation', 'Line emphasis', 'Line entrance', 'Timing'],
     },
     {
         id: 'cz-background',
         label: 'Background',
         icon: '▦',
         description: 'What sits behind the lyrics.',
-        sections: ['Background', MUSIC_VIDEO_SECTION, VIDEO_QUALITY_SECTION, ANIM_BG_SECTION],
+        sections: [
+            'Colour tint',
+            'Custom image',
+            ANIM_BG_SECTION,
+            'Animated motion',
+            'Animated shape',
+            'Animated finish',
+            'Animated performance',
+            MUSIC_VIDEO_SECTION,
+            'Video framing',
+            'Video blending',
+            VIDEO_QUALITY_SECTION,
+        ],
     },
     {
         id: 'cz-player',
         label: 'Player',
         icon: '♪',
         description: 'The Now Playing bar inside the Spicy Lyrics window.',
-        sections: ['Now Playing bar', 'Equalizer'],
+        sections: ['Player styling', 'Hide controls', 'Equalizer'],
     },
     {
         id: 'cz-translation',
@@ -1369,12 +1497,21 @@ const CZ_CATEGORIES: CzCategory[] = [
         icon: '文',
         description: 'Styling for lines added by the Spicy Lyrics Translator extension.',
         sections: [
-            'Translation',
+            'Translated lines',
+            'Translation basics',
             'Translation colours',
             'Translation gradient',
-            'Translation typography',
+            'Translation flat colour',
+            'Translation font',
+            'Translation size',
+            'Translation layout',
             'Translation glow',
-            'Translation focus',
+            'Translation word glow',
+            'Translation shadow',
+            'Translation outline',
+            'Translation blur',
+            'Translation word fade',
+            'Translation word animation',
             'Translation motion',
         ],
     },
@@ -1429,21 +1566,60 @@ function buildVideoAutoRow(): FieldHandle {
     return { row, def: VIDEO_AUTO_DEF, sync: () => { input.checked = themeState.videoAuto; }, refreshReset: () => {} };
 }
 
-function buildVideoQualitySection(): HTMLElement {
-    const section = document.createElement('div');
-    section.className = 'st-m-section';
-    section.dataset.section = VIDEO_QUALITY_SECTION;
-    const header = document.createElement('div');
-    header.className = 'st-m-section-title';
-    header.textContent = VIDEO_QUALITY_SECTION;
-    section.appendChild(header);
+interface CzSectionHandle {
+    el: HTMLElement;
+    body: HTMLElement;
+    chip: HTMLButtonElement;
+    jump: HTMLButtonElement | null;
+    defs: FieldDef[];
+}
 
+let czSectionHandles: CzSectionHandle[] = [];
+let czCategoryHandles: { el: HTMLElement; count: HTMLElement; reset: HTMLButtonElement; defs: FieldDef[] }[] = [];
+
+function resetDefs(title: string, defs: FieldDef[]): void {
+    const dirty = defs.filter(d => !isBaselineValue(d));
+    if (!dirty.length) return;
+    const target = baseline.name === 'default' ? 'the default' : `“${baseline.name}”`;
+    undoable(`${title} reset`, `${dirty.length} setting${dirty.length === 1 ? '' : 's'} back to ${target}.`, () => {
+        dirty.forEach(def => {
+            if (isCoverField(def)) setCoverColor(def.id, coverChoiceFor(baseline.config, def.id));
+            liveUpdate(def.id, baseline.config[def.id]);
+        });
+    });
+    syncAllFields();
+}
+
+function refreshSectionMeters(): void {
+    czSectionHandles = czSectionHandles.filter(h => h.el.isConnected);
+    czCategoryHandles = czCategoryHandles.filter(h => h.el.isConnected);
+
+    czSectionHandles.forEach(h => {
+        const changed = h.defs.filter(d => !isBaselineValue(d)).length;
+        h.chip.hidden = changed === 0;
+        h.chip.textContent = String(changed);
+        h.chip.title = `Reset ${changed} changed setting${changed === 1 ? '' : 's'} in this group`;
+        h.el.classList.toggle('st-m-sec-dirty', changed > 0);
+        if (h.jump) h.jump.classList.toggle('st-m-cz-jump-dirty', changed > 0);
+    });
+
+    czCategoryHandles.forEach(h => {
+        const changed = h.defs.filter(d => !isBaselineValue(d)).length;
+        h.count.textContent = changed
+            ? `${changed} setting${changed === 1 ? '' : 's'} changed here`
+            : 'Nothing changed here yet';
+        h.reset.hidden = changed === 0;
+    });
+}
+
+function buildVideoQualitySection(): { el: HTMLElement; body: HTMLElement } {
     const panel = buildVideoQualityPanel();
     const row = panel.root;
     if (VIDEO_QUALITY_DEF.when) row.style.display = VIDEO_QUALITY_DEF.when(themeState.activeTheme) ? '' : 'none';
-    section.appendChild(row);
     czFields.push({ row, def: VIDEO_QUALITY_DEF, sync: panel.sync, refreshReset: () => {} });
-    return section;
+    const built = buildSectionShell(VIDEO_QUALITY_SECTION, [], null);
+    built.body.appendChild(row);
+    return built;
 }
 
 function buildSectionBody(section: HTMLElement, defs: { def: FieldDef; index: number }[]): void {
@@ -1464,6 +1640,30 @@ function buildSectionBody(section: HTMLElement, defs: { def: FieldDef; index: nu
             czGroups.push({ el: group, parent: def.id });
         }
     });
+}
+
+function buildSectionShell(name: string, defs: FieldDef[], masterRow: HTMLElement | null, desc?: string): { el: HTMLElement; body: HTMLElement } {
+    const meta = CZ_SECTION_BY_NAME.get(name);
+    const section = el('section', { class: 'st-m-section' });
+    section.dataset.section = name;
+
+    const head = el('div', { class: 'st-m-sec-head' });
+    const text = el('div', { class: 'st-m-sec-text' }, el('div', { class: 'st-m-sec-title', text: sectionLabel(name) }));
+    const line = desc || meta?.desc;
+    if (line) text.append(el('p', { class: 'st-m-sec-desc', text: line, title: line }));
+
+    const chip = el('button', { class: 'st-m-sec-chip', type: 'button', hidden: true });
+    chip.addEventListener('click', () => resetDefs(sectionLabel(name), defs));
+
+    const aside = el('div', { class: 'st-m-sec-aside' }, chip);
+    if (masterRow) aside.append(masterRow);
+    head.append(text, aside);
+
+    const body = el('div', { class: 'st-m-sec-body' });
+    section.append(head, body);
+
+    czSectionHandles.push({ el: section, body, chip, jump: null, defs });
+    return { el: section, body };
 }
 
 function buildCustomizeTab(): HTMLElement {
@@ -1506,6 +1706,8 @@ function buildCustomizeTab(): HTMLElement {
 
     czFields = [];
     czGroups = [];
+    czSectionHandles = [];
+    czCategoryHandles = [];
 
     const bySection = new Map<string, { def: FieldDef; index: number }[]>();
     SCHEMA.forEach((def, index) => {
@@ -1515,49 +1717,84 @@ function buildCustomizeTab(): HTMLElement {
     });
 
     const sectionEls = new Map<string, HTMLElement>();
+
     bySection.forEach((defs, name) => {
-        const section = document.createElement('div');
-        section.className = 'st-m-section';
-        section.dataset.section = name;
-        const header = document.createElement('div');
-        header.className = 'st-m-section-title';
-        header.textContent = name;
-        section.appendChild(header);
-        buildSectionBody(section, defs);
-        sectionEls.set(name, section);
+        const meta = CZ_SECTION_BY_NAME.get(name);
+        let rest = defs;
+        let masterRow: HTMLElement | null = null;
+        let masterHint: string | undefined;
+
+        if (name === MUSIC_VIDEO_SECTION) {
+            const auto = buildVideoAutoRow();
+            czFields.push(auto);
+            auto.row.classList.add('st-m-sec-master');
+            masterRow = auto.row;
+            masterHint = VIDEO_AUTO_DEF.hint;
+        } else if (meta?.master) {
+            const at = defs.findIndex(d => d.def.id === meta.master);
+            if (at >= 0) {
+                const entry = defs[at];
+                rest = defs.filter((_, i) => i !== at);
+                const handle = buildField(entry.def, entry.index);
+                czFields.push(handle);
+                handle.row.classList.add('st-m-sec-master');
+                masterRow = handle.row;
+                masterHint = entry.def.hint;
+            }
+        }
+
+        const built = buildSectionShell(name, defs.map(d => d.def), masterRow, masterHint);
+        buildSectionBody(built.body, rest);
+        sectionEls.set(name, built.el);
     });
 
-    sectionEls.set(VIDEO_QUALITY_SECTION, buildVideoQualitySection());
-
-    const videoSection = sectionEls.get(MUSIC_VIDEO_SECTION);
-    if (videoSection) {
-        const auto = buildVideoAutoRow();
-        videoSection.querySelector('.st-m-section-title')?.after(auto.row);
-        czFields.push(auto);
-    }
+    sectionEls.set(VIDEO_QUALITY_SECTION, buildVideoQualitySection().el);
 
     CZ_CATEGORIES.forEach(cat => {
         const catEl = document.createElement('div');
         catEl.className = 'st-m-cz-category';
         catEl.id = cat.id;
 
-        const catHead = document.createElement('div');
-        catHead.className = 'st-m-cz-cat-head';
-        catHead.innerHTML = `
-            <div class="st-m-cz-cat-title">${escapeHtml(cat.label)}</div>
-            <div class="st-m-cz-cat-desc">${escapeHtml(cat.description)}</div>
-        `;
+        const count = el('span', { class: 'st-m-cz-cat-count' });
+        const reset = el('button', { class: 'st-m-cz-cat-reset', type: 'button', text: 'Reset this page', hidden: true });
+
+        const catHead = el('div', { class: 'st-m-cz-cat-head' },
+            el('div', { class: 'st-m-cz-cat-title', text: cat.label }),
+            el('p', { class: 'st-m-cz-cat-desc', text: cat.description }),
+            el('div', { class: 'st-m-cz-cat-meta' }, count, reset),
+        );
         catEl.appendChild(catHead);
 
-        cat.sections.forEach(s => {
-            const el = sectionEls.get(s);
-            if (el) catEl.appendChild(el);
-        });
+        const owned = cat.sections.map(s => sectionEls.get(s)).filter(Boolean) as HTMLElement[];
+        const catDefs = cat.sections.flatMap(s => (bySection.get(s) || []).map(d => d.def));
+        reset.addEventListener('click', () => resetDefs(cat.label, catDefs));
+        czCategoryHandles.push({ el: catEl, count, reset, defs: catDefs });
+
+        if (owned.length >= 4) {
+            const jump = el('div', { class: 'st-m-cz-jump' });
+            owned.forEach(secEl => {
+                const name = secEl.dataset.section || '';
+                const btn = el('button', { class: 'st-m-cz-jump-item', type: 'button', text: sectionLabel(name) });
+                btn.addEventListener('click', () => {
+                    secEl.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+                    secEl.classList.remove('st-m-sec-flash');
+                    void secEl.offsetWidth;
+                    secEl.classList.add('st-m-sec-flash');
+                    window.setTimeout(() => secEl.classList.remove('st-m-sec-flash'), 1200);
+                });
+                const handle = czSectionHandles.find(h => h.el === secEl);
+                if (handle) handle.jump = btn;
+                jump.append(btn);
+            });
+            catEl.appendChild(jump);
+        }
+
+        owned.forEach(secEl => catEl.appendChild(secEl));
         sectionsCol.appendChild(catEl);
     });
 
-    sectionEls.forEach((el, name) => {
-        if (!CZ_CATEGORIES.some(c => c.sections.includes(name))) sectionsCol.appendChild(el);
+    sectionEls.forEach((secEl, name) => {
+        if (!CZ_CATEGORIES.some(c => c.sections.includes(name))) sectionsCol.appendChild(secEl);
     });
 
     body.appendChild(sectionsCol);
@@ -1630,7 +1867,7 @@ function buildDiffBlock(title: string, from: Partial<ThemeConfig>, to: Partial<T
             list.append(el('div', { class: 'st-m-lib-chg-row' },
                 el('div', { class: 'st-m-lib-chg-label' },
                     el('span', { text: def.label }),
-                    el('span', { class: 'st-m-lib-chg-where', text: def.section }),
+                    el('span', { class: 'st-m-lib-chg-where', text: sectionLabel(def.section) }),
                 ),
                 el('div', { class: 'st-m-rv-diff' },
                     describeValue(def, before),
@@ -2682,7 +2919,7 @@ function buildMarketplaceTab(refresh: () => void): HTMLElement {
 
 function buildAboutTab(): HTMLElement {
     const tab = document.createElement('div');
-    tab.className = 'st-m-tab-content';
+    tab.className = 'st-m-tab-content st-m-about';
 
     const version = getCurrentVersion().text;
     const { hash, source } = getDisplayHash();
@@ -2865,14 +3102,14 @@ function collectEnabledFeatures(): EnabledGroup[] {
         if (def.comingSoon) return;
         if (def.when && !def.when(theme)) return;
         if (def.type === 'toggle') {
-            if (theme[def.id] === true) add(def.section, def.label);
+            if (theme[def.id] === true) add(sectionLabel(def.section), def.label);
             return;
         }
         if (def.id === 'wordEffect') {
             const value = String(theme.wordEffect || 'none');
             if (value === 'none') return;
             const option = (def.options || []).find(o => o.value === value);
-            add(def.section, `${def.label}: ${option ? option.text : value}`);
+            add(sectionLabel(def.section), `${def.label}: ${option ? option.text : value}`);
         }
     });
 
@@ -3119,8 +3356,9 @@ function categoryOf(def: FieldDef): CzCategory | undefined {
 
 function whereLabel(def: FieldDef): string {
     const cat = categoryOf(def);
-    if (!cat || cat.label === def.section) return def.section;
-    return `${cat.label} · ${def.section}`;
+    const label = sectionLabel(def.section);
+    if (!cat || cat.label === label) return label;
+    return `${cat.label} · ${label}`;
 }
 
 export function settingById(id: string): { id: string; label: string } | null {
@@ -3333,7 +3571,7 @@ function paletteItems(close: () => void): PaletteItem[] {
             group: 'Settings',
             label: def.label,
             hint: whereLabel(def),
-            keywords: `${def.section} ${def.hint || ''} ${def.keywords || ''}`,
+            keywords: `${def.section} ${sectionLabel(def.section)} ${def.hint || ''} ${def.keywords || ''}`,
             run: () => { close(); revealSetting(def.id); },
         });
     });
@@ -3768,6 +4006,10 @@ export function createSettingsModal(options: { tab?: TabId; category?: string } 
             const on = activeTabId === 'customize' && !searching && btn.dataset.target === activeCategoryId;
             btn.classList.toggle('active', on);
             btn.setAttribute('aria-selected', String(on));
+            const cat = CZ_CATEGORIES.find(c => c.id === btn.dataset.target);
+            const changed = cat ? categoryChangedCount(cat) : 0;
+            btn.classList.toggle('st-m-side-item-dirty', changed > 0);
+            btn.title = changed ? `${changed} setting${changed === 1 ? '' : 's'} changed` : '';
         });
         catNav.classList.toggle('st-m-cz-nav-muted', activeTabId === 'customize' && searching);
         tabButtons.forEach((btn, tab) => btn.classList.toggle('active', tab === activeTabId));
