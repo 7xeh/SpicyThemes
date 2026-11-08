@@ -263,6 +263,29 @@ export function openSurfaces(): SurfaceHandle[] {
     return stack.filter(s => !s.closed);
 }
 
+const escapeHooks: { host: HTMLElement; run: () => boolean }[] = [];
+
+export function onEscape(host: HTMLElement, run: () => boolean): () => void {
+    for (let i = escapeHooks.length - 1; i >= 0; i--) {
+        if (!escapeHooks[i].host.isConnected) escapeHooks.splice(i, 1);
+    }
+    const entry = { host, run };
+    escapeHooks.push(entry);
+    return () => {
+        const index = escapeHooks.indexOf(entry);
+        if (index >= 0) escapeHooks.splice(index, 1);
+    };
+}
+
+function runEscapeHooks(top: SurfaceHandle): boolean {
+    for (let i = escapeHooks.length - 1; i >= 0; i--) {
+        const hook = escapeHooks[i];
+        if (!hook.host.isConnected || !top.panel.contains(hook.host)) continue;
+        if (hook.run()) return true;
+    }
+    return false;
+}
+
 function focusables(root: HTMLElement): HTMLElement[] {
     return Array.from(root.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
         .filter(n => n.offsetParent !== null || n === document.activeElement);
@@ -279,6 +302,11 @@ function onDocumentKey(event: KeyboardEvent): void {
             event.preventDefault();
             event.stopImmediatePropagation();
             closeMenus();
+            return;
+        }
+        if (runEscapeHooks(top)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
             return;
         }
         if (top.root.dataset.dismissible === 'false') return;

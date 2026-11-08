@@ -33,7 +33,7 @@ import { buildVideoQualityPanel } from './videoQualityPanel';
 import { setVideoAuto } from './videoMode';
 import { saveBackgroundImage, pruneBackgroundImages, getCachedBackgroundUrl, getBackgroundImageUrl, getBackgroundImageInfo, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
 import { getCurrentVersion, getDisplayHash, runManualUpdateCheck, showCurrentChangelog, hasWaitingUpdate, openWaitingUpdate } from './updater';
-import { el, openDialog, openSurfaces, prefersReducedMotion, paintTone, CLOSE_SVG, SurfaceHandle, Tone, RegionPlacement, getRegionPlacement, setRegionPlacement } from './surface';
+import { el, openDialog, openSurfaces, prefersReducedMotion, paintTone, onEscape, CLOSE_SVG, SurfaceHandle, Tone, RegionPlacement, getRegionPlacement, setRegionPlacement } from './surface';
 import { toast, getInbox, markInboxRead, clearInbox, onInboxChange, unreadCount, runInboxAction, InboxEntry } from './toast';
 import { Icons } from './icons';
 import * as Marketplace from './marketplace';
@@ -1568,335 +1568,1114 @@ function buildCustomizeTab(): HTMLElement {
     return tab;
 }
 
-function buildPresetsTab(refresh: () => void): HTMLElement {
-    const tab = document.createElement('div');
-    tab.className = 'st-m-tab-content';
+const LIB_BACK_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 3L4.5 8l5 5"></path></svg>';
+const LIB_DL_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v7"></path><path d="M4.8 6.6L8 9.8l3.2-3.2"></path><path d="M3 12.8h10"></path></svg>';
+const LIB_STAR_SVG = '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M8 1.7l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.5l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="currentColor"></path></svg>';
+const LIB_CHECK_SVG = '<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.6l3.4 3.4L13 5"></path></svg>';
+const LIB_CLOCK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5.8"></circle><path d="M8 4.8V8l2.2 1.4"></path></svg>';
+const LIB_SPARK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2v3.1M8 10.7v3.1M2.2 8h3.1M10.7 8h3.1M4.1 4.1l2.2 2.2M9.7 9.7l2.2 2.2M11.9 4.1L9.7 6.3M6.3 9.7l-2.2 2.2"></path></svg>';
 
-    const grid = document.createElement('div');
-    grid.className = 'st-m-preset-grid';
+const LIB_EDIT_SVG = '<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.6l2.4 2.4L5.8 12.6 2.6 13.4l0.8-3.2z"></path></svg>';
+const LIB_SLIDER_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.5h11M2.5 11.5h11"></path><circle cx="6" cy="4.5" r="1.8" fill="currentColor" stroke="none"></circle><circle cx="10.5" cy="11.5" r="1.8" fill="currentColor" stroke="none"></circle></svg>';
 
-    const all = getAllPresets();
-    const baseName = activeBaseName();
-    all.forEach(preset => {
-        const isBase = preset.name === baseName;
-        const tweaks = isBase ? changedFieldCount(preset.config) : 0;
-        const isActive = isBase && tweaks === 0;
-        const isModified = isBase && tweaks > 0;
+function libPill(icon: string, label: string, title?: string, variant?: string): HTMLElement {
+    return el('span', { class: `st-m-lib-pill${variant ? ` st-m-lib-pill-${variant}` : ''}`, title: title || label },
+        el('span', { class: 'st-m-lib-pill-icon', html: icon, 'aria-hidden': 'true' }),
+        el('span', { text: label }),
+    );
+}
 
-        const card = document.createElement('div');
-        card.className = `st-m-preset-card${isActive ? ' active' : ''}${isModified ? ' modified' : ''}`;
-        card.title = preset.description;
-
-        const preview = document.createElement('div');
-        preview.className = 'st-m-preset-preview';
-        renderPreview(preview, preset.config);
-
-        const meta = document.createElement('div');
-        meta.className = 'st-m-preset-meta';
-        const isCustom = !BUILTIN_PRESETS.some(b => b.name === preset.name);
-        const update = presetUpdate(preset);
-        meta.innerHTML = `
-            <div class="st-m-preset-name">${escapeHtml(preset.name)}${preset.badge ? ` <span class="st-m-preset-tag st-m-preset-tag-seasonal">${escapeHtml(preset.badge)}</span>` : ''}${isCustom ? ' <span class="st-m-preset-tag">custom</span>' : ''}${update ? ' <span class="st-m-preset-tag st-m-preset-tag-update">update</span>' : ''}${isModified ? ' <span class="st-m-preset-tag st-m-preset-tag-modified">modified</span>' : ''}</div>
-            <div class="st-m-preset-desc">${escapeHtml(preset.description || '')}</div>
-            ${isModified ? `<div class="st-m-preset-note st-m-preset-note-edit">${tweaks} unsaved tweak${tweaks === 1 ? '' : 's'}</div>` : ''}
-            ${preset.sourceRemoved ? '<div class="st-m-preset-note">No longer on the Marketplace</div>' : ''}
-        `;
-
-        const actions = document.createElement('div');
-        actions.className = 'st-m-preset-actions';
-
-        if (update) {
-            const updateBtn = document.createElement('button');
-            updateBtn.type = 'button';
-            updateBtn.className = 'st-m-btn st-m-btn-update';
-            updateBtn.textContent = 'Update available';
-            updateBtn.title = `Version ${update.version} is on the Marketplace`;
-            updateBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const replaced = presetHasLocalChanges(preset);
-                const restore = snapshotState();
-                updateBtn.disabled = true;
-                updateBtn.textContent = 'Updating…';
-                try {
-                    const name = await updatePresetFromSource(preset);
-                    refresh();
-                    offerUndo(`Updated “${name}”`, replaced ? 'Your edits were replaced by the new version.' : `Now on version ${update.version}.`, restore);
-                } catch (err) {
-                    notify(`Update failed: ${err instanceof Error ? err.message : 'Unknown error'}`, true);
-                    updateBtn.disabled = false;
-                    updateBtn.textContent = 'Update available';
-                }
-            });
-            actions.appendChild(updateBtn);
+function configChanges(from: Partial<ThemeConfig>, to: Partial<ThemeConfig>): { groups: { label: string; defs: FieldDef[] }[]; total: number } {
+    const order: string[] = [];
+    const map = new Map<string, FieldDef[]>();
+    let total = 0;
+    dedupedSchema().forEach(def => {
+        const next = to[def.id];
+        if (next === undefined || next === null) return;
+        const prev = from[def.id] === undefined ? DEFAULT_THEME[def.id] : from[def.id];
+        if (next === prev) return;
+        const label = categoryOf(def)?.label || def.section;
+        if (!map.has(label)) {
+            map.set(label, []);
+            order.push(label);
         }
+        map.get(label)!.push(def);
+        total++;
+    });
+    return { groups: order.map(label => ({ label, defs: map.get(label)! })), total };
+}
 
-        const differs = isCustom ? changedFieldCount(preset.config) : 0;
-        if (isCustom && differs > 0) {
-            const overwrite = document.createElement('button');
-            overwrite.type = 'button';
-            overwrite.className = `st-m-btn${isModified ? ' st-m-btn-primary' : ''}`;
-            overwrite.textContent = isModified ? 'Save changes' : 'Overwrite';
-            overwrite.title = isModified
-                ? `Save your ${differs} tweak${differs === 1 ? '' : 's'} into "${preset.name}"`
-                : `Replace "${preset.name}" with the theme you have now`;
-            overwrite.addEventListener('click', (e) => {
-                e.stopPropagation();
-                undoable(
-                    isModified ? `Saved your changes to “${preset.name}”` : `Overwrote “${preset.name}”`,
-                    `${differs} setting${differs === 1 ? '' : 's'} changed in the preset.`,
-                    () => {
-                        saveCustomPreset(preset.name, preset.description);
-                        resolveBaseline();
-                        refresh();
-                    },
-                );
-            });
-            actions.appendChild(overwrite);
-        }
-
-        const apply = document.createElement('button');
-        apply.className = `st-m-btn${isModified && isCustom ? '' : ' st-m-btn-primary'}`;
-        apply.textContent = isActive ? 'Active' : isModified ? 'Revert' : 'Apply';
-        apply.disabled = isActive;
-        if (isModified) apply.title = `Discard your ${tweaks} tweak${tweaks === 1 ? '' : 's'} and go back to "${preset.name}"`;
-        apply.addEventListener('click', () => {
-            undoable(
-                isModified ? `Reverted to “${preset.name}”` : `Applied “${preset.name}”`,
-                isModified ? `${tweaks} tweak${tweaks === 1 ? '' : 's'} discarded.` : undefined,
-                () => {
-                    applyPreset(preset);
-                    resolveBaseline();
-                    injectThemeStyles();
-                    refresh();
-                },
-            );
+function buildDiffBlock(title: string, from: Partial<ThemeConfig>, to: Partial<ThemeConfig>, emptyText: string): HTMLElement {
+    const { groups, total } = configChanges(from, to);
+    const block = el('section', { class: 'st-m-lib-block' },
+        el('div', { class: 'st-m-lib-block-title' },
+            el('span', { text: title }),
+            el('span', { class: 'st-m-lib-block-count', text: total ? `${total} setting${total === 1 ? '' : 's'}` : 'nothing' }),
+        ),
+    );
+    if (!total) {
+        block.append(el('p', { class: 'st-m-lib-about st-m-lib-desc-empty', text: emptyText }));
+        return block;
+    }
+    const openAll = total <= 14;
+    groups.forEach(group => {
+        const box = el('details', { class: 'st-m-lib-chg', open: openAll });
+        box.append(el('summary', { class: 'st-m-lib-chg-head' },
+            el('span', { class: 'st-m-lib-chg-name', text: group.label }),
+            el('span', { class: 'st-m-lib-chg-count', text: String(group.defs.length) }),
+        ));
+        const list = el('div', { class: 'st-m-lib-chg-list' });
+        group.defs.forEach(def => {
+            const before = from[def.id] === undefined ? DEFAULT_THEME[def.id] : from[def.id];
+            list.append(el('div', { class: 'st-m-lib-chg-row' },
+                el('div', { class: 'st-m-lib-chg-label' },
+                    el('span', { text: def.label }),
+                    el('span', { class: 'st-m-lib-chg-where', text: def.section }),
+                ),
+                el('div', { class: 'st-m-rv-diff' },
+                    describeValue(def, before),
+                    el('span', { class: 'st-m-rv-arrow', 'aria-hidden': 'true' }),
+                    describeValue(def, to[def.id]),
+                ),
+            ));
         });
-        actions.appendChild(apply);
+        box.append(list);
+        block.append(box);
+    });
+    return block;
+}
 
-        if (isCustom) {
-            const del = document.createElement('button');
-            del.className = 'st-m-btn st-m-btn-danger';
-            del.textContent = 'Delete';
-            del.addEventListener('click', (e) => {
-                e.stopPropagation();
-                undoable(`Deleted “${preset.name}”`, undefined, () => {
-                    deleteCustomPreset(preset.name, preset.sourceId);
-                    resolveBaseline();
-                    refresh();
-                });
-            });
-            actions.appendChild(del);
-        }
+type PresetFilter = 'all' | 'builtin' | 'custom';
 
-        card.appendChild(preview);
-        card.appendChild(meta);
-        card.appendChild(actions);
-        grid.appendChild(card);
+interface PresetRow {
+    preset: ThemePreset;
+    custom: boolean;
+    tweaks: number;
+    active: boolean;
+    modified: boolean;
+    differs: number;
+    update: Marketplace.RemoteThemeInfo | null;
+}
+
+const presetBrowse: { query: string; filter: PresetFilter; openName: string } = { query: '', filter: 'all', openName: '' };
+
+function presetIsCustom(preset: ThemePreset): boolean {
+    return !BUILTIN_PRESETS.some(b => b.name === preset.name);
+}
+
+function presetRowFor(preset: ThemePreset, baseName: string): PresetRow {
+    const custom = presetIsCustom(preset);
+    const isBase = preset.name === baseName;
+    const tweaks = isBase ? changedFieldCount(preset.config) : 0;
+    return {
+        preset,
+        custom,
+        tweaks,
+        active: isBase && tweaks === 0,
+        modified: isBase && tweaks > 0,
+        differs: custom ? changedFieldCount(preset.config) : 0,
+        update: presetUpdate(preset),
+    };
+}
+
+function presetOrigin(row: PresetRow): string {
+    if (!row.custom) return 'Built in';
+    if (!row.preset.sourceId) return 'Saved by you';
+    if (row.preset.sourceRemoved) return 'From the Marketplace · no longer listed';
+    return `From the Marketplace · v${row.preset.sourceVersion || 1}`;
+}
+
+function buildPresetsTab(refresh: () => void): HTMLElement {
+    const tab = el('div', { class: 'st-m-tab-content st-m-lib' });
+    const browse = el('div', { class: 'st-m-lib-browse' });
+    const detail = el('div', { class: 'st-m-lib-detail', hidden: true });
+    tab.append(browse, detail);
+
+    const baseName = activeBaseName();
+    const rows = getAllPresets().map(preset => presetRowFor(preset, baseName));
+
+    const searchbar = el('div', { class: 'st-m-lib-searchbar' },
+        el('span', { class: 'st-m-lib-search-icon', html: SEARCH_SVG, 'aria-hidden': 'true' }),
+    );
+    const search = el('input', {
+        type: 'text',
+        class: 'st-m-lib-search',
+        placeholder: 'Search your presets…',
+        spellcheck: 'false',
+        'data-st-esc-local': true,
+        value: presetBrowse.query,
+    }) as HTMLInputElement;
+    const searchClear = el('button', { class: 'st-m-lib-search-clear', type: 'button', title: 'Clear search', html: CLOSE_SVG, hidden: !presetBrowse.query });
+    searchbar.append(search, searchClear);
+
+    const filters = el('div', { class: 'st-m-lib-sort', role: 'tablist', 'aria-label': 'Filter presets' });
+    const filterChips = new Map<PresetFilter, HTMLButtonElement>();
+    ([['all', 'All'], ['builtin', 'Built in'], ['custom', 'Yours']] as [PresetFilter, string][]).forEach(([value, label]) => {
+        const chip = el('button', { class: 'st-m-chip', type: 'button', role: 'tab', text: label }) as HTMLButtonElement;
+        chip.addEventListener('click', () => {
+            presetBrowse.filter = value;
+            paintFilters();
+            render();
+        });
+        filterChips.set(value, chip);
+        filters.append(chip);
     });
 
-    const saveBox = document.createElement('div');
-    saveBox.className = 'st-m-save-preset';
-    saveBox.innerHTML = `
-        <div class="st-m-section-title">Save current theme as a new preset</div>
-        <div class="st-m-save-row">
-            <input type="text" class="st-m-text" id="st-m-save-name" placeholder="Preset name" maxlength="60">
-            <input type="text" class="st-m-text" id="st-m-save-desc" placeholder="Description (optional)" maxlength="200">
-            <button class="st-m-btn st-m-btn-primary" id="st-m-save-btn">Save</button>
-        </div>
-    `;
+    function paintFilters(): void {
+        filterChips.forEach((chip, value) => {
+            const on = presetBrowse.filter === value;
+            chip.classList.toggle('active', on);
+            chip.setAttribute('aria-selected', String(on));
+        });
+    }
+    paintFilters();
 
-    const nameInput = saveBox.querySelector('#st-m-save-name') as HTMLInputElement;
-    const descInput = saveBox.querySelector('#st-m-save-desc') as HTMLInputElement;
-    const saveBtn = saveBox.querySelector('#st-m-save-btn') as HTMLButtonElement;
-    saveBtn.addEventListener('click', () => {
-        const name = nameInput.value.trim();
-        if (!name) {
-            notify('Enter a preset name', true);
-            nameInput.focus();
-            return;
-        }
-        const overwrites = themeState.customPresets.some(p => p.name === name);
-        undoable(overwrites ? `Overwrote “${name}”` : `Saved “${name}”`, 'You can find it in your presets.', () => {
-            saveCustomPreset(name, descInput.value.trim());
+    const summary = el('div', { class: 'st-m-lib-summary' });
+    const summaryLeft = el('div', { class: 'st-m-lib-summary-left' });
+    const summaryRight = el('div', { class: 'st-m-lib-summary-right' });
+    summary.append(summaryLeft, summaryRight);
+
+    const status = el('div', { class: 'st-m-lib-status', hidden: true });
+    const grid = el('div', { class: 'st-m-lib-grid' });
+
+    const saveBox = buildSaveBox();
+
+    browse.append(el('div', { class: 'st-m-lib-toolbar' }, searchbar, filters), summary, status, grid, saveBox);
+
+    const host = () => tab.closest<HTMLElement>('.st-m-tab-host');
+    let scrollMemo = 0;
+
+    function visibleRows(): PresetRow[] {
+        const q = presetBrowse.query.trim().toLowerCase();
+        return rows.filter(row => {
+            if (presetBrowse.filter === 'builtin' && row.custom) return false;
+            if (presetBrowse.filter === 'custom' && !row.custom) return false;
+            if (!q) return true;
+            return `${row.preset.name} ${row.preset.description || ''} ${presetOrigin(row)}`.toLowerCase().includes(q);
+        });
+    }
+
+    function applyRow(row: PresetRow): void {
+        undoable(
+            row.modified ? `Reverted to “${row.preset.name}”` : `Applied “${row.preset.name}”`,
+            row.modified ? `${row.tweaks} tweak${row.tweaks === 1 ? '' : 's'} discarded.` : undefined,
+            () => {
+                applyPreset(row.preset);
+                resolveBaseline();
+                injectThemeStyles();
+                refresh();
+            },
+        );
+    }
+
+    function saveRow(row: PresetRow): void {
+        undoable(
+            row.modified ? `Saved your changes to “${row.preset.name}”` : `Overwrote “${row.preset.name}”`,
+            `${row.differs} setting${row.differs === 1 ? '' : 's'} changed in the preset.`,
+            () => {
+                saveCustomPreset(row.preset.name, row.preset.description);
+                resolveBaseline();
+                refresh();
+            },
+        );
+    }
+
+    function deleteRow(row: PresetRow): void {
+        presetBrowse.openName = '';
+        undoable(`Deleted “${row.preset.name}”`, undefined, () => {
+            deleteCustomPreset(row.preset.name, row.preset.sourceId);
             resolveBaseline();
             refresh();
         });
+    }
+
+    function updateRow(row: PresetRow, btn: HTMLButtonElement): void {
+        const version = row.update?.version || 0;
+        const replaced = presetHasLocalChanges(row.preset);
+        const restore = snapshotState();
+        btn.disabled = true;
+        btn.textContent = 'Updating…';
+        updatePresetFromSource(row.preset)
+            .then(name => {
+                refresh();
+                offerUndo(`Updated “${name}”`, replaced ? 'Your edits were replaced by the new version.' : `Now on version ${version}.`, restore);
+            })
+            .catch(err => {
+                notify(`Update failed: ${err instanceof Error ? err.message : 'Unknown error'}`, true);
+                btn.disabled = false;
+                btn.textContent = `Update to v${version}`;
+            });
+    }
+
+    function applyButton(row: PresetRow, primary: boolean): HTMLButtonElement {
+        const btn = el('button', { class: `st-m-btn${primary && !row.active ? ' st-m-btn-primary' : ''}`, type: 'button' }) as HTMLButtonElement;
+        btn.textContent = row.active ? 'Active' : row.modified ? 'Revert' : 'Apply';
+        btn.disabled = row.active;
+        if (row.modified) btn.title = `Discard your ${row.tweaks} tweak${row.tweaks === 1 ? '' : 's'} and go back to “${row.preset.name}”`;
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            applyRow(row);
+        });
+        return btn;
+    }
+
+    function saveButton(row: PresetRow, primary: boolean): HTMLButtonElement {
+        const btn = el('button', { class: `st-m-btn${primary ? ' st-m-btn-primary' : ''}`, type: 'button' }) as HTMLButtonElement;
+        btn.textContent = row.modified ? 'Save changes' : 'Overwrite';
+        btn.title = row.modified
+            ? `Save your ${row.differs} tweak${row.differs === 1 ? '' : 's'} into “${row.preset.name}”`
+            : `Replace “${row.preset.name}” with the theme you have now`;
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            saveRow(row);
+        });
+        return btn;
+    }
+
+    function updateButton(row: PresetRow): HTMLButtonElement {
+        const btn = el('button', { class: 'st-m-btn st-m-btn-update', type: 'button' }) as HTMLButtonElement;
+        btn.textContent = `Update to v${row.update?.version || 0}`;
+        btn.title = `You have v${row.preset.sourceVersion || 1} saved`;
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            updateRow(row, btn);
+        });
+        return btn;
+    }
+
+    function badges(row: PresetRow): HTMLElement[] {
+        const out: HTMLElement[] = [];
+        if (row.active) {
+            out.push(el('span', { class: 'st-m-lib-badge st-m-lib-badge-featured', title: 'This is the theme you are using' },
+                el('span', { html: LIB_CHECK_SVG, 'aria-hidden': 'true' }),
+                el('span', { text: 'Active' }),
+            ));
+        }
+        if (row.modified) {
+            out.push(el('span', { class: 'st-m-lib-badge st-m-lib-badge-edit', title: `${row.tweaks} unsaved tweak${row.tweaks === 1 ? '' : 's'}` },
+                el('span', { html: LIB_EDIT_SVG, 'aria-hidden': 'true' }),
+                el('span', { text: 'Edited' }),
+            ));
+        }
+        if (row.update) out.push(el('span', { class: 'st-m-lib-badge st-m-lib-badge-update', text: 'Update' }));
+        if (row.preset.badge) out.push(el('span', { class: 'st-m-lib-badge st-m-lib-badge-season', text: row.preset.badge }));
+        return out;
+    }
+
+    function renderCards(list: PresetRow[]): void {
+        grid.innerHTML = '';
+        list.forEach(row => {
+            const card = el('div', {
+                class: `st-m-lib-card${row.active ? ' st-m-lib-card-live' : ''}${row.modified ? ' st-m-lib-card-edit' : ''}`,
+                role: 'button',
+                tabindex: '0',
+                'aria-label': `${row.preset.name}. Open details.`,
+            });
+
+            const preview = el('div', { class: 'st-m-lib-preview' });
+            renderPreview(preview, row.preset.config);
+
+            const shell = el('div', { class: 'st-m-lib-shell' }, preview, el('span', { class: 'st-m-lib-scrim', 'aria-hidden': 'true' }));
+            const marks = badges(row);
+            if (marks.length) shell.append(el('div', { class: 'st-m-lib-marks' }, ...marks));
+            shell.append(el('span', { class: 'st-m-lib-open', text: 'View details' }));
+
+            const body = el('div', { class: 'st-m-lib-body' },
+                el('div', { class: 'st-m-lib-head' },
+                    el('div', { class: 'st-m-lib-name', text: row.preset.name, title: row.preset.name }),
+                    el('div', { class: 'st-m-lib-author', text: presetOrigin(row) }),
+                ),
+                el('p', {
+                    class: `st-m-lib-desc${row.preset.description ? '' : ' st-m-lib-desc-empty'}`,
+                    text: row.preset.description || 'No description.',
+                }),
+            );
+
+            const total = configChanges(DEFAULT_THEME, row.preset.config).total;
+            const meta = el('div', { class: 'st-m-lib-meta' },
+                libPill(LIB_SLIDER_SVG, total ? `${total} tweak${total === 1 ? '' : 's'}` : 'Stock look', 'Settings this preset moves away from the default'),
+            );
+            if (row.modified) meta.append(libPill(LIB_EDIT_SVG, `${row.tweaks} unsaved`, 'Changes you have not saved into this preset', 'warn'));
+            body.append(meta);
+
+            const actions = el('div', { class: 'st-m-lib-actions' });
+            if (row.update) {
+                actions.append(updateButton(row), applyButton(row, false));
+            } else if (row.modified && row.custom) {
+                actions.append(saveButton(row, true), applyButton(row, false));
+            } else {
+                actions.append(applyButton(row, true));
+            }
+            body.append(actions);
+
+            card.append(shell, body);
+            card.addEventListener('click', () => openDetail(row));
+            card.addEventListener('keydown', e => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                openDetail(row);
+            });
+            grid.append(card);
+        });
+    }
+
+    function render(): void {
+        const list = visibleRows();
+        const mine = rows.filter(r => r.custom).length;
+
+        summaryLeft.innerHTML = '';
+        summaryLeft.append(el('span', { class: 'st-m-lib-count', text: `${list.length} preset${list.length === 1 ? '' : 's'}${presetBrowse.query || presetBrowse.filter !== 'all' ? ' shown' : ''}` }));
+        summaryRight.innerHTML = '';
+        summaryRight.append(el('span', { text: `${rows.length - mine} built in · ${mine} yours` }));
+
+        if (!list.length) {
+            grid.innerHTML = '';
+            status.innerHTML = '';
+            status.hidden = false;
+            status.append(el('div', { class: 'st-m-lib-status-title', text: 'Nothing here' }));
+            status.append(el('div', {
+                class: 'st-m-lib-status-hint',
+                text: presetBrowse.filter === 'custom'
+                    ? 'Save your current theme below and it shows up here.'
+                    : 'No preset matches that search.',
+            }));
+            if (presetBrowse.query || presetBrowse.filter !== 'all') {
+                const clear = el('button', { class: 'st-m-btn', type: 'button', text: 'Clear filters' });
+                clear.addEventListener('click', () => {
+                    presetBrowse.query = '';
+                    presetBrowse.filter = 'all';
+                    search.value = '';
+                    searchClear.hidden = true;
+                    paintFilters();
+                    render();
+                });
+                status.append(clear);
+            }
+            return;
+        }
+
+        status.hidden = true;
+        renderCards(list);
+    }
+
+    function closeDetail(): void {
+        presetBrowse.openName = '';
+        detail.hidden = true;
+        detail.innerHTML = '';
+        browse.hidden = false;
+        const h = host();
+        if (h) h.scrollTop = scrollMemo;
+    }
+
+    function openDetail(row: PresetRow, restoring = false): void {
+        const h = host();
+        if (h && !restoring) scrollMemo = h.scrollTop;
+        presetBrowse.openName = row.preset.name;
+        browse.hidden = true;
+        detail.hidden = false;
+        detail.innerHTML = '';
+        detail.append(buildDetail(row));
+        if (h) h.scrollTop = 0;
+        if (!prefersReducedMotion()) {
+            detail.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: 'cubic-bezier(0.2, 0.9, 0.1, 1)' });
+        }
+        detail.querySelector<HTMLElement>('.st-m-lib-back')?.focus({ preventScroll: true });
+    }
+
+    function buildDetail(row: PresetRow): HTMLElement {
+        const wrap = el('div', { class: 'st-m-lib-sheet' });
+
+        const back = el('button', { class: 'st-m-lib-back', type: 'button' },
+            el('span', { class: 'st-m-lib-back-icon', html: LIB_BACK_SVG, 'aria-hidden': 'true' }),
+            el('span', { text: 'All presets' }),
+        );
+        back.addEventListener('click', closeDetail);
+        wrap.append(back);
+
+        const preview = el('div', { class: 'st-m-lib-hero-preview' });
+        renderPreview(preview, row.preset.config);
+        const stage = el('div', { class: 'st-m-lib-hero-stage' }, preview);
+
+        const title = el('div', { class: 'st-m-lib-hero-title' }, el('h3', { class: 'st-m-lib-hero-name', text: row.preset.name }));
+        const marks = badges(row);
+        if (marks.length) title.append(el('div', { class: 'st-m-lib-marks st-m-lib-marks-inline' }, ...marks));
+
+        const total = configChanges(DEFAULT_THEME, row.preset.config).total;
+        const pills = el('div', { class: 'st-m-lib-meta' },
+            libPill(LIB_SLIDER_SVG, total ? `${total} setting${total === 1 ? '' : 's'} changed` : 'Stock look', 'Settings this preset moves away from the default'),
+        );
+        if (row.modified) pills.append(libPill(LIB_EDIT_SVG, `${row.tweaks} unsaved tweak${row.tweaks === 1 ? '' : 's'}`, undefined, 'warn'));
+        if (row.update) pills.append(libPill(LIB_SPARK_SVG, `v${row.update.version} on the Marketplace`, 'A newer version was shared'));
+
+        const actions = el('div', { class: 'st-m-lib-hero-actions' });
+        const primary = applyButton(row, true);
+        if (row.update) actions.append(updateButton(row));
+        if (row.custom && row.differs > 0) actions.append(saveButton(row, row.modified && !row.update));
+        actions.append(primary);
+        if (row.custom) {
+            const del = el('button', { class: 'st-m-btn st-m-btn-danger', type: 'button', text: 'Delete' });
+            del.addEventListener('click', () => deleteRow(row));
+            actions.append(del);
+        }
+
+        const info = el('div', { class: 'st-m-lib-hero-info' },
+            title,
+            el('div', { class: 'st-m-lib-hero-author', text: presetOrigin(row) }),
+            pills,
+            actions,
+        );
+
+        wrap.append(el('div', { class: 'st-m-lib-hero' }, stage, info));
+
+        const about = el('section', { class: 'st-m-lib-block' },
+            el('div', { class: 'st-m-lib-block-title', text: 'About this preset' }),
+            el('p', {
+                class: `st-m-lib-about${row.preset.description ? '' : ' st-m-lib-desc-empty'}`,
+                text: row.preset.description || 'No description.',
+            }),
+        );
+        if (row.preset.sourceRemoved) {
+            about.append(el('p', { class: 'st-m-lib-note', text: 'The author took this theme off the Marketplace. Your copy keeps working.' }));
+        }
+        wrap.append(about);
+
+        if (row.modified) {
+            wrap.append(buildDiffBlock(
+                'Your unsaved tweaks',
+                row.preset.config,
+                themeState.activeTheme,
+                'Nothing differs from the saved preset.',
+            ));
+        }
+        wrap.append(buildDiffBlock(
+            'What it changes',
+            DEFAULT_THEME,
+            row.preset.config,
+            'This preset keeps every setting at its default value.',
+        ));
+
+        return wrap;
+    }
+
+    function buildSaveBox(): HTMLElement {
+        const changed = configChanges(DEFAULT_THEME, themeState.activeTheme).total;
+        const box = el('section', { class: 'st-m-lib-block st-m-save-preset' },
+            el('div', { class: 'st-m-lib-block-title' },
+                el('span', { text: 'Save your current theme' }),
+                el('span', {
+                    class: 'st-m-lib-block-count',
+                    text: changed ? `${changed} setting${changed === 1 ? '' : 's'} off default` : 'stock look',
+                }),
+            ),
+        );
+        const nameInput = el('input', { type: 'text', class: 'st-m-text', id: 'st-m-save-name', placeholder: 'Preset name', maxlength: '60' }) as HTMLInputElement;
+        const descInput = el('input', { type: 'text', class: 'st-m-text', id: 'st-m-save-desc', placeholder: 'Description (optional)', maxlength: '200' }) as HTMLInputElement;
+        const saveBtn = el('button', { class: 'st-m-btn st-m-btn-primary', type: 'button', id: 'st-m-save-btn', text: 'Save preset' }) as HTMLButtonElement;
+        box.append(el('div', { class: 'st-m-save-row' }, nameInput, descInput, saveBtn));
+
+        const commit = () => {
+            const name = nameInput.value.trim();
+            if (!name) {
+                notify('Enter a preset name', true);
+                nameInput.focus();
+                return;
+            }
+            const overwrites = themeState.customPresets.some(p => p.name === name);
+            undoable(overwrites ? `Overwrote “${name}”` : `Saved “${name}”`, 'You can find it in your presets.', () => {
+                saveCustomPreset(name, descInput.value.trim());
+                resolveBaseline();
+                refresh();
+            });
+        };
+        saveBtn.addEventListener('click', commit);
+        nameInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') commit();
+        });
+        descInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') commit();
+        });
+        return box;
+    }
+
+    let searchTimer: ReturnType<typeof setTimeout> | null = null;
+    search.addEventListener('input', () => {
+        searchClear.hidden = !search.value;
+        if (searchTimer) clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            presetBrowse.query = search.value;
+            render();
+        }, 160);
+    });
+    searchClear.addEventListener('click', () => {
+        search.value = '';
+        searchClear.hidden = true;
+        search.focus();
+        if (!presetBrowse.query) return;
+        presetBrowse.query = '';
+        render();
     });
 
-    tab.appendChild(grid);
-    tab.appendChild(saveBox);
+    onEscape(tab, () => {
+        if (detail.hidden) return false;
+        closeDetail();
+        return true;
+    });
+
+    render();
+    if (presetBrowse.openName) {
+        const match = rows.find(r => r.preset.name === presetBrowse.openName);
+        if (match) openDetail(match, true);
+        else presetBrowse.openName = '';
+    }
     return tab;
 }
 
+const MP_CACHE_TTL_MS = 45000;
+
+interface MpBrowseState {
+    page: number;
+    sort: Marketplace.MarketplaceSort;
+    query: string;
+    tag: string;
+    openId: string;
+}
+
+const mpBrowse: MpBrowseState = { page: 1, sort: 'newest', query: '', tag: '', openId: '' };
+let mpListCache: { key: string; at: number; res: Marketplace.MarketplaceListResponse } | null = null;
+let mpStatsCache: Marketplace.MarketplaceStats | null = null;
+
+function mpCount(value: number): string {
+    const n = Math.max(0, Math.round(value || 0));
+    if (n >= 1000000) return `${(n / 1000000).toFixed(n >= 10000000 ? 0 : 1).replace(/\.0$/, '')}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '')}k`;
+    return String(n);
+}
+
+function mpWhen(theme: Marketplace.MarketplaceTheme): string {
+    const raw = theme.updatedAt || theme.uploadDate || '';
+    let at = raw ? Date.parse(raw) : NaN;
+    if (!Number.isFinite(at) && theme.uploadTimestamp) {
+        at = theme.uploadTimestamp > 1e11 ? theme.uploadTimestamp : theme.uploadTimestamp * 1000;
+    }
+    if (!Number.isFinite(at)) return '';
+    const days = Math.floor((Date.now() - at) / 86400000);
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 7) return `${days} days ago`;
+    if (days < 31) {
+        const w = Math.floor(days / 7);
+        return `${w} week${w === 1 ? '' : 's'} ago`;
+    }
+    if (days < 365) {
+        const m = Math.floor(days / 30);
+        return `${m} month${m === 1 ? '' : 's'} ago`;
+    }
+    const y = Math.floor(days / 365);
+    return `${y} year${y === 1 ? '' : 's'} ago`;
+}
+
+function mpInstall(theme: Marketplace.MarketplaceTheme): { preset: ThemePreset; outdated: boolean } | null {
+    const preset = themeState.customPresets.find(p => p.sourceId === theme.id);
+    if (!preset) return null;
+    const have = typeof preset.sourceVersion === 'number' ? preset.sourceVersion : 0;
+    return { preset, outdated: typeof theme.version === 'number' && theme.version > have };
+}
+
+function mpIsLive(theme: Marketplace.MarketplaceTheme): boolean {
+    return !!theme.id && themeState.activeSourceId === theme.id;
+}
+
+
 function buildMarketplaceTab(refresh: () => void): HTMLElement {
-    const tab = document.createElement('div');
-    tab.className = 'st-m-tab-content';
+    const tab = el('div', { class: 'st-m-tab-content st-m-lib' });
 
-    tab.innerHTML = `
-        <div class="st-m-mp-toolbar">
-            <div class="st-m-mp-searchbar">
-                <span class="st-m-cz-search-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.6" y1="10.6" x2="14" y2="14"></line></svg></span>
-                <input type="text" class="st-m-mp-search" placeholder="Search themes, authors…" spellcheck="false" data-st-esc-local>
-            </div>
-            <div class="st-m-mp-sort">
-                <button class="st-m-chip active" data-sort="newest">Newest</button>
-                <button class="st-m-chip" data-sort="popular">Popular</button>
-                <button class="st-m-chip" data-sort="featured">Featured</button>
-            </div>
-        </div>
-        <div class="st-m-mp-status"></div>
-        <div class="st-m-mp-grid"></div>
-        <div class="st-m-mp-pagination" style="display: none;">
-            <button class="st-m-btn" id="st-m-mp-prev">Prev</button>
-            <span class="st-m-mp-page-info"></span>
-            <button class="st-m-btn" id="st-m-mp-next">Next</button>
-        </div>
-    `;
+    const browse = el('div', { class: 'st-m-lib-browse' });
+    const detail = el('div', { class: 'st-m-lib-detail', hidden: true });
+    tab.append(browse, detail);
 
-    const search = tab.querySelector('.st-m-mp-search') as HTMLInputElement;
-    const grid = tab.querySelector('.st-m-mp-grid') as HTMLElement;
-    const status = tab.querySelector('.st-m-mp-status') as HTMLElement;
-    const pagination = tab.querySelector('.st-m-mp-pagination') as HTMLElement;
-    const pageInfo = tab.querySelector('.st-m-mp-page-info') as HTMLElement;
-    const prev = tab.querySelector('#st-m-mp-prev') as HTMLButtonElement;
-    const next = tab.querySelector('#st-m-mp-next') as HTMLButtonElement;
-    const sortChips = tab.querySelectorAll<HTMLButtonElement>('.st-m-chip[data-sort]');
+    const searchbar = el('div', { class: 'st-m-lib-searchbar' },
+        el('span', { class: 'st-m-lib-search-icon', html: SEARCH_SVG, 'aria-hidden': 'true' }),
+    );
+    const search = el('input', {
+        type: 'text',
+        class: 'st-m-lib-search',
+        placeholder: 'Search themes, authors…',
+        spellcheck: 'false',
+        'data-st-esc-local': true,
+        value: mpBrowse.query,
+    }) as HTMLInputElement;
+    const searchClear = el('button', { class: 'st-m-lib-search-clear', type: 'button', title: 'Clear search', html: CLOSE_SVG, hidden: !mpBrowse.query });
+    searchbar.append(search, searchClear);
 
-    let page = 1;
-    let sort: Marketplace.MarketplaceSort = 'newest';
-    let query = '';
+    const sortWrap = el('div', { class: 'st-m-lib-sort', role: 'tablist', 'aria-label': 'Sort themes' });
+    const sortChips = new Map<Marketplace.MarketplaceSort, HTMLButtonElement>();
+    ([['newest', 'Newest'], ['popular', 'Popular'], ['featured', 'Featured']] as [Marketplace.MarketplaceSort, string][])
+        .forEach(([value, label]) => {
+            const chip = el('button', { class: 'st-m-chip', type: 'button', role: 'tab', text: label }) as HTMLButtonElement;
+            chip.addEventListener('click', () => {
+                if (mpBrowse.sort === value) return;
+                mpBrowse.sort = value;
+                mpBrowse.page = 1;
+                paintSort();
+                load();
+            });
+            sortChips.set(value, chip);
+            sortWrap.append(chip);
+        });
+
+    function paintSort(): void {
+        sortChips.forEach((chip, value) => {
+            const on = mpBrowse.sort === value;
+            chip.classList.toggle('active', on);
+            chip.setAttribute('aria-selected', String(on));
+        });
+    }
+    paintSort();
+
+    const toolbar = el('div', { class: 'st-m-lib-toolbar' }, searchbar, sortWrap);
+
+    const summary = el('div', { class: 'st-m-lib-summary' });
+    const summaryLeft = el('div', { class: 'st-m-lib-summary-left' });
+    const summaryRight = el('div', { class: 'st-m-lib-summary-right' });
+    summary.append(summaryLeft, summaryRight);
+
+    const status = el('div', { class: 'st-m-lib-status', hidden: true });
+    const grid = el('div', { class: 'st-m-lib-grid' });
+
+    const prev = el('button', { class: 'st-m-btn', type: 'button', text: 'Previous' }) as HTMLButtonElement;
+    const next = el('button', { class: 'st-m-btn', type: 'button', text: 'Next' }) as HTMLButtonElement;
+    const pageInfo = el('span', { class: 'st-m-lib-page-info' });
+    const pagination = el('div', { class: 'st-m-lib-pagination', hidden: true }, prev, pageInfo, next);
+
+    browse.append(toolbar, summary, status, grid, pagination);
+
     let totalPages = 1;
+    let shown: Marketplace.MarketplaceTheme[] = [];
+    let lastRes: Marketplace.MarketplaceListResponse | null = null;
     let searchTimer: ReturnType<typeof setTimeout> | null = null;
+    let scrollMemo = 0;
+
+    const host = () => tab.closest<HTMLElement>('.st-m-tab-host');
+
+    function cacheKey(): string {
+        return `${mpBrowse.sort}|${mpBrowse.page}|${mpBrowse.query}|${mpBrowse.tag}`;
+    }
+
+    function paintSummary(): void {
+        const res = lastRes;
+        summaryLeft.innerHTML = '';
+        if (res) {
+            const total = res.totalThemes || shown.length;
+            const what = mpBrowse.query || mpBrowse.tag ? 'match' : 'available';
+            summaryLeft.append(el('span', { class: 'st-m-lib-count', text: `${mpCount(total)} theme${total === 1 ? '' : 's'} ${what}` }));
+        }
+        if (mpBrowse.tag) {
+            const pill = el('button', { class: 'st-m-lib-filter', type: 'button', title: 'Remove this tag filter' },
+                el('span', { text: `#${mpBrowse.tag}` }),
+                el('span', { class: 'st-m-lib-filter-x', html: CLOSE_SVG, 'aria-hidden': 'true' }),
+            );
+            pill.addEventListener('click', () => {
+                mpBrowse.tag = '';
+                mpBrowse.page = 1;
+                load();
+            });
+            summaryLeft.append(pill);
+        }
+
+        summaryRight.innerHTML = '';
+        if (mpStatsCache) {
+            const s = mpStatsCache;
+            summaryRight.append(el('span', { text: `${mpCount(s.totalDownloads)} downloads · ${mpCount(s.totalAuthors)} creator${s.totalAuthors === 1 ? '' : 's'}` }));
+        }
+    }
+
+    function loadStats(): void {
+        if (mpStatsCache) {
+            paintSummary();
+            return;
+        }
+        Marketplace.getStats()
+            .then(stats => {
+                mpStatsCache = stats;
+                if (tab.isConnected) paintSummary();
+            })
+            .catch(() => {});
+    }
+
+    function applyTheme(theme: Marketplace.MarketplaceTheme, btn: HTMLButtonElement): void {
+        const label = btn.textContent || 'Apply';
+        btn.disabled = true;
+        btn.textContent = 'Downloading…';
+        const restore = snapshotState();
+        downloadThemeWithSource(theme.id)
+            .then(({ config, source, meta }) => {
+                const name = source.name || theme.name;
+                const preset: ThemePreset = {
+                    name,
+                    description: meta?.description || theme.description || `By ${theme.author}`,
+                    config,
+                    sourceId: source.id,
+                    sourceVersion: source.version,
+                    sourceName: name,
+                    sourceFingerprint: source.fingerprint,
+                };
+                upsertCustomPreset(preset);
+                applyPreset(preset);
+                baseline = { name, config: { ...themeState.activeTheme } };
+                injectThemeStyles();
+                if (!detail.hidden) mpBrowse.openId = theme.id;
+                refresh();
+                offerUndo(`Applied “${name}”`, `By ${theme.author}. Saved to your presets.`, restore);
+            })
+            .catch(e => {
+                notify(`Failed to apply: ${e instanceof Error ? e.message : 'Unknown error'}`, true);
+                btn.disabled = false;
+                btn.textContent = label;
+            });
+    }
+
+    function applyButton(theme: Marketplace.MarketplaceTheme, big: boolean): HTMLButtonElement {
+        const install = mpInstall(theme);
+        const live = mpIsLive(theme);
+        const btn = el('button', {
+            class: `st-m-btn st-m-btn-primary${big ? ' st-m-lib-cta' : ''}`,
+            type: 'button',
+        }) as HTMLButtonElement;
+        if (install?.outdated) {
+            btn.textContent = `Update to v${theme.version}`;
+            btn.title = `You have v${install.preset.sourceVersion || 1} saved`;
+        } else if (live && activeThemeHasLocalChanges()) {
+            btn.textContent = 'Restore';
+            btn.className = `st-m-btn${big ? ' st-m-lib-cta' : ''}`;
+            btn.title = 'Discard your edits and go back to the shared version';
+        } else if (live) {
+            btn.textContent = 'Applied';
+            btn.className = `st-m-btn${big ? ' st-m-lib-cta' : ''}`;
+            btn.disabled = true;
+        } else if (install) {
+            btn.textContent = 'Apply again';
+            btn.className = `st-m-btn${big ? ' st-m-lib-cta' : ''}`;
+        } else {
+            btn.textContent = 'Apply';
+        }
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            applyTheme(theme, btn);
+        });
+        return btn;
+    }
+
+    function badges(theme: Marketplace.MarketplaceTheme): HTMLElement[] {
+        const out: HTMLElement[] = [];
+        if (theme.featured) {
+            out.push(el('span', { class: 'st-m-lib-badge st-m-lib-badge-featured', title: 'Picked by the Spicy Themes team' },
+                el('span', { html: LIB_STAR_SVG, 'aria-hidden': 'true' }),
+                el('span', { text: 'Featured' }),
+            ));
+        }
+        const install = mpInstall(theme);
+        if (install?.outdated) {
+            out.push(el('span', { class: 'st-m-lib-badge st-m-lib-badge-update', text: 'Update' }));
+        } else if (install) {
+            out.push(el('span', { class: 'st-m-lib-badge st-m-lib-badge-saved', title: 'Already in your presets' },
+                el('span', { html: LIB_CHECK_SVG, 'aria-hidden': 'true' }),
+                el('span', { text: 'Saved' }),
+            ));
+        }
+        return out;
+    }
 
     function renderCards(themes: Marketplace.MarketplaceTheme[]): void {
         grid.innerHTML = '';
-        themes.forEach(t => {
-            const card = document.createElement('div');
-            card.className = 'st-m-mp-card';
-
-            const preview = document.createElement('div');
-            preview.className = 'st-m-mp-preview';
-            renderPreview(preview, t.theme);
-
-            const body = document.createElement('div');
-            body.className = 'st-m-mp-body';
-            body.innerHTML = `
-                <div class="st-m-mp-name">${escapeHtml(t.name)}${t.featured ? ' <span class="st-m-mp-featured">FEATURED</span>' : ''}</div>
-                <div class="st-m-mp-author">by ${escapeHtml(t.author)}</div>
-                ${t.description ? `<div class="st-m-mp-desc">${escapeHtml(t.description)}</div>` : ''}
-                <div class="st-m-mp-stats"><span>${t.downloads || 0} downloads</span></div>
-            `;
-
-            const actions = document.createElement('div');
-            actions.className = 'st-m-mp-actions';
-
-            const apply = document.createElement('button');
-            apply.className = 'st-m-btn st-m-btn-primary';
-            apply.textContent = 'Apply';
-            apply.addEventListener('click', async () => {
-                apply.disabled = true;
-                apply.textContent = 'Downloading…';
-                const restore = snapshotState();
-                try {
-                    const { config, source, meta } = await downloadThemeWithSource(t.id);
-                    const name = source.name || t.name;
-                    const preset: ThemePreset = {
-                        name,
-                        description: meta?.description || t.description || `By ${t.author}`,
-                        config,
-                        sourceId: source.id,
-                        sourceVersion: source.version,
-                        sourceName: name,
-                        sourceFingerprint: source.fingerprint,
-                    };
-                    upsertCustomPreset(preset);
-                    applyPreset(preset);
-                    baseline = { name, config: { ...themeState.activeTheme } };
-                    injectThemeStyles();
-                    refresh();
-                    offerUndo(`Applied “${name}”`, `By ${t.author}. Saved to your presets.`, restore);
-                } catch (e) {
-                    notify(`Failed to apply: ${e instanceof Error ? e.message : 'Unknown error'}`, true);
-                    apply.disabled = false;
-                    apply.textContent = 'Apply';
-                }
+        themes.forEach(theme => {
+            const card = el('div', {
+                class: `st-m-lib-card${mpIsLive(theme) ? ' st-m-lib-card-live' : ''}`,
+                role: 'button',
+                tabindex: '0',
+                'aria-label': `${theme.name} by ${theme.author}. Open details.`,
             });
 
-            actions.appendChild(apply);
+            const preview = el('div', { class: 'st-m-lib-preview' });
+            renderPreview(preview, theme.theme);
 
-            card.appendChild(preview);
-            card.appendChild(body);
-            card.appendChild(actions);
-            grid.appendChild(card);
+            const marks = badges(theme);
+            const shell = el('div', { class: 'st-m-lib-shell' }, preview, el('span', { class: 'st-m-lib-scrim', 'aria-hidden': 'true' }));
+            if (marks.length) shell.append(el('div', { class: 'st-m-lib-marks' }, ...marks));
+            shell.append(el('span', { class: 'st-m-lib-open', text: 'View details' }));
+
+            const head = el('div', { class: 'st-m-lib-head' },
+                el('div', { class: 'st-m-lib-name', text: theme.name, title: theme.name }),
+                el('div', { class: 'st-m-lib-author', text: `by ${theme.author}` }),
+            );
+
+            const body = el('div', { class: 'st-m-lib-body' }, head);
+            if (theme.description) {
+                body.append(el('p', { class: 'st-m-lib-desc', text: theme.description }));
+            } else {
+                body.append(el('p', { class: 'st-m-lib-desc st-m-lib-desc-empty', text: 'No description.' }));
+            }
+
+            const when = mpWhen(theme);
+            const meta = el('div', { class: 'st-m-lib-meta' }, libPill(LIB_DL_SVG, mpCount(theme.downloads), `${theme.downloads || 0} downloads`));
+            const changes = configChanges(DEFAULT_THEME, theme.theme).total;
+            if (changes) meta.append(libPill(LIB_SPARK_SVG, `${changes} tweak${changes === 1 ? '' : 's'}`, `Changes ${changes} setting${changes === 1 ? '' : 's'}`));
+            if (when) meta.append(libPill(LIB_CLOCK_SVG, when, 'Last updated'));
+            body.append(meta);
+
+            const actions = el('div', { class: 'st-m-lib-actions' }, applyButton(theme, false));
+            body.append(actions);
+
+            card.append(shell, body);
+            card.addEventListener('click', () => openDetail(theme));
+            card.addEventListener('keydown', e => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                openDetail(theme);
+            });
+            grid.append(card);
         });
     }
 
-    function renderSkeleton(count = 6): void {
+    function renderSkeleton(count = 8): void {
         grid.innerHTML = '';
         for (let i = 0; i < count; i++) {
-            const card = document.createElement('div');
-            card.className = 'st-m-mp-card st-m-mp-skeleton';
+            const card = el('div', { class: 'st-m-lib-card st-m-lib-skeleton' });
             card.innerHTML = `
-                <div class="st-m-mp-preview st-sk"></div>
-                <div class="st-m-mp-body">
-                    <div class="st-sk st-sk-line" style="width: 62%;"></div>
-                    <div class="st-sk st-sk-line" style="width: 40%;"></div>
-                    <div class="st-sk st-sk-line" style="width: 80%;"></div>
+                <div class="st-m-lib-shell"><div class="st-m-lib-preview st-sk"></div></div>
+                <div class="st-m-lib-body">
+                    <div class="st-sk st-sk-line" style="width: 58%;"></div>
+                    <div class="st-sk st-sk-line" style="width: 34%;"></div>
+                    <div class="st-sk st-sk-line" style="width: 86%;"></div>
                 </div>`;
-            grid.appendChild(card);
+            grid.append(card);
         }
     }
 
-    async function load(): Promise<void> {
-        status.style.display = 'none';
+    function showStatus(title: string, hint?: string, retry = false): void {
+        grid.innerHTML = '';
+        status.innerHTML = '';
+        status.hidden = false;
+        status.append(el('div', { class: 'st-m-lib-status-title', text: title }));
+        if (hint) status.append(el('div', { class: 'st-m-lib-status-hint', text: hint }));
+        if (retry) {
+            const btn = el('button', { class: 'st-m-btn', type: 'button', text: 'Try again' });
+            btn.addEventListener('click', () => load(true));
+            status.append(btn);
+        } else if (mpBrowse.query || mpBrowse.tag) {
+            const btn = el('button', { class: 'st-m-btn', type: 'button', text: 'Clear filters' });
+            btn.addEventListener('click', () => {
+                mpBrowse.query = '';
+                mpBrowse.tag = '';
+                mpBrowse.page = 1;
+                search.value = '';
+                searchClear.hidden = true;
+                load(true);
+            });
+            status.append(btn);
+        }
+    }
+
+    async function load(force = false): Promise<void> {
+        const key = cacheKey();
+        if (!force && mpListCache && mpListCache.key === key && Date.now() - mpListCache.at < MP_CACHE_TTL_MS) {
+            paint(mpListCache.res);
+            return;
+        }
+        status.hidden = true;
+        pagination.hidden = true;
         renderSkeleton();
-        pagination.style.display = 'none';
+        lastRes = null;
+        paintSummary();
         try {
-            const res = await Marketplace.listThemes({ page, sort, query });
-            status.style.display = 'none';
-            if (!res.themes || res.themes.length === 0) {
-                grid.innerHTML = '';
-                status.textContent = 'No themes found.';
-                status.style.display = '';
-                return;
-            }
-            renderCards(res.themes);
-            totalPages = res.totalPages;
-            if (totalPages > 1) {
-                pagination.style.display = '';
-                pageInfo.textContent = `Page ${res.page} of ${res.totalPages}`;
-                prev.disabled = res.page <= 1;
-                next.disabled = res.page >= res.totalPages;
-            }
+            const res = await Marketplace.listThemes({
+                page: mpBrowse.page,
+                sort: mpBrowse.sort,
+                query: mpBrowse.query,
+                tag: mpBrowse.tag || undefined,
+            });
+            if (!tab.isConnected) return;
+            mpListCache = { key, at: Date.now(), res };
+            paint(res);
         } catch (e) {
-            grid.innerHTML = '';
-            status.textContent = `Failed to load marketplace: ${e instanceof Error ? e.message : 'Unknown error'}. Make sure you're online.`;
-            status.style.display = '';
+            if (!tab.isConnected) return;
+            pagination.hidden = true;
+            showStatus(
+                'The marketplace did not answer',
+                `${e instanceof Error ? e.message : 'Unknown error'}. Check your connection and try again.`,
+                true,
+            );
         }
     }
 
-    sortChips.forEach(chip => {
-        chip.addEventListener('click', () => {
-            sortChips.forEach(c => c.classList.remove('active'));
-            chip.classList.add('active');
-            sort = (chip.dataset.sort || 'newest') as Marketplace.MarketplaceSort;
-            page = 1;
-            load();
-        });
-    });
+    function paint(res: Marketplace.MarketplaceListResponse): void {
+        status.hidden = true;
+        shown = res.themes || [];
+        totalPages = res.totalPages || 1;
+        lastRes = res;
+        paintSummary();
+        if (!shown.length) {
+            pagination.hidden = true;
+            showStatus(
+                mpBrowse.query || mpBrowse.tag ? 'Nothing matches that' : 'No themes yet',
+                mpBrowse.query || mpBrowse.tag ? 'Try a shorter search, or drop the filters.' : 'Be the first to share one from the Theme Creator.',
+            );
+            return;
+        }
+        renderCards(shown);
+        if (totalPages > 1) {
+            pagination.hidden = false;
+            pageInfo.textContent = `Page ${res.page} of ${totalPages}`;
+            prev.disabled = res.page <= 1;
+            next.disabled = res.page >= totalPages;
+        } else {
+            pagination.hidden = true;
+        }
+        if (mpBrowse.openId) {
+            const match = shown.find(t => t.id === mpBrowse.openId);
+            if (match) openDetail(match, true);
+            else mpBrowse.openId = '';
+        }
+    }
+
+    function closeDetail(): void {
+        mpBrowse.openId = '';
+        detail.hidden = true;
+        detail.innerHTML = '';
+        browse.hidden = false;
+        const h = host();
+        if (h) h.scrollTop = scrollMemo;
+    }
+
+    function openDetail(theme: Marketplace.MarketplaceTheme, restoring = false): void {
+        const h = host();
+        if (h && !restoring) scrollMemo = h.scrollTop;
+        mpBrowse.openId = theme.id;
+        browse.hidden = true;
+        detail.hidden = false;
+        detail.innerHTML = '';
+        detail.append(buildDetail(theme));
+        if (h) h.scrollTop = 0;
+        if (!prefersReducedMotion()) {
+            detail.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: 'cubic-bezier(0.2, 0.9, 0.1, 1)' });
+        }
+        detail.querySelector<HTMLElement>('.st-m-lib-back')?.focus({ preventScroll: true });
+    }
+
+    function buildDetail(theme: Marketplace.MarketplaceTheme): HTMLElement {
+        const wrap = el('div', { class: 'st-m-lib-sheet' });
+
+        const back = el('button', { class: 'st-m-lib-back', type: 'button' },
+            el('span', { class: 'st-m-lib-back-icon', html: LIB_BACK_SVG, 'aria-hidden': 'true' }),
+            el('span', { text: 'All themes' }),
+        );
+        back.addEventListener('click', closeDetail);
+        wrap.append(back);
+
+        const preview = el('div', { class: 'st-m-lib-hero-preview' });
+        renderPreview(preview, theme.theme);
+        const stage = el('div', { class: 'st-m-lib-hero-stage' }, preview);
+
+        const marks = badges(theme);
+        const title = el('div', { class: 'st-m-lib-hero-title' }, el('h3', { class: 'st-m-lib-hero-name', text: theme.name }));
+        if (marks.length) title.append(el('div', { class: 'st-m-lib-marks st-m-lib-marks-inline' }, ...marks));
+
+        const when = mpWhen(theme);
+        const pills = el('div', { class: 'st-m-lib-meta' },
+            libPill(LIB_DL_SVG, `${mpCount(theme.downloads)} download${theme.downloads === 1 ? '' : 's'}`, `${theme.downloads || 0} downloads`),
+        );
+        if (when) pills.append(libPill(LIB_CLOCK_SVG, `Updated ${when}`, theme.updatedAt || theme.uploadDate || ''));
+        if (typeof theme.version === 'number' && theme.version > 0) pills.append(libPill(LIB_SPARK_SVG, `Version ${theme.version}`, 'Marketplace revision'));
+
+        const actions = el('div', { class: 'st-m-lib-hero-actions' }, applyButton(theme, true));
+        const install = mpInstall(theme);
+        if (install) {
+            const open = el('button', { class: 'st-m-btn', type: 'button', text: 'Open in Presets' });
+            open.addEventListener('click', () => goToLive?.('presets'));
+            actions.append(open);
+        }
+
+        const info = el('div', { class: 'st-m-lib-hero-info' },
+            title,
+            el('div', { class: 'st-m-lib-hero-author', text: `by ${theme.author}` }),
+            pills,
+            actions,
+        );
+
+        wrap.append(el('div', { class: 'st-m-lib-hero' }, stage, info));
+
+        const about = el('section', { class: 'st-m-lib-block' },
+            el('div', { class: 'st-m-lib-block-title', text: 'About this theme' }),
+            el('p', {
+                class: `st-m-lib-about${theme.description ? '' : ' st-m-lib-desc-empty'}`,
+                text: theme.description || 'The author did not write a description.',
+            }),
+        );
+        const tags = (theme.tags || []).filter(Boolean);
+        if (tags.length) {
+            const row = el('div', { class: 'st-m-lib-tags' });
+            tags.forEach(tag => {
+                const chip = el('button', { class: 'st-m-lib-tag', type: 'button', text: `#${tag}`, title: `Show themes tagged ${tag}` });
+                chip.addEventListener('click', () => {
+                    mpBrowse.tag = tag;
+                    mpBrowse.query = '';
+                    mpBrowse.page = 1;
+                    search.value = '';
+                    searchClear.hidden = true;
+                    closeDetail();
+                    load(true);
+                });
+                row.append(chip);
+            });
+            about.append(row);
+        }
+        wrap.append(about);
+
+        wrap.append(buildDiffBlock('What it changes', DEFAULT_THEME, theme.theme, 'This theme keeps every setting at its default value.'));
+
+        return wrap;
+    }
 
     search.addEventListener('input', () => {
+        searchClear.hidden = !search.value;
         if (searchTimer) clearTimeout(searchTimer);
         searchTimer = setTimeout(() => {
-            query = search.value.trim();
-            page = 1;
+            const value = search.value.trim();
+            if (value === mpBrowse.query) return;
+            mpBrowse.query = value;
+            mpBrowse.page = 1;
             load();
-        }, 350);
+        }, 320);
+    });
+    searchClear.addEventListener('click', () => {
+        search.value = '';
+        searchClear.hidden = true;
+        search.focus();
+        if (!mpBrowse.query) return;
+        mpBrowse.query = '';
+        mpBrowse.page = 1;
+        load();
     });
 
-    prev.addEventListener('click', () => { if (page > 1) { page--; load(); } });
-    next.addEventListener('click', () => { if (page < totalPages) { page++; load(); } });
+    prev.addEventListener('click', () => {
+        if (mpBrowse.page <= 1) return;
+        mpBrowse.page--;
+        load();
+        host()?.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    });
+    next.addEventListener('click', () => {
+        if (mpBrowse.page >= totalPages) return;
+        mpBrowse.page++;
+        load();
+        host()?.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    });
 
+    onEscape(tab, () => {
+        if (detail.hidden) return false;
+        closeDetail();
+        return true;
+    });
+
+    loadStats();
     load();
     return tab;
 }
@@ -2703,7 +3482,7 @@ function openPalette(): void {
                     run: () => {
                         close();
                         goToLive?.('marketplace');
-                        const search = liveContainer?.querySelector<HTMLInputElement>('.st-m-mp-search');
+                        const search = liveContainer?.querySelector<HTMLInputElement>('.st-m-lib-search');
                         if (search) {
                             search.value = t.name;
                             search.dispatchEvent(new Event('input'));
