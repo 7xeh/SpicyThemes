@@ -1295,7 +1295,8 @@ function computeLayout(page: HTMLElement): VideoLayout | null {
     if (cw < 0.05 || ch < 0.05) return null;
     const contentAspect = (cw * shape.aspect) / ch;
 
-    const region: Box = stage || { x: 0, y: 0, w: W, h: H };
+    const clipRegion: Box = stage || { x: 0, y: 0, w: W, h: H };
+    const region: Box = fit === 'stretch' ? clipRegion : { x: 0, y: 0, w: W, h: H };
     const fill = fit === 'zoom' || fit === 'cover';
     let w: number;
     let h: number;
@@ -1313,14 +1314,14 @@ function computeLayout(page: HTMLElement): VideoLayout | null {
         w *= ZOOM_OVERSCAN;
         h *= ZOOM_OVERSCAN;
     }
-    const content: Box = { x: region.x + (region.w - w) / 2, y: region.y + (region.h - h) / 2, w, h };
-    const x0 = Math.max(content.x, region.x);
-    const y0 = Math.max(content.y, region.y);
+    const content: Box = { x: clipRegion.x + (clipRegion.w - w) / 2, y: clipRegion.y + (clipRegion.h - h) / 2, w, h };
+    const x0 = Math.max(content.x, clipRegion.x);
+    const y0 = Math.max(content.y, clipRegion.y);
     const box: Box = {
         x: x0,
         y: y0,
-        w: Math.min(content.x + content.w, region.x + region.w) - x0,
-        h: Math.min(content.y + content.h, region.y + region.h) - y0,
+        w: Math.min(content.x + content.w, clipRegion.x + clipRegion.w) - x0,
+        h: Math.min(content.y + content.h, clipRegion.y + clipRegion.h) - y0,
     };
 
     const frameW = w / cw;
