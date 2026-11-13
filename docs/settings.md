@@ -88,6 +88,8 @@ Videos play in **Video** mode, which you reach by clicking the palette button in
 | Video backdrop | Replace covers Spicy Lyrics' background; Blend mixes the video with it or your custom image. |
 | Video strength | How much of the video shows through in Blend. |
 | Also in compact player / fullscreen compact | Extends videos to the compact layouts. |
+| Blur style / Blur style strength | The look of the blurred copy around a fitted or staged video: Gaussian, Frosted glass, Pixelated or Focus. Saved with the theme. Needs the built-in player. |
+| Songs that play videos | Block single songs so their video never plays, or switch to "Only songs on my allowed list". The video button beside the palette button adds the current song. Stays on your device, not in the theme. |
 
 ## Animated background
 
@@ -114,6 +116,8 @@ Videos play in **Video** mode, which you reach by clicking the palette button in
 | Custom progress colour | Overrides the accent on the progress and volume bars. |
 | Animate control buttons | Adds motion to the transport controls. |
 | Hide shuffle / repeat / like | Strips buttons you don't use. |
+| Hide the cursor when idle | In fullscreen and cinema view the pointer disappears after a few seconds without mouse movement. On by default, and applies to every theme. |
+| Hide the Now Playing bar | Slides the cover, title and controls away in fullscreen and cinema view so the lyrics get the whole screen. Also a button in the fullscreen controls. Applies to every theme. |
 
 ## Equalizer
 

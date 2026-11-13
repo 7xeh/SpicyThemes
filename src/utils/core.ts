@@ -5,8 +5,20 @@ import { openSettingsModal } from './settings';
 
 import { setViewingLyrics } from './connectivity';
 import { themeMode, nextThemeMode, cycleThemeMode, onThemeModeChange, ThemeMode } from './videoMode';
-import { currentVideoVariants, chooseVideoVariant, onVideoVariantsChange, onVideoCreditChange, videoShowing, VideoVariantInfo } from './musicVideo';
-import { openMenu, paintTone } from './surface';
+import { currentVideoVariants, chooseVideoVariant, onVideoVariantsChange, onVideoCreditChange, videoShowing, currentVideoHeldBack, VideoVariantInfo } from './musicVideo';
+import { openMenu, paintTone, MenuItem } from './surface';
+import { startFullscreenTools, stopFullscreenTools } from './fullscreenTools';
+import {
+    videoListMode,
+    videoBlocked,
+    videoAllowed,
+    blockVideo,
+    unblockVideo,
+    allowVideo,
+    disallowVideo,
+    currentTrackEntry,
+    onVideoListChange,
+} from './videoList';
 
 const VARIANT_BUTTON_ID = 'STVideoVariants';
 let variantMenuHost: HTMLElement | null = null;
@@ -77,35 +89,63 @@ onThemeModeChange((reinject) => {
 
 function variantTooltip(variants: VideoVariantInfo[]): string {
     const playing = variants.find(v => v.current);
-    return playing ? `Video: ${playing.label}` : 'Choose video';
+    return playing ? `Video: ${playing.label}` : 'Video options';
+}
+
+function videoListItems(): MenuItem[] {
+    const track = currentTrackEntry();
+    if (!track) return [];
+    const allowOnly = videoListMode() === 'allow';
+    if (videoBlocked(track.id)) {
+        return [{
+            label: 'Allow this song’s video',
+            hint: 'Takes it off your blocked list',
+            onClick: () => (allowOnly ? allowVideo(track) : unblockVideo(track.id)),
+        }];
+    }
+    if (allowOnly && !videoAllowed(track.id)) {
+        return [{ label: 'Play this song’s video', hint: 'Adds it to your allowed list', onClick: () => allowVideo(track) }];
+    }
+    const items: MenuItem[] = [];
+    if (allowOnly) {
+        items.push({ label: 'Remove from allowed songs', hint: 'Its video stops playing', onClick: () => disallowVideo(track.id) });
+    }
+    items.push({ label: 'Never play this song’s video', hint: 'Adds it to your blocked list', onClick: () => blockVideo(track) });
+    return items;
 }
 
 function openVariantMenu(button: HTMLElement): void {
-    const variants = currentVideoVariants();
-    if (variants.length < 2) return;
+    const variants = videoShowing() ? currentVideoVariants() : [];
     if (!variantMenuHost || !variantMenuHost.isConnected) {
         variantMenuHost = document.createElement('div');
         variantMenuHost.className = 'st-ui-menu-host';
         paintTone(variantMenuHost, 'accent');
         document.body.append(variantMenuHost);
     }
-    openMenu(button, variants.map(v => ({
+    const items: MenuItem[] = variants.map(v => ({
         label: v.current ? `${v.label} ✓` : v.label,
         hint: [v.current ? 'Playing now' : '', v.preferred ? 'Uploader’s pick' : ''].filter(Boolean).join(' · ') || undefined,
         onClick: () => {
             if (!v.current) chooseVideoVariant(v.id);
         },
-    })), variantMenuHost);
+    }));
+    items.push(...videoListItems());
+    items.push({
+        label: 'Manage blocked and allowed songs',
+        onClick: () => openSettingsModal({ tab: 'customize', category: 'cz-background' }),
+    });
+    openMenu(button, items, variantMenuHost);
 }
 
 export function syncVariantButton(): void {
     const existing = document.getElementById(VARIANT_BUTTON_ID);
-    const variants = themeState.isEnabled && videoShowing() ? currentVideoVariants() : [];
-    if (variants.length < 2) {
+    const showing = themeState.isEnabled && videoShowing();
+    const wanted = showing || (themeState.isEnabled && currentVideoHeldBack());
+    if (!wanted) {
         existing?.remove();
         return;
     }
-    const tip = variantTooltip(variants);
+    const tip = variantTooltip(showing ? currentVideoVariants() : []);
     if (existing) {
         existing.setAttribute('aria-label', tip);
         (existing as any)._tippy?.setContent(tip);
@@ -131,6 +171,7 @@ export function syncVariantButton(): void {
 
 onVideoVariantsChange(syncVariantButton);
 onVideoCreditChange(syncVariantButton);
+onVideoListChange(syncVariantButton);
 
 export function isSpicyLyricsOpen(): boolean {
     if (document.querySelector('#SpicyLyricsPage')) return true;
@@ -216,10 +257,12 @@ export function onSpicyLyricsOpen(): void {
         injectThemeStyles();
     }
     startLineTagLoop();
+    startFullscreenTools();
 }
 
 export function onSpicyLyricsClose(): void {
     setViewingLyrics(false);
+    stopFullscreenTools();
     removeThemeButton();
     stopLineTagLoop();
     stopSungWordTagger();

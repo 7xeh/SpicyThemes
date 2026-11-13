@@ -10,6 +10,7 @@ import { updateAnimatedBackground, animatedBackgroundNeedsMount } from './animat
 import { initTubeAccess } from './tubeAccess';
 import { initVideoMode, themeMode } from './videoMode';
 import { ensureSurfaceStyles } from './surface';
+import { refreshFullscreenTools } from './fullscreenTools';
 
 
 const INIT_STATE_KEY = '__spicyThemesInitState';
@@ -88,6 +89,7 @@ export async function initialize(): Promise<void> {
             if (isOpen && !document.getElementById('ThemeToggle')) {
                 createThemeButton();
             }
+            if (isOpen) refreshFullscreenTools();
 
             const pageElement = document.querySelector('#SpicyLyricsPage');
             const pageChanged = pageElement !== lastPageElement;

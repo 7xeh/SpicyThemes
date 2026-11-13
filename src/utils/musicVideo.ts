@@ -2,6 +2,8 @@ import { YtModulePlayer, YtModuleQualities, YtModuleEdges, YtModuleFrame, YtModu
 import { debug } from './debug';
 import { storage } from './storage';
 import { themeState } from './state';
+import { videoPermitted, onVideoListChange } from './videoList';
+import { FS_NOBAR_CLASS } from './fullscreenTools';
 import {
     BACKDROP_HEIGHT,
     FREE_MAX_HEIGHT,
@@ -116,6 +118,9 @@ const BARS_KEY = 'mv-bars';
 const BARS_MAX = 300;
 const BARS_MIRROR_MIN = 0.04;
 const STAGE_FEATHER = 0.45;
+const FX_HOST_CLASS = 'st-mv-fx';
+const FX_PIXEL_ID = 'st-mv-fx-pixel';
+const FX_FADE_STOPS = [[0, 1], [0.18, 0.9], [0.38, 0.64], [0.72, 0.15], [1, 0]];
 const DOCK_CLASS = 'CanvasImmersive';
 const DOCK_OWNED_CLASS = 'st-mv-dock';
 const ZOOM_OVERSCAN = 1.04;
@@ -550,7 +555,14 @@ export function currentVideoAvailable(): boolean {
     if (!id || officialForId === id) return false;
     if ((failCounts.get(id) || 0) >= MAX_SOURCE_ATTEMPTS) return false;
     if (!videoCache.get(id)) return false;
+    if (!videoPermitted(id)) return false;
     return !spotifyHasOwnVideo();
+}
+
+export function currentVideoHeldBack(): boolean {
+    const id = currentTrackId();
+    if (!id || officialForId === id || !videoCache.get(id)) return false;
+    return !videoPermitted(id);
 }
 
 export async function probeCurrentVideo(): Promise<void> {
@@ -1109,6 +1121,7 @@ function dockWanted(page: HTMLElement | null): boolean {
         && (themeState.activeTheme.musicVideoDockPlayer !== false || canvasFullscreen(page))
         && page.classList.contains('st-mv-active')
         && page.classList.contains('NowBarStatus__Open')
+        && !page.classList.contains(FS_NOBAR_CLASS)
         && !page.matches('.CardMode, .CompactMode, .ForcedCompactMode');
 }
 
@@ -1201,6 +1214,12 @@ interface StageRegion extends Box {
     centered?: boolean;
 }
 
+interface FxLayer extends Box {
+    filter: string;
+    mask: string;
+    tint: number;
+}
+
 interface VideoLayout {
     box: Box;
     frame: Box;
@@ -1210,11 +1229,12 @@ interface VideoLayout {
     boxed: boolean;
     stage: boolean;
     ambient: YtModuleAmbient | null;
+    fx: FxLayer[];
 }
 
 function stageRegion(page: HTMLElement, W: number, H: number): StageRegion | null {
     if (themeState.activeTheme.musicVideoLayout !== 'stage' && !canvasFullscreen(page)) return null;
-    if (!page.classList.contains('NowBarStatus__Open')) return null;
+    if (!page.classList.contains('NowBarStatus__Open') || page.classList.contains(FS_NOBAR_CLASS)) return null;
     if (page.matches('.CardMode, .CompactMode, .ForcedCompactMode')) return null;
     const content = page.querySelector<HTMLElement>(':scope > .ContentBox, .ContentBox');
     if (!content || content.classList.contains('LyricsHidden')) return null;
@@ -1361,7 +1381,7 @@ function computeLayout(page: HTMLElement): VideoLayout | null {
     const ambient = boxed && transform === 'none' ? ambientLayout(W, H, box, picture, [fadeT, fadeR, fadeB, fadeL], [gapT, gapR, gapB, gapL]) : null;
     if (ambient) {
         const full: Box = { x: 0, y: 0, w: W, h: H };
-        return { box: full, frame: full, transform: 'none', maskX: 'none', maskY: 'none', boxed: false, stage: !!stage, ambient };
+        return { box: full, frame: full, transform: 'none', maskX: 'none', maskY: 'none', boxed: false, stage: !!stage, ambient, fx: fxLayers(W, H, ambient.clip, ambient.fade) };
     }
 
     return {
@@ -1373,7 +1393,100 @@ function computeLayout(page: HTMLElement): VideoLayout | null {
         boxed,
         stage: !!stage,
         ambient: null,
+        fx: [],
     };
+}
+
+function blurStrength(): number {
+    const raw = Number(themeState.activeTheme.musicVideoBlurStrength);
+    return Math.min(Math.max(isFinite(raw) ? raw : 50, 0), 100) / 100;
+}
+
+function pixelCell(): number {
+    return Math.round((10 + 46 * blurStrength()) / 2) * 2;
+}
+
+function fxMask(direction: string, solid: number, end: number): string {
+    if (end - solid < 0.5) return `linear-gradient(${direction}, #000 ${px(solid)}, transparent ${px(solid)})`;
+    const stops = FX_FADE_STOPS.map(([t, a]) => `rgba(0, 0, 0, ${a}) ${px(solid + (end - solid) * t)}`);
+    return `linear-gradient(${direction}, ${stops.join(', ')})`;
+}
+
+function fxLayers(W: number, H: number, clip: Box, fade: YtModuleEdges): FxLayer[] {
+    const style = themeState.activeTheme.musicVideoBlurStyle;
+    if (style !== 'frosted' && style !== 'pixel' && style !== 'focus') return [];
+    const s = blurStrength();
+    const cell = pixelCell();
+    const right = clip.x + clip.w;
+    const bottom = clip.y + clip.h;
+    const sides: { gap: number; fade: number; span: number; direction: string; rect: (lead: number, reach: number) => Box }[] = [
+        { gap: clip.x, fade: fade.left, span: clip.w, direction: 'to right', rect: (lead, reach) => ({ x: clip.x - lead, y: 0, w: lead + reach, h: H }) },
+        { gap: W - right, fade: fade.right, span: clip.w, direction: 'to left', rect: (lead, reach) => ({ x: right - reach, y: 0, w: reach + lead, h: H }) },
+        { gap: clip.y, fade: fade.top, span: clip.h, direction: 'to bottom', rect: (lead, reach) => ({ x: clip.x, y: clip.y - lead, w: clip.w, h: lead + reach }) },
+        { gap: H - bottom, fade: fade.bottom, span: clip.h, direction: 'to top', rect: (lead, reach) => ({ x: clip.x, y: bottom - reach, w: clip.w, h: reach + lead }) },
+    ];
+    const out: FxLayer[] = [];
+    sides.forEach(side => {
+        if (side.gap <= 0.5) return;
+        const add = (filter: string, lead: number, solid: number, end: number, tint = 0, grid = 0) => {
+            const box = side.rect(lead, end);
+            let shift = 0;
+            if (grid > 0) {
+                const x = Math.floor(box.x / grid) * grid;
+                const y = Math.floor(box.y / grid) * grid;
+                if (side.direction === 'to right') shift = box.x - x;
+                if (side.direction === 'to bottom') shift = box.y - y;
+                box.w += box.x - x;
+                box.h += box.y - y;
+                box.x = x;
+                box.y = y;
+            }
+            out.push({ ...box, filter, mask: fxMask(side.direction, shift + lead + solid, shift + lead + end), tint });
+        };
+        if (style === 'focus') {
+            const depth = side.span * Math.min(0.08 + 0.22 * s, 0.45);
+            const radius = 6 + 26 * s;
+            const lead = side.gap;
+            add(`blur(${px(radius * 0.22)})`, lead, depth * 0.45, depth);
+            add(`blur(${px(radius * 0.5)})`, lead, depth * 0.15, depth * 0.6);
+            add(`blur(${px(radius)})`, lead, 0, depth * 0.3);
+        } else if (style === 'pixel') {
+            add(`url(#${FX_PIXEL_ID})`, side.gap, 0, side.fade, 0, cell);
+        } else {
+            add(`blur(${px(12 + 44 * s)}) saturate(1.35) brightness(1.12)`, side.gap, 0, side.fade, Math.round((0.04 + 0.08 * s) * 1000) / 1000);
+        }
+    });
+    return out;
+}
+
+function pixelFilterSvg(cell: number): string {
+    const half = cell / 2;
+    return `<svg width="0" height="0" aria-hidden="true" style="position:absolute"><filter id="${FX_PIXEL_ID}" x="0" y="0" width="100%" height="100%" primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood x="${half - 1}" y="${half - 1}" width="2" height="2"/><feComposite width="${cell}" height="${cell}"/><feTile result="grid"/><feComposite in="SourceGraphic" in2="grid" operator="in"/><feMorphology operator="dilate" radius="${half - 1}"/></filter></svg>`;
+}
+
+function applyFx(c: HTMLElement, layers: FxLayer[]): void {
+    let host = Array.from(c.children).find(el => el.classList.contains(FX_HOST_CLASS)) as HTMLElement | undefined;
+    if (!layers.length) {
+        host?.remove();
+        return;
+    }
+    if (!host) {
+        host = document.createElement('div');
+        host.className = FX_HOST_CLASS;
+        host.style.cssText = 'position:absolute;inset:0;overflow:hidden;pointer-events:none;';
+    }
+    if (c.lastElementChild !== host) c.appendChild(host);
+    const target = host;
+    target.innerHTML = layers.some(l => l.filter.startsWith('url(')) ? pixelFilterSvg(pixelCell()) : '';
+    layers.forEach(layer => {
+        const el = document.createElement('div');
+        el.style.cssText = `position:absolute;pointer-events:none;left:${px(layer.x)};top:${px(layer.y)};width:${px(layer.w)};height:${px(layer.h)};`;
+        el.style.setProperty('backdrop-filter', layer.filter);
+        el.style.setProperty('-webkit-mask-image', layer.mask);
+        el.style.setProperty('mask-image', layer.mask);
+        if (layer.tint > 0) el.style.background = `rgba(255, 255, 255, ${layer.tint})`;
+        target.appendChild(el);
+    });
 }
 
 function ambientAvailable(): boolean {
@@ -1401,6 +1514,7 @@ function clearLayout(c: HTMLElement | null, page: HTMLElement | null): void {
     if (c) {
         c.classList.remove(LAYOUT_CLASS);
         LAYOUT_VARS.forEach(v => c.style.removeProperty(v));
+        applyFx(c, []);
     }
     page?.classList.remove(BOXED_CLASS, STAGE_CLASS, AMBIENT_CLASS);
     ytModulePlayer?.setAmbient(null);
@@ -1427,7 +1541,7 @@ function updateLayout(): void {
         ['--st-mv-mask-x', layout.maskX],
         ['--st-mv-mask-y', layout.maskY],
     ];
-    const key = values.map(v => v[1]).join('|') + `|${layout.boxed}|${layout.stage}|${layout.ambient ? JSON.stringify(layout.ambient) : ''}`;
+    const key = values.map(v => v[1]).join('|') + `|${layout.boxed}|${layout.stage}|${layout.ambient ? JSON.stringify(layout.ambient) : ''}|${layout.fx.length ? JSON.stringify(layout.fx) + pixelCell() : ''}`;
     if (key === layoutKey && c.classList.contains(LAYOUT_CLASS)) return;
     layoutKey = key;
     values.forEach(([name, value]) => c.style.setProperty(name, value));
@@ -1436,6 +1550,7 @@ function updateLayout(): void {
     page.classList.toggle(STAGE_CLASS, layout.stage);
     page.classList.toggle(AMBIENT_CLASS, !!layout.ambient);
     ytModulePlayer?.setAmbient(layout.ambient);
+    applyFx(c, layout.fx);
 }
 
 function loadYouTubeAPI(cb: () => void): void {
@@ -2088,7 +2203,7 @@ async function evaluate(): Promise<void> {
         }
         const meta = await fetchVideo(id);
         if (!running || currentTrackId() !== id) return;
-        if (!meta) {
+        if (!meta || !videoPermitted(id)) {
             teardownSource();
             return;
         }
@@ -2258,6 +2373,17 @@ function tick(ts: number): void {
 
     setMediaPlaying(live, ts);
 }
+
+function onListChange(): void {
+    emitAvailability();
+    if (!running) return;
+    if (!evaluating) evaluate();
+    else setTimeout(() => {
+        if (running && !evaluating) evaluate();
+    }, 400);
+}
+
+onVideoListChange(onListChange);
 
 function onSongChange(): void {
     officialForId = null;

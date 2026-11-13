@@ -30,7 +30,9 @@ import {
 import { CoverChoice, CoverSource, currentCoverPalette, coverColorHex, registerCoverConsumer, refreshCoverPalette, rgbToHex } from './coverPalette';
 import { injectThemeStyles } from './themeEngine';
 import { buildVideoQualityPanel } from './videoQualityPanel';
+import { buildVideoListPanel } from './videoListPanel';
 import { setVideoAuto } from './videoMode';
+import { fullscreenHideCursor, setFullscreenHideCursor, fullscreenHideNowBar, setFullscreenHideNowBar, onFullscreenPrefsChange } from './fullscreenTools';
 import { saveBackgroundImage, pruneBackgroundImages, getCachedBackgroundUrl, getBackgroundImageUrl, getBackgroundImageInfo, bgImageSize, bgImageRepeat, bgImagePosition } from './backgroundImage';
 import { getCurrentVersion, getDisplayHash, runManualUpdateCheck, showCurrentChangelog, hasWaitingUpdate, openWaitingUpdate } from './updater';
 import { el, openDialog, openSurfaces, prefersReducedMotion, paintTone, onEscape, CLOSE_SVG, SurfaceHandle, Tone, RegionPlacement, getRegionPlacement, setRegionPlacement } from './surface';
@@ -123,6 +125,8 @@ const EQ_STYLE_OPTIONS = EQ_STYLES.map(s => ({ value: s.id, text: `${s.group} �
 
 const VIDEO_QUALITY_SECTION = 'Video quality';
 const MUSIC_VIDEO_SECTION = 'Music video';
+const VIDEO_LIST_SECTION = 'Video list';
+const FULLSCREEN_SECTION = 'Fullscreen';
 const ANIM_BG_SECTION = 'Animated background';
 
 const ANIM_BG_STYLE_OPTIONS = ANIM_BG_STYLES.map(s => ({ value: s.id, text: s.label, hint: s.description }));
@@ -361,6 +365,13 @@ export const SCHEMA: FieldDef[] = [
 
     { id: 'musicVideoAmbient', label: 'Blur the video into the edges', type: 'toggle', section: 'Video blending', hint: 'Fills the space around a staged or fitted video with a blurred copy of the same video instead of the album background. Needs the built-in 7Tube player; YouTube fallback and MP4 videos keep the album background.', keywords: 'music video ambient blur glow mirror sides edges bars background canvas mv' },
     { id: 'musicVideoAmbientBand', label: 'Blurred sides in fullscreen', type: 'slider', section: 'Video blending', min: 0, max: 30, step: 1, unit: '%', parent: 'musicVideoAmbient', when: (t) => t.musicVideoFullscreenLayout === 'canvas' && t.musicVideoAmbient !== false, hint: 'How much of each side the blurred copy covers in Canvas fullscreen. The video keeps its full height either way, so this only trims the sides. Set it to 0% and the video fills the whole screen; a video shaped differently from your screen still blurs into the space it leaves.', keywords: 'music video blur edges sides ambient canvas fullscreen width band pillarbox full screen mv' },
+    { id: 'musicVideoBlurStyle', label: 'Blur style', type: 'dropdown', section: 'Video blending', options: [
+        { value: 'gaussian', text: 'Gaussian (smooth)' },
+        { value: 'frosted', text: 'Frosted glass' },
+        { value: 'pixel', text: 'Pixelated' },
+        { value: 'focus', text: 'Focus (soft picture edges)' },
+    ], parent: 'musicVideoAmbient', when: (t) => t.musicVideoAmbient !== false, hint: 'The look of the blurred copy around a fitted or staged video. Frosted brightens and softens it, Pixelated turns it into a mosaic, Focus melts the picture’s own edges into the blur. Saved with the theme, and needs the built-in 7Tube player.', keywords: 'music video blur style mode type gaussian frosted glass pixelated pixel mosaic focus progressive tilt shift ambient fit blend edges mv' },
+    { id: 'musicVideoBlurStrength', label: 'Blur style strength', type: 'slider', section: 'Video blending', min: 0, max: 100, step: 5, unit: '%', parent: 'musicVideoBlurStyle', when: (t) => t.musicVideoAmbient !== false && t.musicVideoBlurStyle !== 'gaussian', hint: 'How heavy the frost is, how big the mosaic blocks are, or how far Focus reaches into the picture.', keywords: 'music video blur strength amount size intensity pixel block frost focus depth mv' },
     { id: 'musicVideoBackdrop', label: 'Video backdrop', type: 'dropdown', section: 'Video blending', options: [
         { value: 'solid', text: 'Replace the background' },
         { value: 'blend', text: 'Blend over Spicy Lyrics / image' },
@@ -1400,6 +1411,7 @@ const CZ_SECTIONS: CzSectionDef[] = [
     { name: 'Animated finish', desc: 'Light, grain and softness over the finished frame.' },
     { name: 'Animated performance', desc: 'Turn these down if the background costs you frames.' },
     { name: 'Music video', master: 'musicVideoEnabled' },
+    { name: VIDEO_LIST_SECTION, label: 'Songs that play videos', desc: 'Block single songs or only allow the ones you pick. Stays on this device, not in the theme.' },
     { name: 'Video framing', desc: 'Where the video sits and how it is cropped.' },
     { name: 'Video blending', desc: 'How the video meets whatever is around it.' },
     { name: 'Video quality', desc: 'The resolution the built-in player asks for.' },
@@ -1407,6 +1419,7 @@ const CZ_SECTIONS: CzSectionDef[] = [
     { name: 'Player styling', master: 'playerStylingEnabled' },
     { name: 'Hide controls', desc: 'Take buttons off the player you never press.' },
     { name: 'Equalizer', label: 'Song title equalizer', master: 'eqEnabled' },
+    { name: FULLSCREEN_SECTION, label: 'Fullscreen and cinema view', desc: 'These follow you, not the theme.' },
 
     { name: 'Translated lines', master: 'sltStylingEnabled' },
     { name: 'Translation basics', label: 'Shared look', desc: 'Applies while translations follow the main lyric styling.' },
@@ -1479,6 +1492,7 @@ const CZ_CATEGORIES: CzCategory[] = [
             'Animated finish',
             'Animated performance',
             MUSIC_VIDEO_SECTION,
+            VIDEO_LIST_SECTION,
             'Video framing',
             'Video blending',
             VIDEO_QUALITY_SECTION,
@@ -1489,7 +1503,7 @@ const CZ_CATEGORIES: CzCategory[] = [
         label: 'Player',
         icon: '♪',
         description: 'The Now Playing bar inside the Spicy Lyrics window.',
-        sections: ['Player styling', 'Hide controls', 'Equalizer'],
+        sections: ['Player styling', 'Hide controls', 'Equalizer', FULLSCREEN_SECTION],
     },
     {
         id: 'cz-translation',
@@ -1565,6 +1579,101 @@ function buildVideoAutoRow(): FieldHandle {
     row.append(labelBox, control);
     return { row, def: VIDEO_AUTO_DEF, sync: () => { input.checked = themeState.videoAuto; }, refreshReset: () => {} };
 }
+
+const VIDEO_LIST_DEF: FieldDef = {
+    id: 'musicVideoEnabled',
+    label: 'Songs that play videos',
+    type: 'toggle',
+    section: VIDEO_LIST_SECTION,
+    keywords: 'music video blacklist whitelist blocklist allowlist block allow never play skip disable song list exclude only mv',
+};
+
+interface PrefDef {
+    def: FieldDef;
+    get: () => boolean;
+    set: (value: boolean) => void;
+}
+
+const FULLSCREEN_PREFS: PrefDef[] = [
+    {
+        def: {
+            id: 'musicVideoEnabled',
+            label: 'Hide the cursor when idle',
+            type: 'toggle',
+            section: FULLSCREEN_SECTION,
+            hint: 'In fullscreen and cinema view the pointer disappears after a few seconds without mouse movement and comes back when you move it.',
+            keywords: 'cursor mouse pointer hide idle auto fullscreen cinema view',
+        },
+        get: fullscreenHideCursor,
+        set: setFullscreenHideCursor,
+    },
+    {
+        def: {
+            id: 'musicVideoEnabled',
+            label: 'Hide the Now Playing bar',
+            type: 'toggle',
+            section: FULLSCREEN_SECTION,
+            hint: 'Slides the cover, title and controls away in fullscreen and cinema view so the lyrics get the whole screen. The top buttons show while you move the mouse, and one of them brings the bar back.',
+            keywords: 'nowbar now playing bar cover artwork album hide lyrics only full width screen cinema view fullscreen',
+        },
+        get: fullscreenHideNowBar,
+        set: setFullscreenHideNowBar,
+    },
+];
+
+function buildPrefRow(pref: PrefDef): FieldHandle {
+    const row = document.createElement('div');
+    row.className = 'st-m-field st-m-field-toggle';
+    const labelBox = document.createElement('div');
+    labelBox.className = 'st-m-field-labelbox';
+    const label = document.createElement('label');
+    label.className = 'st-m-field-label';
+    label.textContent = pref.def.label;
+    labelBox.appendChild(label);
+    if (pref.def.hint) {
+        const hint = document.createElement('div');
+        hint.className = 'st-m-field-hint';
+        hint.textContent = pref.def.hint;
+        hint.title = pref.def.hint;
+        labelBox.appendChild(hint);
+    }
+    const control = document.createElement('div');
+    control.className = 'st-m-field-control';
+    const wrap = document.createElement('label');
+    wrap.className = 'st-m-toggle';
+    wrap.innerHTML = '<input type="checkbox"><span class="st-m-toggle-slider"></span>';
+    const input = wrap.querySelector('input') as HTMLInputElement;
+    input.setAttribute('aria-label', pref.def.label);
+    input.checked = pref.get();
+    input.addEventListener('change', () => pref.set(input.checked));
+    control.appendChild(wrap);
+    row.append(labelBox, control);
+    return { row, def: pref.def, sync: () => { input.checked = pref.get(); }, refreshReset: () => {} };
+}
+
+function buildFullscreenSection(): { el: HTMLElement; body: HTMLElement } {
+    const built = buildSectionShell(FULLSCREEN_SECTION, [], null);
+    FULLSCREEN_PREFS.forEach(pref => {
+        const handle = buildPrefRow(pref);
+        czFields.push(handle);
+        built.body.appendChild(handle.row);
+    });
+    return built;
+}
+
+function buildVideoListSection(): { el: HTMLElement; body: HTMLElement } {
+    const panel = buildVideoListPanel();
+    czFields.push({ row: panel.root, def: VIDEO_LIST_DEF, sync: panel.sync, refreshReset: () => {} });
+    const built = buildSectionShell(VIDEO_LIST_SECTION, [], null);
+    built.body.appendChild(panel.root);
+    return built;
+}
+
+onFullscreenPrefsChange(() => {
+    czFields.forEach(f => {
+        if (f.row.isConnected && f.def.section === FULLSCREEN_SECTION) f.sync();
+    });
+});
 
 interface CzSectionHandle {
     el: HTMLElement;
@@ -1749,6 +1858,8 @@ function buildCustomizeTab(): HTMLElement {
     });
 
     sectionEls.set(VIDEO_QUALITY_SECTION, buildVideoQualitySection().el);
+    sectionEls.set(VIDEO_LIST_SECTION, buildVideoListSection().el);
+    sectionEls.set(FULLSCREEN_SECTION, buildFullscreenSection().el);
 
     CZ_CATEGORIES.forEach(cat => {
         const catEl = document.createElement('div');

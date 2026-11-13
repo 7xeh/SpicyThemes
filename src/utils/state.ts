@@ -343,6 +343,8 @@ export interface ThemeConfig {
     musicVideoFullscreenLayout: string;
     musicVideoAmbient: boolean;
     musicVideoAmbientBand: number;
+    musicVideoBlurStyle: string;
+    musicVideoBlurStrength: number;
     musicVideoBlend: number;
     musicVideoPlayerFade: number;
     musicVideoCredit: string;
@@ -589,6 +591,8 @@ export const DEFAULT_THEME: ThemeConfig = {
     musicVideoFullscreenLayout: 'canvas',
     musicVideoAmbient: true,
     musicVideoAmbientBand: 11,
+    musicVideoBlurStyle: 'gaussian',
+    musicVideoBlurStrength: 50,
     musicVideoBlend: 0.5,
     musicVideoPlayerFade: 0,
     musicVideoCredit: 'video',
@@ -1190,6 +1194,7 @@ const CLAMPS: Partial<Record<keyof ThemeConfig, [number, number]>> = {
     musicVideoPlayerFade: [0, 100],
     musicVideoEdgeFeather: [0, 45],
     musicVideoAmbientBand: [0, 30],
+    musicVideoBlurStrength: [0, 100],
     eqSize: [0.4, 2.5],
     eqSpeed: [0.3, 3.0],
 };
@@ -1435,6 +1440,10 @@ function normalizeThemeConfig(config: ThemeConfig): ThemeConfig {
 
     if (!['canvas', 'compact', 'keep'].includes(normalized.musicVideoFullscreenLayout)) {
         normalized.musicVideoFullscreenLayout = 'canvas';
+    }
+
+    if (!['gaussian', 'frosted', 'pixel', 'focus'].includes(normalized.musicVideoBlurStyle)) {
+        normalized.musicVideoBlurStyle = 'gaussian';
     }
 
     if (!['video', 'always', 'off'].includes(normalized.musicVideoCredit)) {

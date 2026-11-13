@@ -3101,6 +3101,65 @@ const BASE_STYLES = `
     text-align: right;
 }
 
+#SpicyLyricsPage.Fullscreen.st-fs-cursor-hidden,
+#SpicyLyricsPage.Fullscreen.st-fs-cursor-hidden * {
+    cursor: none !important;
+}
+#SpicyLyricsPage:not(.Fullscreen) #STNowBarToggle,
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar #NowBarSideToggle {
+    display: none !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar {
+    --LyricsLeftSidePadding: 18cqw !important;
+    --LyricsRightSidePadding: 15.5cqw !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar:not(.SpicyRenderer) {
+    --LyricsLeftSidePadding: 10cqw !important;
+    --LyricsRightSidePadding: 8cqw !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar + .LyricsContainer .LyricsContent .simplebar-content-wrapper .SpicyLyricsScrollContainer,
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar + .LyricsContainer .LyricsSkeleton .SkeletonLines,
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar:not(.SpicyRenderer) .ContentBox .NowBar + .LyricsContainer .LyricsContent {
+    padding-left: var(--LyricsLeftSidePadding) !important;
+    padding-right: var(--LyricsRightSidePadding) !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar + .LyricsContainer .loaderContainer {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar:not(.RightSide) {
+    left: var(--unactive-spacing) !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar.RightSide {
+    left: calc(100cqw - var(--unactive-spacing)) !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox > .CanvasStage {
+    opacity: 0 !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar .CenteredView .Header .MediaBox .MediaContent {
+    opacity: 1 !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar .CenteredView .Header .MediaBox .MediaContent .ViewControls {
+    position: fixed !important;
+    top: max(20px, 2.6vh) !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: auto !important;
+    height: clamp(38px, 5vh, 60px) !important;
+    container-type: size !important;
+    --ViewControlSize: 100cqh !important;
+    translate: none !important;
+    opacity: 0.7 !important;
+    transition: opacity 0.3s !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar .CenteredView .Header .MediaBox .MediaContent .ViewControls:hover {
+    opacity: 1 !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar.st-fs-idle .ContentBox .NowBar .CenteredView .Header .MediaBox .MediaContent .ViewControls {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
 .spicy-themes-settings {
     position: relative;
     z-index: 1;
@@ -4903,6 +4962,55 @@ const BASE_STYLES = `
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+}
+.st-modal-root .st-m-vl .st-m-vq-row > .st-m-select {
+    min-width: 230px;
+}
+.st-modal-root .st-m-vl-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-height: 212px;
+    overflow-y: auto;
+    padding: 0 0 8px;
+}
+.st-modal-root .st-m-vl-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 6px 5px 10px;
+    border-radius: var(--st-radius-sm);
+    background: rgba(255, 255, 255, 0.035);
+}
+.st-modal-root .st-m-vl-name {
+    min-width: 0;
+    font-size: 12.5px;
+    color: var(--st-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.st-modal-root .st-m-vl-artist {
+    color: var(--st-text-dim);
+}
+.st-modal-root .st-m-vl-remove {
+    flex: 0 0 auto;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--st-border);
+    background: transparent;
+    color: var(--st-text-dim);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.st-modal-root .st-m-vl-remove:hover,
+.st-modal-root .st-m-vl-remove:focus-visible {
+    color: #f08272;
+    border-color: rgba(231, 76, 60, 0.4);
+    background: rgba(231, 76, 60, 0.12);
 }
 .st-modal-root .st-m-vq-row > .st-m-select {
     width: auto;
