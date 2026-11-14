@@ -110,7 +110,6 @@ const run = async () => {
         bundle: true,
         outfile: OUT_FILE,
         format: 'iife',
-        globalName: 'SpicyThemes',
         platform: 'browser',
         target: 'es2020',
         minify: false,

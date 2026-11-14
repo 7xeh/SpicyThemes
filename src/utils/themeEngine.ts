@@ -1331,6 +1331,48 @@ ${highlightSilhouetteTargets} {
 `);
     }
 
+    const flat = config.disableHighlight ? config.highlightColor : '';
+    const BLOOM_LINE = '#SpicyLyricsPage.SpicyRenderer.BloomRenderer .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer[data-lyrics-type="Line"]';
+    lyrics.push(`
+${BLOOM_LINE} .line.Active:not(.musical-line) {
+    ${flat ? colorRule(flat) : activeGrad}
+    ${bgGlowDecl || 'text-shadow: none !important;'}
+}
+${BLOOM_LINE} .line.Sung:not(.musical-line) {
+    ${flat ? colorRule(flat) : sungGrad}
+    ${silhouetteRule(flat || config.sungLineColor, flat ? '--gradient-alpha-end' : '--gradient-alpha', flat ? 0.35 : 0.85)}
+}
+${BLOOM_LINE} .line.NotSung:not(.musical-line) {
+    ${flat ? colorRule(flat) : notSungGrad}
+    ${silhouetteRule(flat || config.notSungLineColor, '--gradient-alpha-end', 0.35)}
+}
+`);
+
+    const romanLitColor = flat || (config.gradientEnabled ? config.gradientStartColor : config.activeLineColor);
+    const romanActive = hexToRgb(romanLitColor);
+    const romanAhead = hexToRgb(flat || (config.gradientEnabled ? config.gradientEndColor : config.activeLineColor));
+    const romanRow = (state: string, color: string) => {
+        const rgb = hexToRgb(color);
+        return `${ALL.map(base => `${base} .line.${state} .RomanizedRow`).join(',\n')} {
+    text-shadow: 0 0 var(--BlurAmount, 0) rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, var(--RomanizedAlpha, 1)) !important;
+}`;
+    };
+    lyrics.push(`
+${romanRow('Active', romanLitColor)}
+${romanRow('Sung', flat || config.sungLineColor)}
+${romanRow('NotSung', flat || config.notSungLineColor)}
+${ALL.map(b => `${b} .line.Active .RomanizedRow.Timed`).join(',\n')} {
+    text-shadow: none !important;
+}
+${ALL.map(b => `${b} .line.Active .RomanizedRow.Timed .RomanizedPiece`).join(',\n')} {
+    background-image: linear-gradient(
+        to right,
+        rgba(${romanActive.r}, ${romanActive.g}, ${romanActive.b}, var(--gradient-alpha, 1)) var(--RomanizedPosition, -20%),
+        rgba(${romanAhead.r}, ${romanAhead.g}, ${romanAhead.b}, var(--gradient-alpha-end, 0.5)) calc(var(--RomanizedPosition, -20%) + 20%)
+    ) !important;
+}
+`);
+
     if (config.pageBgOverlay) {
         css.push(`
 #SpicyLyricsPage:not(.CardMode):not(.CompactMode) .LyricsContainer::before,
@@ -2439,6 +2481,24 @@ ${styleRule('helix', '', (b, i) => `--st-eq-amp: var(--st-eq-b${b}); animation-d
 }
 `);
 
+    css.push(`
+#SpicyLyricsPage .TimelineCredits :is(.${THEME_CREDIT_CLASS}, .${VIDEO_CREDIT_CLASS}) {
+    display: flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+    font-size: 1em !important;
+    font-weight: inherit !important;
+    white-space: nowrap !important;
+    color: inherit !important;
+    opacity: 1 !important;
+}
+#SpicyLyricsPage .TimelineCredits :is(.${THEME_CREDIT_CLASS}, .${VIDEO_CREDIT_CLASS})::before {
+    content: "\\00b7";
+    margin-inline: 0.45em;
+}
+`);
+
     return css.join('\n');
 }
 
@@ -3097,7 +3157,8 @@ const BASE_STYLES = `
 #SpicyLyricsPage .${VIDEO_CREDIT_LINK_CLASS}:focus-visible {
     text-decoration-color: currentColor;
 }
-#SpicyLyricsPage.CreditsFollowLastLine .EndsOnOppositeLine > .SongCredits :is(.${THEME_CREDIT_CLASS}, .${VIDEO_CREDIT_CLASS}) {
+#SpicyLyricsPage.CreditsFollowLastLine .EndsOnOppositeLine > .SongCredits :is(.${THEME_CREDIT_CLASS}, .${VIDEO_CREDIT_CLASS}),
+#SpicyLyricsPage.CreditsFollowLastLine .LyricsPinnedCredits.EndsOnOppositeLine .SongCredits :is(.${THEME_CREDIT_CLASS}, .${VIDEO_CREDIT_CLASS}) {
     text-align: right;
 }
 
@@ -3139,18 +3200,55 @@ const BASE_STYLES = `
 #SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar .CenteredView .Header .MediaBox .MediaContent {
     opacity: 1 !important;
 }
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar,
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar .CenteredView,
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar .CenteredView .Header,
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar .CenteredView .Header .MediaBox,
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar .CenteredView .Header .MediaBox .MediaContent {
+    translate: none !important;
+    transform: none !important;
+    rotate: none !important;
+    scale: none !important;
+    filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    perspective: none !important;
+    contain: none !important;
+    will-change: auto !important;
+}
 #SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar .CenteredView .Header .MediaBox .MediaContent .ViewControls {
     position: fixed !important;
     top: max(20px, 2.6vh) !important;
     left: 0 !important;
     right: 0 !important;
+    bottom: auto !important;
     width: auto !important;
     height: clamp(38px, 5vh, 60px) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex-direction: row !important;
+    justify-content: center !important;
     container-type: size !important;
     --ViewControlSize: 100cqh !important;
     translate: none !important;
     opacity: 0.7 !important;
     transition: opacity 0.3s !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar.Exp_GroupedViewControls .ContentBox .NowBar .CenteredView .Header .MediaBox .MediaContent .ViewControls {
+    --ViewControlSize: clamp(38px, 5vh, 60px) !important;
+    --VCPad: calc(var(--ViewControlSize) * 0.11) !important;
+    width: fit-content !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    padding: var(--VCPad) !important;
+    gap: calc(var(--ViewControlSize) * 0.2) !important;
+    container-type: normal !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar.Exp_PlayerBelowCover .ContentBox .NowBar .CenteredView .Header .MediaBox .MediaContent .ViewControls::before {
+    content: none !important;
+}
+#SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar.Exp_PlayerBelowCover .ContentBox .NowBar .CenteredView .Header .MediaBox .MediaContent .ViewControls .ViewControl {
+    opacity: 1 !important;
 }
 #SpicyLyricsPage#SpicyLyricsPage.st-fs-nobar .ContentBox .NowBar .CenteredView .Header .MediaBox .MediaContent .ViewControls:hover {
     opacity: 1 !important;

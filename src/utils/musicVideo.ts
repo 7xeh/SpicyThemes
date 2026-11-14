@@ -922,7 +922,7 @@ function spotifyHasOwnVideo(): boolean {
         if (!scope) continue;
         const vids = scope.querySelectorAll('video');
         for (const vid of Array.from(vids) as HTMLVideoElement[]) {
-            if (vid.closest(`#${CONTAINER_ID}`) || vid.closest('.CanvasStage, .CanvasAmbient')) continue;
+            if (vid.closest(`#${CONTAINER_ID}`) || vid.closest('.CanvasStage, .CanvasAmbient') || vid.classList.contains('AnimatedArtwork')) continue;
             const src = vid.currentSrc || vid.src || vid.querySelector('source')?.getAttribute('src') || '';
             if (src && !vid.ended && vid.readyState > 0) return true;
         }

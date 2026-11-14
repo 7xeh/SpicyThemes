@@ -51,7 +51,7 @@ Full settings list: [docs/settings.md](docs/settings.md)
 
 No further setup needed — it ships with sensible defaults and 8 presets.
 
-Requires Spicetify `>= 2.45.3` and the Spicy Lyrics extension (tested through `6.3.142` on Spotify `1.3.3`). For loader script or Windows installer instructions, see [docs/installation.md](docs/installation.md).
+Requires Spicetify `>= 2.45.3` and the Spicy Lyrics extension (tested through `6.5.10`). For loader script or Windows installer instructions, see [docs/installation.md](docs/installation.md).
 
 Then: play a track with lyrics, open the lyrics view, and click the **palette button** to toggle theming. Right-click it for the settings modal. → [Getting Started](docs/getting-started.md)
 
