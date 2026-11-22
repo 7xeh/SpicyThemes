@@ -86,9 +86,7 @@ export async function initialize(): Promise<void> {
                 onSpicyLyricsClose();
             }
 
-            if (isOpen && !document.getElementById('ThemeToggle')) {
-                createThemeButton();
-            }
+            if (isOpen) createThemeButton();
             if (isOpen) refreshFullscreenTools();
 
             const pageElement = document.querySelector('#SpicyLyricsPage');
@@ -120,10 +118,10 @@ export async function initialize(): Promise<void> {
     }
 
     try {
-        if ((window as any).documentPictureInPicture) {
-            (window as any).documentPictureInPicture.addEventListener('enter', () => {
-                setTimeout(injectIntoPiP, 500);
-            });
+        const pip = (window as any).documentPictureInPicture;
+        if (pip) {
+            pip.addEventListener('enter', () => injectIntoPiP());
+            if (pip.window) injectIntoPiP();
         }
     } catch (e) {
     }

@@ -5,9 +5,9 @@
 ## Requirements
 
 - Spotify Desktop, within the range Spicetify supports:
-  - Windows / macOS: `1.2.14` – `1.3.1`
-  - Linux: `1.2.14` – `1.2.96`
-- Spicetify `>= 2.45.3` — required on Spotify `1.3.x`. Spotify `1.3.3` needs at least `2.45.2`: older builds crash the profile menu (it opens empty), and builds before `2.45.1` drop the **ST Settings** entry and break popup modal sizing. Run `spicetify update` if you're behind.
+  - Windows / macOS: `1.2.14` – `1.3.9`
+  - Linux: `1.2.14` – `1.3.8`
+- Spicetify `>= 2.46.7`. `2.46.5` added the missing Spotify `1.3.0` – `1.3.9` css-map classes and restored extension items in now-playing context menus. Spotify `1.3.3` needs at least `2.45.2`: older builds crash the profile menu (it opens empty), and builds before `2.45.1` drop the **ST Settings** entry and break popup modal sizing. Run `spicetify update` if you're behind.
 - The [Spicy Lyrics](https://github.com/Spikerko/spicy-lyrics) extension, installed and working (tested through `6.5.10`)
 - An internet connection for the Marketplace, Theme Creator, and update checks (everything else works offline)
 

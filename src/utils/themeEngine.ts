@@ -3271,7 +3271,7 @@ const BASE_STYLES = `
     padding: 0 16px 24px;
 }
 
-.spicy-themes-settings .x-settings-section {
+.spicy-themes-settings.x-settings-section {
     width: 100%;
 }
 

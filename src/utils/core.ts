@@ -137,21 +137,100 @@ function openVariantMenu(button: HTMLElement): void {
     openMenu(button, items, variantMenuHost);
 }
 
+const VIEW_CONTROLS = '#SpicyLyricsPage:not(.CardMode) .ViewControls';
+const PLACE_AFTER = ['#LearningToggle', '#TranslateToggle'];
+const PLACE_BEFORE = ['#SettingsToggle', '#Close'];
+
+let variantButton: HTMLElement | null = null;
+let pipWatched: Document | null = null;
+
+function retireButton(button: HTMLElement): void {
+    try {
+        (button as any)._tippy?.destroy();
+    } catch (e) {}
+    button.remove();
+}
+
+function directChild(parent: Element, node: Element | null): Element | null {
+    let current = node;
+    while (current && current.parentElement !== parent) current = current.parentElement;
+    return current;
+}
+
+function placeInViewControls(controls: Element, button: HTMLElement): void {
+    for (const selector of PLACE_AFTER) {
+        const anchor = directChild(controls, controls.querySelector(selector));
+        if (anchor) {
+            anchor.after(button);
+            return;
+        }
+    }
+    for (const selector of PLACE_BEFORE) {
+        const anchor = directChild(controls, controls.querySelector(selector));
+        if (anchor) {
+            anchor.before(button);
+            return;
+        }
+    }
+    controls.append(button);
+}
+
+function buildThemeButton(doc: Document): HTMLElement {
+    const button = doc.createElement('button');
+    button.id = 'ThemeToggle';
+    button.className = 'ViewControl';
+    if (doc === document && typeof Spicetify !== 'undefined' && Spicetify.Tippy) {
+        Spicetify.Tippy(button, { ...Spicetify.TippyProps, content: modeTooltip() });
+    }
+    paintModeButton(button);
+    button.addEventListener('click', applyModeClick);
+    button.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openSettingsModal();
+        return false;
+    });
+    return button;
+}
+
+function ensureThemeButton(doc: Document): HTMLElement | null {
+    const controls = doc.querySelector(VIEW_CONTROLS);
+    const all = Array.from(doc.querySelectorAll<HTMLElement>('#ThemeToggle'));
+    const keep = controls ? all.find(button => controls.contains(button)) || null : null;
+    all.filter(button => button !== keep).forEach(retireButton);
+    if (!controls) return null;
+    if (keep) {
+        if (doc !== document && (keep as any)._tippy) (keep as any)._tippy.destroy();
+        return keep;
+    }
+    const button = buildThemeButton(doc);
+    placeInViewControls(controls, button);
+    return button;
+}
+
 export function syncVariantButton(): void {
+    if (variantButton && !variantButton.isConnected) {
+        retireButton(variantButton);
+        variantButton = null;
+    }
     const existing = document.getElementById(VARIANT_BUTTON_ID);
     const showing = themeState.isEnabled && videoShowing();
     const wanted = showing || (themeState.isEnabled && currentVideoHeldBack());
     if (!wanted) {
-        existing?.remove();
+        if (existing) retireButton(existing);
+        variantButton = null;
         return;
     }
     const tip = variantTooltip(showing ? currentVideoVariants() : []);
+    const toggle = document.querySelector(`${VIEW_CONTROLS} #ThemeToggle`);
     if (existing) {
-        existing.setAttribute('aria-label', tip);
-        (existing as any)._tippy?.setContent(tip);
+        if (existing.getAttribute('aria-label') !== tip) {
+            existing.setAttribute('aria-label', tip);
+            (existing as any)._tippy?.setContent(tip);
+        }
+        if (toggle && existing.previousElementSibling !== toggle) toggle.after(existing);
         return;
     }
-    const toggle = document.querySelector('#SpicyLyricsPage:not(.CardMode) .ViewControls #ThemeToggle');
     if (!toggle) return;
     const button = document.createElement('button');
     button.id = VARIANT_BUTTON_ID;
@@ -167,6 +246,7 @@ export function syncVariantButton(): void {
         openVariantMenu(button);
     });
     toggle.after(button);
+    variantButton = button;
 }
 
 onVideoVariantsChange(syncVariantButton);
@@ -187,67 +267,20 @@ export function isSpicyLyricsOpen(): boolean {
 }
 
 export function createThemeButton(): void {
-    if (themeButton && !document.body.contains(themeButton)) {
-        themeButton = null;
-    }
-    if (themeButton) {
-        syncVariantButton();
-        return;
-    }
-
-    if (document.getElementById('ThemeToggle')) return;
-
-    const viewControls = document.querySelector('#SpicyLyricsPage:not(.CardMode) .ViewControls');
-    if (!viewControls) {
-        return;
-    }
-
-    const button = document.createElement('button');
-    button.id = 'ThemeToggle';
-    button.className = 'ViewControl';
-
-    if (typeof Spicetify !== 'undefined' && Spicetify.Tippy) {
-        Spicetify.Tippy(button, {
-            ...Spicetify.TippyProps,
-            content: modeTooltip()
-        });
-    }
-
-    paintModeButton(button);
-
-    button.addEventListener('click', applyModeClick);
-
-    button.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openSettingsModal();
-        return false;
-    });
-
-    const learningToggle = viewControls.querySelector('#LearningToggle');
-    const translateToggle = viewControls.querySelector('#TranslateToggle');
-    const romanizationToggle = viewControls.querySelector('#RomanizationToggle');
-    if (learningToggle) {
-        learningToggle.after(button);
-    } else if (translateToggle) {
-        translateToggle.after(button);
-    } else if (romanizationToggle) {
-        romanizationToggle.after(button);
-    } else {
-        viewControls.appendChild(button);
-    }
-
+    if (themeButton && !themeButton.isConnected) retireButton(themeButton);
+    const button = ensureThemeButton(document);
+    const created = button !== themeButton;
     themeButton = button;
-    syncVariantButton();
+    if (created || !document.getElementById(VARIANT_BUTTON_ID) || (variantButton && !variantButton.isConnected)) {
+        syncVariantButton();
+    }
 }
 
 export function removeThemeButton(): void {
-    if (themeButton) {
-        themeButton.remove();
-        themeButton = null;
-    }
-    document.getElementById('ThemeToggle')?.remove();
-    document.getElementById(VARIANT_BUTTON_ID)?.remove();
+    if (themeButton) retireButton(themeButton);
+    themeButton = null;
+    document.querySelectorAll<HTMLElement>(`#ThemeToggle, #${VARIANT_BUTTON_ID}`).forEach(retireButton);
+    variantButton = null;
 }
 
 export function onSpicyLyricsOpen(): void {
@@ -269,34 +302,36 @@ export function onSpicyLyricsClose(): void {
 }
 
 export function injectIntoPiP(): void {
+    let pipWindow: Window | null = null;
     try {
-        const pipWindow = (window as any).documentPictureInPicture?.window;
-        if (!pipWindow) return;
+        pipWindow = (window as any).documentPictureInPicture?.window || null;
+    } catch (e) {}
+    if (!pipWindow) return;
 
-        const pipDoc = pipWindow.document;
-        const pipViewControls = pipDoc.querySelector('#SpicyLyricsPage .ViewControls');
-        if (!pipViewControls || pipDoc.getElementById('ThemeToggle')) return;
+    const pipDoc = pipWindow.document;
+    const sync = () => {
+        try {
+            const button = ensureThemeButton(pipDoc);
+            if (button) paintModeButton(button);
+        } catch (e) {}
+    };
+    sync();
+    if (themeState.isEnabled) injectThemeStyles();
+    if (pipWatched === pipDoc) return;
 
-        const button = pipDoc.createElement('button') as HTMLElement;
-        button.id = 'ThemeToggle';
-        button.className = 'ViewControl';
-        paintModeButton(button);
-
-        button.addEventListener('click', applyModeClick);
-
-        button.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            openSettingsModal();
-            return false;
-        });
-
-        const pipClose = pipViewControls.querySelector('#Close');
-        if (pipClose) pipClose.before(button);
-        else pipViewControls.appendChild(button);
-        if (themeState.isEnabled) {
-            injectThemeStyles();
-        }
-    } catch (e) {
-    }
+    pipWatched = pipDoc;
+    let queued: ReturnType<typeof setTimeout> | null = null;
+    const observer = new MutationObserver(() => {
+        if (queued) return;
+        queued = setTimeout(() => {
+            queued = null;
+            sync();
+        }, 50);
+    });
+    observer.observe(pipDoc.documentElement, { childList: true, subtree: true });
+    pipWindow.addEventListener('pagehide', () => {
+        observer.disconnect();
+        if (queued) clearTimeout(queued);
+        if (pipWatched === pipDoc) pipWatched = null;
+    }, { once: true });
 }
